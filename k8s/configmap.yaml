@@ -1,0 +1,30 @@
+# =============================================================================
+# Screenshot API - ConfigMap
+# =============================================================================
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: screenshot-api-config
+  namespace: screenshot-api
+data:
+  APP_ENV: "production"
+  DEBUG: "false"
+  API_HOST: "0.0.0.0"
+  API_PORT: "8000"
+  LOG_LEVEL: "INFO"
+  CORS_ORIGINS: "https://your-domain.com"
+  
+  # Queue Settings
+  CELERY_TASK_DEFAULT_QUEUE: "default"
+  CELERY_TASK_TIME_LIMIT: "300"
+  CELERY_TASK_SOFT_TIME_LIMIT: "270"
+  
+  # Rendering Settings
+  RENDER_TIMEOUT: "30"
+  MAX_CONCURRENT_RENDERS: "10"
+  
+  # Storage Settings
+  AWS_REGION: "us-east-1"
+  S3_URL_EXPIRATION: "3600"
+

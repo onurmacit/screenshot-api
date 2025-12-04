@@ -1,0 +1,112 @@
+# =============================================================================
+# Screenshot API - Docker Compose (Testing)
+# =============================================================================
+# Usage: docker-compose -f docker-compose.test.yml up --abort-on-container-exit
+
+services:
+  # ===========================================================================
+  # Test Runner
+  # ===========================================================================
+  test:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.api
+    container_name: screenshot-test
+    command: pytest -v --cov=app --cov-report=xml --cov-report=term-missing
+    environment:
+      - APP_ENV=test
+      - DEBUG=true
+      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres-test:5432/screenshot_api_test
+      - REDIS_URL=redis://redis-test:6379/0
+      - CELERY_BROKER_URL=redis://redis-test:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis-test:6379/1
+      - AWS_S3_ENDPOINT_URL=http://minio-test:9000
+      - AWS_ACCESS_KEY_ID=minioadmin
+      - AWS_SECRET_ACCESS_KEY=minioadmin
+      - AWS_S3_BUCKET=screenshot-api-test
+      - TESTING=true
+    volumes:
+      - ../app:/app/app
+      - ../tests:/app/tests
+      - ../pytest.ini:/app/pytest.ini
+      - test_coverage:/app/coverage
+    depends_on:
+      postgres-test:
+        condition: service_healthy
+      redis-test:
+        condition: service_healthy
+      minio-test:
+        condition: service_healthy
+    networks:
+      - test-network
+
+  # ===========================================================================
+  # PostgreSQL (Test)
+  # ===========================================================================
+  postgres-test:
+    image: postgres:15-alpine
+    container_name: screenshot-postgres-test
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=screenshot_api_test
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 2s
+      timeout: 5s
+      retries: 5
+    networks:
+      - test-network
+
+  # ===========================================================================
+  # Redis (Test)
+  # ===========================================================================
+  redis-test:
+    image: redis:7-alpine
+    container_name: screenshot-redis-test
+    command: redis-server --appendonly no
+    tmpfs:
+      - /data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 5s
+      retries: 5
+    networks:
+      - test-network
+
+  # ===========================================================================
+  # MinIO (Test)
+  # ===========================================================================
+  minio-test:
+    image: minio/minio:latest
+    container_name: screenshot-minio-test
+    command: server /data --console-address ":9001"
+    environment:
+      - MINIO_ROOT_USER=minioadmin
+      - MINIO_ROOT_PASSWORD=minioadmin
+    tmpfs:
+      - /data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 5s
+      timeout: 5s
+      retries: 3
+    networks:
+      - test-network
+
+# =============================================================================
+# Networks
+# =============================================================================
+networks:
+  test-network:
+    driver: bridge
+
+# =============================================================================
+# Volumes
+# =============================================================================
+volumes:
+  test_coverage:
+

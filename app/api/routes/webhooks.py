@@ -1,24 +1,110 @@
 """
 Webhook management endpoints
+
+Includes HMAC signature validation for secure webhook verification.
 """
 
+import hashlib
+import hmac
+import secrets
+from typing import Optional
 from uuid import UUID
 
-from fastapi import APIRouter, status
+from fastapi import APIRouter, Header, HTTPException, Request, status
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import DBSession, JWTUser
+from app.core.config import settings
+from app.models import Webhook
 from app.schemas.webhook import (
     WebhookCreate,
     WebhookResponse,
     WebhooksListResponse,
     WebhookUpdate,
+    WebhookSecretResponse,
+    WebhookVerifyRequest,
+    WebhookVerifyResponse,
 )
 from app.services.webhook_service import WebhookEvents, WebhookService
 from app.utils.exceptions import NotFoundError
+from app.utils.logger import get_logger
 
 router = APIRouter()
+logger = get_logger(__name__)
 
+
+# =============================================================================
+# Webhook Signature Verification Helpers
+# =============================================================================
+
+def generate_webhook_signature(payload: str, secret: str) -> str:
+    """
+    Generate HMAC-SHA256 signature for webhook payload.
+    
+    Args:
+        payload: JSON payload string
+        secret: Webhook secret key
+        
+    Returns:
+        Hex-encoded HMAC signature prefixed with 'sha256='
+    """
+    signature = hmac.new(
+        secret.encode("utf-8"),
+        payload.encode("utf-8"),
+        hashlib.sha256
+    ).hexdigest()
+    return f"sha256={signature}"
+
+
+def verify_webhook_signature(
+    payload: str,
+    signature: str,
+    secret: str,
+    tolerance_seconds: int = 300,
+) -> bool:
+    """
+    Verify HMAC-SHA256 signature of webhook payload.
+    
+    Args:
+        payload: JSON payload string
+        signature: Received signature (with or without 'sha256=' prefix)
+        secret: Webhook secret key
+        tolerance_seconds: Maximum age of webhook in seconds (default 5 minutes)
+        
+    Returns:
+        True if signature is valid
+    """
+    # Remove prefix if present
+    if signature.startswith("sha256="):
+        received_sig = signature[7:]
+    else:
+        received_sig = signature
+    
+    # Calculate expected signature
+    expected_sig = hmac.new(
+        secret.encode("utf-8"),
+        payload.encode("utf-8"),
+        hashlib.sha256
+    ).hexdigest()
+    
+    # Use constant-time comparison to prevent timing attacks
+    return hmac.compare_digest(expected_sig, received_sig)
+
+
+def generate_webhook_secret() -> str:
+    """
+    Generate a secure random webhook secret.
+    
+    Returns:
+        64-character hex string prefixed with 'whsec_'
+    """
+    return f"whsec_{secrets.token_hex(32)}"
+
+
+# =============================================================================
+# Webhook Management Endpoints
+# =============================================================================
 
 @router.post(
     "",
@@ -37,11 +123,14 @@ async def create_webhook(
 
     **Requires JWT authentication.**
 
-    - **url**: Webhook endpoint URL (HTTPS only)
+    - **url**: Webhook endpoint URL (HTTPS only in production)
     - **events**: Events to subscribe to
     - **is_active**: Whether webhook is active
 
     Returns the webhook with its secret for signature verification.
+    
+    **Important**: Save the secret securely! It is only shown once on creation.
+    Use it to verify webhook signatures on your server.
     """
     webhook_service = WebhookService(db)
 
@@ -50,6 +139,8 @@ async def create_webhook(
         url=request.url,
         events=request.events,
     )
+    
+    await db.commit()
 
     return WebhookResponse(
         webhook_id=webhook.id,
@@ -181,6 +272,8 @@ async def update_webhook(
             resource_type="webhook",
             resource_id=str(webhook_id),
         )
+    
+    await db.commit()
 
     return WebhookResponse(
         webhook_id=webhook.id,
@@ -225,6 +318,100 @@ async def delete_webhook(
             resource_type="webhook",
             resource_id=str(webhook_id),
         )
+    
+    await db.commit()
+
+
+@router.post(
+    "/{webhook_id}/rotate-secret",
+    response_model=WebhookSecretResponse,
+    summary="Rotate webhook secret",
+    description="Generate a new secret for a webhook.",
+)
+async def rotate_webhook_secret(
+    webhook_id: UUID,
+    current_user: JWTUser,
+    db: DBSession,
+) -> WebhookSecretResponse:
+    """
+    Rotate (regenerate) the webhook secret.
+    
+    **Requires JWT authentication.**
+    
+    This will invalidate the old secret immediately.
+    Make sure to update your webhook receiver with the new secret.
+    
+    - **webhook_id**: UUID of the webhook
+    
+    Returns the new secret. Save it securely - it won't be shown again!
+    """
+    # Get webhook
+    result = await db.execute(
+        select(Webhook).where(
+            Webhook.id == webhook_id,
+            Webhook.user_id == current_user.user_id,
+        )
+    )
+    webhook = result.scalar_one_or_none()
+    
+    if not webhook:
+        raise NotFoundError(
+            "Webhook not found",
+            resource_type="webhook",
+            resource_id=str(webhook_id),
+        )
+    
+    # Generate new secret
+    new_secret = generate_webhook_secret()
+    webhook.secret = new_secret
+    webhook.failure_count = 0  # Reset failure count on secret rotation
+    
+    await db.commit()
+    
+    logger.info(
+        "Webhook secret rotated",
+        webhook_id=str(webhook_id),
+        user_id=str(current_user.user_id),
+    )
+    
+    return WebhookSecretResponse(
+        webhook_id=webhook.id,
+        secret=new_secret,
+    )
+
+
+@router.post(
+    "/verify-signature",
+    response_model=WebhookVerifyResponse,
+    summary="Verify webhook signature",
+    description="Test webhook signature verification.",
+)
+async def verify_signature(
+    request: WebhookVerifyRequest,
+) -> WebhookVerifyResponse:
+    """
+    Verify a webhook signature.
+    
+    **No authentication required.**
+    
+    Use this endpoint to test your signature verification logic.
+    
+    - **payload**: The raw payload string
+    - **signature**: The signature from X-Webhook-Signature header
+    - **secret**: Your webhook secret
+    
+    Returns whether the signature is valid.
+    """
+    is_valid = verify_webhook_signature(
+        payload=request.payload,
+        signature=request.signature,
+        secret=request.secret,
+    )
+    
+    return WebhookVerifyResponse(
+        valid=is_valid,
+        message="Signature is valid" if is_valid else "Signature is invalid",
+    )
 
 
 @router.get(

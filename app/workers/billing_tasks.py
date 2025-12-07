@@ -2,23 +2,22 @@
 Billing Tasks
 
 Celery tasks for Stripe synchronization and billing operations.
+Uses sync Celery tasks with asyncio.run for async operations.
 """
 
-import asyncio
 from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID
 
 import stripe
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.database import AsyncSessionLocal
 from app.models import Plan, User
 from app.services.rate_limit_service import RATE_LIMITS, rate_limit_service
 from app.utils.logger import get_logger
-from app.workers.celery_app import celery_app
+from app.workers.celery_app import celery_app, run_async
 
 logger = get_logger(__name__)
 
@@ -26,17 +25,13 @@ logger = get_logger(__name__)
 stripe.api_key = settings.STRIPE_SECRET_KEY
 
 
-def run_async(coro):
-    """Run async function in sync context."""
-    loop = asyncio.new_event_loop()
-    try:
-        return loop.run_until_complete(coro)
-    finally:
-        loop.close()
-
-
 @celery_app.task(
     name="app.workers.billing_tasks.sync_stripe_subscriptions",
+    max_retries=3,
+    default_retry_delay=60,
+    autoretry_for=(stripe.StripeError, ConnectionError),
+    retry_backoff=True,
+    retry_backoff_max=300,
 )
 def sync_stripe_subscriptions() -> dict[str, Any]:
     """
@@ -121,6 +116,8 @@ async def _sync_stripe_subscriptions_async() -> dict[str, Any]:
 
 @celery_app.task(
     name="app.workers.billing_tasks.check_usage_limits",
+    max_retries=2,
+    default_retry_delay=30,
 )
 def check_usage_limits() -> dict[str, Any]:
     """
@@ -142,7 +139,6 @@ async def _check_usage_limits_async() -> dict[str, Any]:
         result = await db.execute(
             select(User)
             .where(User.is_active == True)
-            .options()
         )
         users = result.scalars().all()
 
@@ -236,6 +232,10 @@ async def _check_usage_limits_async() -> dict[str, Any]:
 
 @celery_app.task(
     name="app.workers.billing_tasks.process_overage_billing",
+    max_retries=3,
+    default_retry_delay=60,
+    autoretry_for=(stripe.StripeError, ConnectionError),
+    retry_backoff=True,
 )
 def process_overage_billing(user_id: str) -> dict[str, Any]:
     """
@@ -320,11 +320,13 @@ async def _process_overage_billing_async(user_id: str) -> dict[str, Any]:
                 user_id=user_id,
                 error=str(e),
             )
-            return {"error": str(e)}
+            raise  # Re-raise for retry
 
 
 @celery_app.task(
     name="app.workers.billing_tasks.retry_failed_payments",
+    max_retries=2,
+    default_retry_delay=60,
 )
 def retry_failed_payments() -> dict[str, Any]:
     """
@@ -349,6 +351,7 @@ def retry_failed_payments() -> dict[str, Any]:
                 # Attempt to pay
                 invoice.pay()
                 retried += 1
+                logger.info("Invoice payment retried", invoice_id=invoice.id)
             except stripe.StripeError as e:
                 logger.warning(
                     "Failed to retry invoice",
@@ -371,4 +374,3 @@ def retry_failed_payments() -> dict[str, Any]:
     except stripe.StripeError as e:
         logger.error("Failed to list invoices", error=str(e))
         return {"error": str(e)}
-

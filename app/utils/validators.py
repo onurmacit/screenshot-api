@@ -128,7 +128,7 @@ def is_valid_url(
         return False
 
 
-def validate_url(url: str, allow_localhost: bool = False) -> tuple[bool, str | None]:
+def validate_url(url: str, allow_localhost: bool = False) -> tuple[bool, Optional[str]]:
     """
     Validate a URL and return validation result with error message.
     

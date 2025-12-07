@@ -1,25 +1,27 @@
 """
 Webhook Tasks
 
-Celery tasks for webhook delivery with retry logic.
+Celery tasks for webhook delivery with retry logic and HMAC signature validation.
+Uses sync Celery tasks with asyncio.run for async operations.
 """
 
-import asyncio
+import hashlib
+import hmac
+import json
+import secrets
 from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID
 
 import httpx
-from celery import shared_task
-from celery.exceptions import MaxRetriesExceededError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.core.database import AsyncSessionLocal
-from app.core.security import sign_webhook_payload
 from app.models import RenderJob, Webhook
 from app.utils.logger import get_logger
-from app.workers.celery_app import celery_app
+from app.workers.celery_app import celery_app, run_async
 
 logger = get_logger(__name__)
 
@@ -28,13 +30,48 @@ WEBHOOK_TIMEOUT = 10  # seconds
 WEBHOOK_MAX_RETRIES = 5
 
 
-def run_async(coro):
-    """Run async function in sync context."""
-    loop = asyncio.new_event_loop()
-    try:
-        return loop.run_until_complete(coro)
-    finally:
-        loop.close()
+def generate_webhook_signature(payload: str, secret: str) -> str:
+    """
+    Generate HMAC-SHA256 signature for webhook payload.
+    
+    Args:
+        payload: JSON payload string
+        secret: Webhook secret key
+        
+    Returns:
+        Hex-encoded HMAC signature
+    """
+    return hmac.new(
+        secret.encode("utf-8"),
+        payload.encode("utf-8"),
+        hashlib.sha256
+    ).hexdigest()
+
+
+def verify_webhook_signature(payload: str, signature: str, secret: str) -> bool:
+    """
+    Verify HMAC-SHA256 signature of webhook payload.
+    
+    Args:
+        payload: JSON payload string
+        signature: Received signature
+        secret: Webhook secret key
+        
+    Returns:
+        True if signature is valid
+    """
+    expected = generate_webhook_signature(payload, secret)
+    return hmac.compare_digest(expected, signature)
+
+
+def generate_webhook_secret() -> str:
+    """
+    Generate a secure random webhook secret.
+    
+    Returns:
+        64-character hex string
+    """
+    return secrets.token_hex(32)
 
 
 @celery_app.task(
@@ -81,8 +118,6 @@ async def _send_webhook_async(
     payload: dict[str, Any],
 ) -> dict[str, Any]:
     """Async implementation of webhook sending."""
-    import json
-
     async with AsyncSessionLocal() as db:
         # Get webhook
         result = await db.execute(
@@ -99,21 +134,25 @@ async def _send_webhook_async(
             return {"error": "Webhook inactive"}
 
         # Build full payload
+        timestamp = datetime.now(timezone.utc).isoformat()
         full_payload = {
             "event": event,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": timestamp,
+            "webhook_id": webhook_id,
             "data": payload,
         }
-        payload_json = json.dumps(full_payload, default=str)
+        payload_json = json.dumps(full_payload, default=str, sort_keys=True)
 
-        # Generate signature
-        signature = sign_webhook_payload(payload_json, webhook.secret)
+        # Generate HMAC signature using webhook's secret
+        signature = generate_webhook_signature(payload_json, webhook.secret)
 
         headers = {
             "Content-Type": "application/json",
-            "X-Webhook-Signature": signature,
+            "X-Webhook-Signature": f"sha256={signature}",
             "X-Webhook-Event": event,
-            "X-Webhook-Timestamp": full_payload["timestamp"],
+            "X-Webhook-Timestamp": timestamp,
+            "X-Webhook-ID": webhook_id,
+            "User-Agent": f"ScreenshotAPI-Webhook/{settings.APP_VERSION}",
         }
 
         try:
@@ -147,6 +186,7 @@ async def _send_webhook_async(
                     "Webhook delivery failed",
                     webhook_id=webhook_id,
                     status_code=response.status_code,
+                    response_body=response.text[:500] if response.text else None,
                 )
 
                 webhook.failure_count += 1
@@ -157,6 +197,7 @@ async def _send_webhook_async(
                     logger.warning(
                         "Webhook disabled due to failures",
                         webhook_id=webhook_id,
+                        failure_count=webhook.failure_count,
                     )
 
                 await db.commit()
@@ -191,7 +232,10 @@ async def _send_webhook_async(
     name="app.workers.webhook_tasks.send_job_webhook",
     max_retries=WEBHOOK_MAX_RETRIES,
     default_retry_delay=1,
+    autoretry_for=(httpx.TimeoutException, httpx.ConnectError),
     retry_backoff=True,
+    retry_backoff_max=60,
+    retry_jitter=True,
 )
 def send_job_webhook(self, job_id: str, event: str) -> dict[str, Any]:
     """
@@ -215,8 +259,6 @@ async def _send_job_webhook_async(
     event: str,
 ) -> dict[str, Any]:
     """Async implementation of job webhook sending."""
-    import json
-
     async with AsyncSessionLocal() as db:
         # Get job
         result = await db.execute(
@@ -231,6 +273,17 @@ async def _send_job_webhook_async(
         if not job.webhook_url:
             logger.warning("Job has no webhook URL", job_id=job_id)
             return {"error": "No webhook URL"}
+
+        # Use stored webhook secret or generate a deterministic one
+        # Best practice: Store webhook_secret on job creation
+        webhook_secret = getattr(job, 'webhook_secret', None)
+        if not webhook_secret:
+            # Fallback: Use a combination of job ID and app secret for deterministic secret
+            webhook_secret = hmac.new(
+                settings.SECRET_KEY.encode("utf-8"),
+                f"job_webhook:{job_id}".encode("utf-8"),
+                hashlib.sha256
+            ).hexdigest()
 
         # Build payload
         payload = {
@@ -253,24 +306,25 @@ async def _send_job_webhook_async(
             payload["error_message"] = job.error_message
 
         # Build full payload
+        timestamp = datetime.now(timezone.utc).isoformat()
         full_payload = {
             "event": event,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": timestamp,
+            "job_id": job_id,
             "data": payload,
         }
-        payload_json = json.dumps(full_payload, default=str)
+        payload_json = json.dumps(full_payload, default=str, sort_keys=True)
 
-        # Generate signature using a derived secret
-        # For job-specific webhooks, we use a hash of the job ID as secret
-        import hashlib
-        job_secret = hashlib.sha256(f"job:{job_id}".encode()).hexdigest()
-        signature = sign_webhook_payload(payload_json, job_secret)
+        # Generate HMAC signature
+        signature = generate_webhook_signature(payload_json, webhook_secret)
 
         headers = {
             "Content-Type": "application/json",
-            "X-Webhook-Signature": signature,
+            "X-Webhook-Signature": f"sha256={signature}",
             "X-Webhook-Event": event,
             "X-Webhook-Job-ID": str(job.id),
+            "X-Webhook-Timestamp": timestamp,
+            "User-Agent": f"ScreenshotAPI-Webhook/{settings.APP_VERSION}",
         }
 
         try:
@@ -388,4 +442,3 @@ async def _trigger_event_webhooks_async(
         )
 
         return {"triggered": triggered}
-

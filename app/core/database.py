@@ -1,5 +1,7 @@
 """
 Database configuration and session management
+
+No auto-commit - explicit transaction management required.
 """
 
 from collections.abc import AsyncGenerator
@@ -35,6 +37,7 @@ engine = create_async_engine(
 )
 
 # Create session factory
+# Note: No auto-commit - transactions must be explicitly committed
 AsyncSessionLocal = async_sessionmaker(
     engine,
     class_=AsyncSession,
@@ -53,14 +56,27 @@ class Base(DeclarativeBase):
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
     """
     Dependency for getting async database sessions.
+    
+    IMPORTANT: This dependency does NOT auto-commit.
+    You must explicitly call `await session.commit()` to persist changes.
+    
+    On exception, the session is automatically rolled back.
 
     Yields:
         AsyncSession: Database session
+        
+    Example:
+        async def create_user(db: AsyncSession, user_data: dict):
+            user = User(**user_data)
+            db.add(user)
+            await db.commit()  # Explicit commit required
+            await db.refresh(user)
+            return user
     """
     async with AsyncSessionLocal() as session:
         try:
             yield session
-            await session.commit()
+            # No auto-commit - caller must explicitly commit
         except Exception:
             await session.rollback()
             raise
@@ -72,9 +88,48 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 async def get_db_context() -> AsyncGenerator[AsyncSession, None]:
     """
     Context manager for getting async database sessions.
+    
+    IMPORTANT: This context manager does NOT auto-commit.
+    You must explicitly call `await session.commit()` to persist changes.
+    
+    On exception, the session is automatically rolled back.
 
     Yields:
         AsyncSession: Database session
+        
+    Example:
+        async with get_db_context() as db:
+            user = User(**user_data)
+            db.add(user)
+            await db.commit()  # Explicit commit required
+    """
+    async with AsyncSessionLocal() as session:
+        try:
+            yield session
+            # No auto-commit - caller must explicitly commit
+        except Exception:
+            await session.rollback()
+            raise
+        finally:
+            await session.close()
+
+
+@asynccontextmanager
+async def transaction_context() -> AsyncGenerator[AsyncSession, None]:
+    """
+    Context manager for database transactions with auto-commit on success.
+    
+    Use this when you want automatic commit on successful completion.
+    On exception, the transaction is rolled back.
+    
+    Yields:
+        AsyncSession: Database session
+        
+    Example:
+        async with transaction_context() as db:
+            user = User(**user_data)
+            db.add(user)
+            # Auto-commits on exit if no exception
     """
     async with AsyncSessionLocal() as session:
         try:
@@ -96,4 +151,3 @@ async def init_db() -> None:
 async def close_db() -> None:
     """Close database connections."""
     await engine.dispose()
-

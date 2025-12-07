@@ -4,7 +4,7 @@ AWS S3 / MinIO client configuration
 
 from contextlib import asynccontextmanager
 from datetime import datetime
-from typing import Any, AsyncGenerator
+from typing import Any, AsyncGenerator, Optional
 
 import aioboto3
 from botocore.config import Config
@@ -19,7 +19,7 @@ _boto_config = Config(
 )
 
 # Session for async operations
-_session: aioboto3.Session | None = None
+_session: Optional[aioboto3.Session] = None
 
 
 def get_session() -> aioboto3.Session:
@@ -82,7 +82,7 @@ class S3Manager:
     S3 operations manager.
     """
 
-    def __init__(self, bucket: str | None = None):
+    def __init__(self, bucket: Optional[str] = None):
         self.bucket = bucket or settings.AWS_S3_BUCKET
 
     def generate_key(
@@ -115,7 +115,7 @@ class S3Manager:
         file_bytes: bytes,
         key: str,
         content_type: str,
-        metadata: dict[str, str] | None = None,
+        metadata: Optional[dict[str, str]] = None,
     ) -> dict[str, Any]:
         """
         Upload file to S3.
@@ -155,7 +155,7 @@ class S3Manager:
     async def generate_presigned_url(
         self,
         key: str,
-        expires_in: int | None = None,
+        expires_in: Optional[int] = None,
     ) -> str:
         """
         Generate a presigned URL for downloading.
@@ -223,7 +223,7 @@ class S3Manager:
 
         return len(keys) - len(response.get("Errors", []))
 
-    async def get_file_metadata(self, key: str) -> dict[str, Any] | None:
+    async def get_file_metadata(self, key: str) -> Optional[dict[str, Any]]:
         """
         Get file metadata from S3.
 

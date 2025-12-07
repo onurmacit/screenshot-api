@@ -2,10 +2,13 @@
 Render Service
 
 Handles screenshot and PDF rendering using Playwright.
+Thread-safe browser pool with automatic context refresh and proper cleanup.
 """
 
 import asyncio
 import io
+import threading
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from typing import Any, Optional
 
@@ -13,7 +16,7 @@ from PIL import Image
 from playwright.async_api import Browser, BrowserContext, Page, async_playwright
 
 from app.core.config import settings
-from app.utils.exceptions import RenderError, ValidationError
+from app.utils.exceptions import RenderError
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -21,64 +24,121 @@ logger = get_logger(__name__)
 
 class BrowserPool:
     """
-    Singleton browser pool for reusing browser contexts.
+    Thread-safe browser pool for reusing browser contexts.
 
     Manages a pool of browser contexts for efficient rendering.
+    Uses threading.Lock for thread safety across Celery workers.
     """
 
     _instance: Optional["BrowserPool"] = None
-    _lock: asyncio.Lock = asyncio.Lock()
+    _creation_lock = threading.Lock()
 
     def __new__(cls) -> "BrowserPool":
         if cls._instance is None:
-            cls._instance = super().__new__(cls)
-            cls._instance._initialized = False
+            with cls._creation_lock:
+                if cls._instance is None:
+                    cls._instance = super().__new__(cls)
+                    cls._instance._initialized = False
         return cls._instance
+
+    def __init__(self):
+        if hasattr(self, "_init_done") and self._init_done:
+            return
+        
+        # Thread-safe locks
+        self._init_lock = threading.Lock()
+        self._context_lock = threading.Lock()
+        
+        # State
+        self._initialized = False
+        self._playwright = None
+        self._browser: Optional[Browser] = None
+        self._contexts: list[BrowserContext] = []
+        self._available_contexts: Optional[asyncio.Queue] = None
+        self._render_counts: dict[int, int] = {}  # Use id() as key
+        self._context_map: dict[int, BrowserContext] = {}  # id -> context mapping
+        
+        self._init_done = True
 
     async def initialize(self) -> None:
         """Initialize the browser pool."""
-        if self._initialized:
-            return
-
-        async with self._lock:
+        with self._init_lock:
             if self._initialized:
                 return
 
             logger.info("Initializing browser pool")
 
-            self._playwright = await async_playwright().start()
-            self._browser: Browser = await self._playwright.chromium.launch(
-                headless=True,
-                args=[
-                    "--no-sandbox",
-                    "--disable-setuid-sandbox",
-                    "--disable-dev-shm-usage",
-                    "--disable-accelerated-2d-canvas",
-                    "--disable-gpu",
-                    "--no-first-run",
-                    "--no-zygote",
-                    "--single-process",
-                    "--disable-extensions",
-                ],
-            )
+            try:
+                self._playwright = await async_playwright().start()
+                self._browser = await self._playwright.chromium.launch(
+                    headless=True,
+                    args=[
+                        "--no-sandbox",
+                        "--disable-setuid-sandbox",
+                        "--disable-dev-shm-usage",
+                        "--disable-accelerated-2d-canvas",
+                        "--disable-gpu",
+                        "--no-first-run",
+                        "--no-zygote",
+                        "--single-process",
+                        "--disable-extensions",
+                        "--disable-background-networking",
+                        "--disable-default-apps",
+                        "--disable-sync",
+                        "--disable-translate",
+                        "--metrics-recording-only",
+                        "--mute-audio",
+                        "--no-default-browser-check",
+                        "--safebrowsing-disable-auto-update",
+                    ],
+                )
 
-            self._contexts: list[BrowserContext] = []
-            self._available_contexts: asyncio.Queue[BrowserContext] = asyncio.Queue()
-            self._render_counts: dict[BrowserContext, int] = {}
+                self._available_contexts = asyncio.Queue()
 
-            # Create initial contexts
-            for _ in range(settings.BROWSER_POOL_SIZE):
-                context = await self._create_context()
-                await self._available_contexts.put(context)
+                # Create initial contexts
+                for _ in range(settings.BROWSER_POOL_SIZE):
+                    context = await self._create_context()
+                    await self._available_contexts.put(context)
 
-            self._initialized = True
-            logger.info(
-                "Browser pool initialized",
-                pool_size=settings.BROWSER_POOL_SIZE,
-            )
+                self._initialized = True
+                logger.info(
+                    "Browser pool initialized",
+                    pool_size=settings.BROWSER_POOL_SIZE,
+                )
+            except Exception as e:
+                logger.error("Failed to initialize browser pool", error=str(e))
+                await self._cleanup_on_error()
+                raise
+
+    async def _cleanup_on_error(self) -> None:
+        """Clean up resources on initialization error."""
+        for context in self._contexts:
+            try:
+                await asyncio.wait_for(context.close(), timeout=5.0)
+            except Exception:
+                pass
+        
+        if self._browser:
+            try:
+                await asyncio.wait_for(self._browser.close(), timeout=5.0)
+            except Exception:
+                pass
+        
+        if self._playwright:
+            try:
+                await self._playwright.stop()
+            except Exception:
+                pass
+        
+        self._contexts = []
+        self._render_counts = {}
+        self._context_map = {}
 
     async def _create_context(self) -> BrowserContext:
         """Create a new browser context."""
+        if not self._browser:
+            raise RenderError("Browser not initialized")
+
         context = await self._browser.new_context(
             viewport={"width": 1920, "height": 1080},
             user_agent=(
@@ -90,65 +150,167 @@ class BrowserPool:
             bypass_csp=True,
             ignore_https_errors=True,
         )
-        self._contexts.append(context)
-        self._render_counts[context] = 0
+        
+        context_id = id(context)
+        
+        with self._context_lock:
+            self._contexts.append(context)
+            self._render_counts[context_id] = 0
+            self._context_map[context_id] = context
+        
         return context
 
     async def acquire_context(self) -> BrowserContext:
-        """Acquire a browser context from the pool."""
+        """
+        Acquire a browser context from the pool.
+        
+        Returns:
+            Available browser context
+            
+        Raises:
+            RenderError: If pool is not initialized
+        """
         if not self._initialized:
             await self.initialize()
 
+        if self._available_contexts is None:
+            raise RenderError("Browser pool not properly initialized")
+
         context = await self._available_contexts.get()
+        context_id = id(context)
 
         # Check if context needs refresh
-        if self._render_counts[context] >= settings.BROWSER_MAX_RENDERS_PER_CONTEXT:
-            await self._refresh_context(context)
+        with self._context_lock:
+            render_count = self._render_counts.get(context_id, 0)
+        
+        if render_count >= settings.BROWSER_MAX_RENDERS_PER_CONTEXT:
+            logger.info(
+                "Context reached max renders, refreshing",
+                context_id=context_id,
+                render_count=render_count,
+            )
+            context = await self._refresh_context(context)
 
         return context
 
     async def release_context(self, context: BrowserContext) -> None:
-        """Release a browser context back to the pool."""
-        self._render_counts[context] = self._render_counts.get(context, 0) + 1
+        """
+        Release a browser context back to the pool.
+        
+        Args:
+            context: Browser context to release
+        """
+        if self._available_contexts is None:
+            return
+
+        context_id = id(context)
+        
+        with self._context_lock:
+            if context_id in self._render_counts:
+                self._render_counts[context_id] += 1
+        
         await self._available_contexts.put(context)
 
-    async def _refresh_context(self, context: BrowserContext) -> None:
-        """Refresh a context by closing and recreating it."""
+    async def _refresh_context(self, old_context: BrowserContext) -> BrowserContext:
+        """
+        Refresh a context by closing and recreating it.
+        
+        Args:
+            old_context: Context to refresh
+            
+        Returns:
+            New browser context
+        """
+        old_context_id = id(old_context)
+        
+        # Remove old context from tracking
+        with self._context_lock:
+            if old_context in self._contexts:
+                self._contexts.remove(old_context)
+            self._render_counts.pop(old_context_id, None)
+            self._context_map.pop(old_context_id, None)
+
+        # Close old context with timeout
         try:
-            self._contexts.remove(context)
-            del self._render_counts[context]
-            await context.close()
+            await asyncio.wait_for(old_context.close(), timeout=5.0)
+        except asyncio.TimeoutError:
+            logger.warning("Context close timed out", context_id=old_context_id)
         except Exception as e:
             logger.warning("Error closing context", error=str(e))
 
+        # Create and return new context
         new_context = await self._create_context()
-        self._render_counts[new_context] = 0
+        return new_context
+
+    async def force_refresh_context(self, context: BrowserContext) -> None:
+        """
+        Force refresh a problematic context and return it to pool.
+        
+        Args:
+            context: Problematic context to refresh
+        """
+        try:
+            new_context = await self._refresh_context(context)
+            if self._available_contexts:
+                await self._available_contexts.put(new_context)
+        except Exception as e:
+            logger.error("Failed to force refresh context", error=str(e))
 
     async def close(self) -> None:
         """Close all contexts and browser."""
-        if not self._initialized:
-            return
+        with self._init_lock:
+            if not self._initialized:
+                return
 
-        logger.info("Closing browser pool")
+            logger.info("Closing browser pool")
 
-        for context in self._contexts:
-            try:
-                await context.close()
-            except Exception:
-                pass
+            # Close all contexts
+            with self._context_lock:
+                contexts_to_close = list(self._contexts)
+                self._contexts = []
+                self._render_counts = {}
+                self._context_map = {}
 
-        try:
-            await self._browser.close()
-        except Exception:
-            pass
+            for context in contexts_to_close:
+                try:
+                    await asyncio.wait_for(context.close(), timeout=5.0)
+                except asyncio.TimeoutError:
+                    logger.warning("Context close timed out during shutdown")
+                except Exception as e:
+                    logger.warning("Error closing context", error=str(e))
 
-        try:
-            await self._playwright.stop()
-        except Exception:
-            pass
+            # Close browser
+            if self._browser:
+                try:
+                    await asyncio.wait_for(self._browser.close(), timeout=10.0)
+                except asyncio.TimeoutError:
+                    logger.warning("Browser close timed out")
+                except Exception as e:
+                    logger.warning("Error closing browser", error=str(e))
+                self._browser = None
 
-        self._initialized = False
-        logger.info("Browser pool closed")
+            # Stop playwright
+            if self._playwright:
+                try:
+                    await self._playwright.stop()
+                except Exception as e:
+                    logger.warning("Error stopping playwright", error=str(e))
+                self._playwright = None
+
+            self._available_contexts = None
+            self._initialized = False
+            logger.info("Browser pool closed")
+
+    @property
+    def is_initialized(self) -> bool:
+        """Check if pool is initialized."""
+        return self._initialized
+
+    @property
+    def pool_size(self) -> int:
+        """Get current pool size."""
+        with self._context_lock:
+            return len(self._contexts)
 
 
 # Global browser pool instance
@@ -160,6 +322,32 @@ class RenderService:
 
     def __init__(self):
         self.pool = browser_pool
+
+    @asynccontextmanager
+    async def _get_page(self, context: BrowserContext):
+        """
+        Context manager for page lifecycle.
+        
+        Ensures page is properly closed even on errors.
+        
+        Args:
+            context: Browser context
+            
+        Yields:
+            New page instance
+        """
+        page: Optional[Page] = None
+        try:
+            page = await context.new_page()
+            yield page
+        finally:
+            if page:
+                try:
+                    await asyncio.wait_for(page.close(), timeout=5.0)
+                except asyncio.TimeoutError:
+                    logger.warning("Page close timed out")
+                except Exception as e:
+                    logger.warning("Error closing page", error=str(e))
 
     async def capture_screenshot(
         self,
@@ -182,105 +370,105 @@ class RenderService:
             RenderError: If screenshot capture fails
         """
         context = await self.pool.acquire_context()
-        page: Optional[Page] = None
         start_time = datetime.now(timezone.utc)
+        screenshot_bytes: Optional[bytes] = None
 
         try:
-            page = await context.new_page()
+            async with self._get_page(context) as page:
+                # Set viewport
+                width = options.get("width", 1920)
+                height = options.get("height", 1080)
+                await page.set_viewport_size({"width": width, "height": height})
 
-            # Set viewport
-            width = options.get("width", 1920)
-            height = options.get("height", 1080)
-            await page.set_viewport_size({"width": width, "height": height})
+                # Set user agent if provided
+                if options.get("user_agent"):
+                    await page.set_extra_http_headers(
+                        {"User-Agent": options["user_agent"]}
+                    )
 
-            # Set user agent if provided
-            if options.get("user_agent"):
-                await page.set_extra_http_headers(
-                    {"User-Agent": options["user_agent"]}
-                )
+                # Set extra headers
+                if options.get("extra_http_headers"):
+                    await page.set_extra_http_headers(options["extra_http_headers"])
 
-            # Set extra headers
-            if options.get("extra_http_headers"):
-                await page.set_extra_http_headers(options["extra_http_headers"])
+                # Set geolocation (pro+ only)
+                if options.get("geolocation") and user_plan and user_plan.get("geolocation"):
+                    geo = options["geolocation"]
+                    await context.set_geolocation({
+                        "latitude": geo["lat"],
+                        "longitude": geo["lon"],
+                    })
+                    await context.grant_permissions(["geolocation"])
 
-            # Set geolocation (pro+ only)
-            if options.get("geolocation") and user_plan and user_plan.get("geolocation"):
-                geo = options["geolocation"]
-                await context.set_geolocation({
-                    "latitude": geo["lat"],
-                    "longitude": geo["lon"],
-                })
-                await context.grant_permissions(["geolocation"])
+                # Navigate to URL
+                timeout = options.get("timeout", settings.BROWSER_TIMEOUT_MS)
+                wait_until = options.get("wait_until", "networkidle")
 
-            # Navigate to URL
-            timeout = options.get("timeout", settings.BROWSER_TIMEOUT_MS)
-            wait_until = options.get("wait_until", "networkidle")
-
-            try:
-                await page.goto(
-                    url,
-                    timeout=timeout,
-                    wait_until=wait_until,
-                )
-            except Exception as e:
-                raise RenderError(
-                    f"Failed to load URL: {str(e)}",
-                    details={"url": url, "error": str(e)},
-                )
-
-            # Wait for delay
-            delay = options.get("delay", 0)
-            if delay > 0:
-                await asyncio.sleep(delay / 1000)
-
-            # Inject custom CSS (pro+ only)
-            if options.get("custom_css") and user_plan and user_plan.get("custom_css"):
-                await page.add_style_tag(content=options["custom_css"])
-
-            # Remove elements
-            if options.get("remove_elements"):
-                for selector in options["remove_elements"]:
-                    try:
-                        await page.evaluate(f"""
-                            document.querySelectorAll('{selector}')
-                                .forEach(el => el.remove())
-                        """)
-                    except Exception:
-                        pass
-
-            # Screenshot options
-            screenshot_options: dict[str, Any] = {
-                "type": options.get("format", "png"),
-                "full_page": options.get("full_page", False),
-            }
-
-            if screenshot_options["type"] == "jpeg":
-                screenshot_options["quality"] = options.get("quality", 90)
-
-            # Capture specific element or full page
-            if options.get("element_selector") and user_plan and user_plan.get("element_selector"):
                 try:
-                    element = await page.query_selector(options["element_selector"])
-                    if element:
-                        screenshot_bytes = await element.screenshot(**screenshot_options)
-                    else:
-                        raise RenderError(
-                            f"Element not found: {options['element_selector']}"
-                        )
+                    await page.goto(
+                        url,
+                        timeout=timeout,
+                        wait_until=wait_until,
+                    )
                 except Exception as e:
                     raise RenderError(
-                        f"Failed to capture element: {str(e)}"
+                        f"Failed to load URL: {str(e)}",
+                        details={"url": url, "error": str(e)},
                     )
-            else:
-                screenshot_bytes = await page.screenshot(**screenshot_options)
+
+                # Wait for delay
+                delay = options.get("delay", 0)
+                if delay > 0:
+                    await asyncio.sleep(delay / 1000)
+
+                # Inject custom CSS (pro+ only)
+                if options.get("custom_css") and user_plan and user_plan.get("custom_css"):
+                    await page.add_style_tag(content=options["custom_css"])
+
+                # Remove elements
+                if options.get("remove_elements"):
+                    for selector in options["remove_elements"]:
+                        try:
+                            await page.evaluate(f"""
+                                document.querySelectorAll('{selector}')
+                                    .forEach(el => el.remove())
+                            """)
+                        except Exception:
+                            pass
+
+                # Screenshot options
+                screenshot_options: dict[str, Any] = {
+                    "type": options.get("format", "png"),
+                    "full_page": options.get("full_page", False),
+                }
+
+                if screenshot_options["type"] == "jpeg":
+                    screenshot_options["quality"] = options.get("quality", 90)
+
+                # Capture specific element or full page
+                if options.get("element_selector") and user_plan and user_plan.get("element_selector"):
+                    try:
+                        element = await page.query_selector(options["element_selector"])
+                        if element:
+                            screenshot_bytes = await element.screenshot(**screenshot_options)
+                        else:
+                            raise RenderError(
+                                f"Element not found: {options['element_selector']}"
+                            )
+                    except RenderError:
+                        raise
+                    except Exception as e:
+                        raise RenderError(
+                            f"Failed to capture element: {str(e)}"
+                        )
+                else:
+                    screenshot_bytes = await page.screenshot(**screenshot_options)
 
             # Calculate processing time
             end_time = datetime.now(timezone.utc)
             processing_time_ms = int((end_time - start_time).total_seconds() * 1000)
 
-            # Get image dimensions
-            img = Image.open(io.BytesIO(screenshot_bytes))
-            img_width, img_height = img.size
+            # Get image dimensions - properly close PIL Image
+            img_width, img_height = self._get_image_dimensions(screenshot_bytes)
 
             metadata = {
                 "width": img_width,
@@ -311,11 +499,6 @@ class RenderService:
                 details={"url": url},
             )
         finally:
-            if page:
-                try:
-                    await page.close()
-                except Exception:
-                    pass
             await self.pool.release_context(context)
 
     async def generate_pdf(
@@ -339,64 +522,63 @@ class RenderService:
             RenderError: If PDF generation fails
         """
         context = await self.pool.acquire_context()
-        page: Optional[Page] = None
         start_time = datetime.now(timezone.utc)
+        pdf_bytes: Optional[bytes] = None
 
         try:
-            page = await context.new_page()
+            async with self._get_page(context) as page:
+                # Navigate to URL
+                timeout = options.get("timeout", settings.BROWSER_TIMEOUT_MS)
+                wait_until = options.get("wait_until", "networkidle")
 
-            # Navigate to URL
-            timeout = options.get("timeout", settings.BROWSER_TIMEOUT_MS)
-            wait_until = options.get("wait_until", "networkidle")
+                try:
+                    await page.goto(
+                        url,
+                        timeout=timeout,
+                        wait_until=wait_until,
+                    )
+                except Exception as e:
+                    raise RenderError(
+                        f"Failed to load URL: {str(e)}",
+                        details={"url": url, "error": str(e)},
+                    )
 
-            try:
-                await page.goto(
-                    url,
-                    timeout=timeout,
-                    wait_until=wait_until,
-                )
-            except Exception as e:
-                raise RenderError(
-                    f"Failed to load URL: {str(e)}",
-                    details={"url": url, "error": str(e)},
-                )
+                # Wait for delay
+                delay = options.get("delay", 0)
+                if delay > 0:
+                    await asyncio.sleep(delay / 1000)
 
-            # Wait for delay
-            delay = options.get("delay", 0)
-            if delay > 0:
-                await asyncio.sleep(delay / 1000)
+                # PDF options
+                pdf_options: dict[str, Any] = {
+                    "format": options.get("format", "A4"),
+                    "landscape": options.get("landscape", False),
+                    "print_background": options.get("print_background", True),
+                    "prefer_css_page_size": options.get("prefer_css_page_size", False),
+                }
 
-            # PDF options
-            pdf_options: dict[str, Any] = {
-                "format": options.get("format", "A4"),
-                "landscape": options.get("landscape", False),
-                "print_background": options.get("print_background", True),
-                "prefer_css_page_size": options.get("prefer_css_page_size", False),
-            }
+                # Scale
+                if options.get("scale"):
+                    pdf_options["scale"] = options["scale"]
 
-            # Scale
-            if options.get("scale"):
-                pdf_options["scale"] = options["scale"]
+                # Margins
+                if options.get("margin"):
+                    pdf_options["margin"] = options["margin"]
 
-            # Margins
-            if options.get("margin"):
-                pdf_options["margin"] = options["margin"]
+                # Page ranges
+                if options.get("page_ranges"):
+                    pdf_options["page_ranges"] = options["page_ranges"]
 
-            # Page ranges
-            if options.get("page_ranges"):
-                pdf_options["page_ranges"] = options["page_ranges"]
+                # Header/Footer
+                if options.get("header_template"):
+                    pdf_options["header_template"] = options["header_template"]
+                    pdf_options["display_header_footer"] = True
 
-            # Header/Footer
-            if options.get("header_template"):
-                pdf_options["header_template"] = options["header_template"]
-                pdf_options["display_header_footer"] = True
+                if options.get("footer_template"):
+                    pdf_options["footer_template"] = options["footer_template"]
+                    pdf_options["display_header_footer"] = True
 
-            if options.get("footer_template"):
-                pdf_options["footer_template"] = options["footer_template"]
-                pdf_options["display_header_footer"] = True
-
-            # Generate PDF
-            pdf_bytes = await page.pdf(**pdf_options)
+                # Generate PDF
+                pdf_bytes = await page.pdf(**pdf_options)
 
             # Calculate processing time
             end_time = datetime.now(timezone.utc)
@@ -435,12 +617,27 @@ class RenderService:
                 details={"url": url},
             )
         finally:
-            if page:
-                try:
-                    await page.close()
-                except Exception:
-                    pass
             await self.pool.release_context(context)
+
+    def _get_image_dimensions(self, image_bytes: bytes) -> tuple[int, int]:
+        """
+        Get image dimensions from bytes.
+        
+        Properly closes PIL Image to prevent memory leaks.
+        
+        Args:
+            image_bytes: Image data
+            
+        Returns:
+            Tuple of (width, height)
+        """
+        img = None
+        try:
+            img = Image.open(io.BytesIO(image_bytes))
+            return img.size
+        finally:
+            if img:
+                img.close()
 
     def inject_watermark(
         self,
@@ -457,6 +654,10 @@ class RenderService:
         Returns:
             Image bytes with watermark
         """
+        img = None
+        overlay = None
+        output = None
+        
         try:
             from PIL import ImageDraw, ImageFont
 
@@ -498,22 +699,34 @@ class RenderService:
             draw.text((x, y), text, font=font, fill=(255, 255, 255, 200))
 
             # Composite
-            img = Image.alpha_composite(img, overlay)
+            result_img = Image.alpha_composite(img, overlay)
 
             # Convert back to original format
             if format.lower() in ("jpeg", "jpg"):
-                img = img.convert("RGB")
+                result_img = result_img.convert("RGB")
 
             # Save to bytes
             output = io.BytesIO()
-            img.save(output, format=format.upper())
-            return output.getvalue()
+            result_img.save(output, format=format.upper())
+            result = output.getvalue()
+            
+            # Close result_img
+            result_img.close()
+            
+            return result
 
         except Exception as e:
             logger.warning("Failed to inject watermark", error=str(e))
             return image_bytes
+        finally:
+            # Clean up PIL objects
+            if img:
+                img.close()
+            if overlay:
+                overlay.close()
+            if output:
+                output.close()
 
 
 # Create global render service instance
 render_service = RenderService()
-

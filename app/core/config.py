@@ -3,9 +3,9 @@ Application configuration using pydantic-settings
 """
 
 from functools import lru_cache
-from typing import Any
+from typing import Any, Optional
 
-from pydantic import AnyHttpUrl, field_validator
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -81,7 +81,7 @@ class Settings(BaseSettings):
     AWS_SECRET_ACCESS_KEY: str = ""
     AWS_REGION: str = "us-east-1"
     AWS_S3_BUCKET: str = "screenshot-api-renders"
-    AWS_S3_ENDPOINT_URL: str | None = None  # For MinIO compatibility
+    AWS_S3_ENDPOINT_URL: Optional[str] = None  # For MinIO compatibility
 
     # ==========================================================================
     # Stripe
@@ -112,6 +112,26 @@ class Settings(BaseSettings):
     # ==========================================================================
     RATE_LIMIT_ENABLED: bool = True
     IP_RATE_LIMIT_PER_MINUTE: int = 60
+    
+    # Trusted proxies for X-Forwarded-For header
+    # Only trust X-Forwarded-For from these IPs/CIDR ranges
+    # Examples: ["10.0.0.1", "172.16.0.0/12", "192.168.1.0/24"]
+    # Empty list = don't trust any forwarded headers (use direct IP only)
+    TRUSTED_PROXIES: list[str] = []
+
+    @field_validator("TRUSTED_PROXIES", mode="before")
+    @classmethod
+    def parse_trusted_proxies(cls, v: Any) -> list[str]:
+        """Parse trusted proxies from string or list."""
+        if isinstance(v, str):
+            if not v.strip():
+                return []
+            import json
+            try:
+                return json.loads(v)
+            except json.JSONDecodeError:
+                return [proxy.strip() for proxy in v.split(",") if proxy.strip()]
+        return v if v else []
 
     # ==========================================================================
     # Storage
@@ -123,8 +143,8 @@ class Settings(BaseSettings):
     # ==========================================================================
     # Monitoring
     # ==========================================================================
-    SENTRY_DSN: str | None = None
-    DATADOG_API_KEY: str | None = None
+    SENTRY_DSN: Optional[str] = None
+    DATADOG_API_KEY: Optional[str] = None
 
     # ==========================================================================
     # CORS
@@ -142,6 +162,12 @@ class Settings(BaseSettings):
             except json.JSONDecodeError:
                 return [origin.strip() for origin in v.split(",")]
         return v
+
+    # ==========================================================================
+    # Webhook Settings
+    # ==========================================================================
+    WEBHOOK_TIMEOUT_SECONDS: int = 10
+    WEBHOOK_MAX_RETRIES: int = 5
 
     @property
     def is_production(self) -> bool:
@@ -167,4 +193,3 @@ def get_settings() -> Settings:
 
 # Global settings instance
 settings = get_settings()
-

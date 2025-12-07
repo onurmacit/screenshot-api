@@ -26,7 +26,8 @@ from app.core.security import create_access_token, get_password_hash, hash_api_k
 from app.main import app
 from app.models.api_key import APIKey
 from app.models.plan import Plan
-from app.models.render_job import RenderJob, RenderStatus, RenderType
+from app.models.render_job import RenderJob
+# RenderStatus and RenderType are not defined in the model
 from app.models.user import User
 
 
@@ -232,8 +233,8 @@ async def test_render_job(db_session: AsyncSession, test_user: User) -> RenderJo
     job = RenderJob(
         id=uuid.uuid4(),
         user_id=test_user.id,
-        type=RenderType.SCREENSHOT,
-        status=RenderStatus.COMPLETED,
+        type="screenshot",
+        status="completed",
         url="https://example.com",
         options={
             "width": 1280,

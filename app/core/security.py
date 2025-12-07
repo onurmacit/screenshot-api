@@ -5,7 +5,7 @@ Security utilities - JWT, password hashing, API key generation
 import hashlib
 import secrets
 from datetime import datetime, timedelta, timezone
-from typing import Any
+from typing import Any, Optional, Union
 
 import bcrypt
 from jose import JWTError, jwt
@@ -27,6 +27,10 @@ def hash_password(password: str) -> str:
     return hashed.decode("utf-8")
 
 
+# Alias for backward compatibility
+get_password_hash = hash_password
+
+
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Verify a password against its hash."""
     try:
@@ -43,9 +47,10 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 
 
 def create_access_token(
-    subject: str | Any,
-    expires_delta: timedelta | None = None,
-    additional_claims: dict[str, Any] | None = None,
+    subject: Union[str, Any],
+    expires_delta: Optional[timedelta] = None,
+    additional_claims: Optional[dict[str, Any]] = None,
+    data: Optional[dict[str, Any]] = None,
 ) -> str:
     """
     Create a JWT access token.
@@ -54,6 +59,7 @@ def create_access_token(
         subject: The subject of the token (usually user_id)
         expires_delta: Optional custom expiration time
         additional_claims: Additional claims to include in the token
+        data: Alternative way to pass additional claims (for backward compatibility)
 
     Returns:
         Encoded JWT token string
@@ -66,11 +72,20 @@ def create_access_token(
         )
 
     to_encode: dict[str, Any] = {
-        "sub": str(subject),
         "exp": expire,
         "iat": datetime.now(timezone.utc),
         "type": "access",
     }
+
+    # Handle subject - can come from 'subject' param or 'data["sub"]'
+    if data and "sub" in data:
+        to_encode["sub"] = str(data["sub"])
+        # Copy other data
+        for key, value in data.items():
+            if key not in to_encode:
+                to_encode[key] = value
+    else:
+        to_encode["sub"] = str(subject)
 
     if additional_claims:
         to_encode.update(additional_claims)
@@ -83,8 +98,8 @@ def create_access_token(
 
 
 def create_refresh_token(
-    subject: str | Any,
-    expires_delta: timedelta | None = None,
+    subject: Union[str, Any],
+    expires_delta: Optional[timedelta] = None,
 ) -> str:
     """
     Create a JWT refresh token.
@@ -137,7 +152,7 @@ def decode_token(token: str) -> dict[str, Any]:
     )
 
 
-def verify_access_token(token: str) -> dict[str, Any] | None:
+def verify_access_token(token: str) -> Optional[dict[str, Any]]:
     """
     Verify an access token and return its payload.
 
@@ -156,7 +171,7 @@ def verify_access_token(token: str) -> dict[str, Any] | None:
         return None
 
 
-def verify_refresh_token(token: str) -> dict[str, Any] | None:
+def verify_refresh_token(token: str) -> Optional[dict[str, Any]]:
     """
     Verify a refresh token and return its payload.
 
@@ -214,6 +229,21 @@ def hash_api_key(api_key: str) -> str:
         SHA256 hash of the API key
     """
     return hashlib.sha256(api_key.encode()).hexdigest()
+
+
+def verify_api_key(api_key: str, hashed_key: str) -> bool:
+    """
+    Verify an API key against its hash.
+
+    Args:
+        api_key: The API key to verify
+        hashed_key: The stored hash to check against
+
+    Returns:
+        True if the key matches the hash, False otherwise
+    """
+    computed_hash = hash_api_key(api_key)
+    return secrets.compare_digest(computed_hash, hashed_key)
 
 
 def verify_api_key_format(api_key: str) -> bool:
@@ -279,4 +309,3 @@ def verify_webhook_signature(payload: str, signature: str, secret: str) -> bool:
     """
     expected_signature = sign_webhook_payload(payload, secret)
     return secrets.compare_digest(signature, expected_signature)
-

@@ -1,9 +1,12 @@
 """
 Redis connection management
+
+Thread-safe connection pool initialization.
 """
 
+import threading
 from contextlib import asynccontextmanager
-from typing import Any, AsyncGenerator
+from typing import Any, AsyncGenerator, Optional
 
 import redis.asyncio as redis
 from redis.asyncio import ConnectionPool, Redis
@@ -11,9 +14,13 @@ from redis.asyncio import ConnectionPool, Redis
 from app.core.config import settings
 
 # Connection pools for different purposes
-_main_pool: ConnectionPool | None = None
-_cache_pool: ConnectionPool | None = None
-_rate_limit_pool: ConnectionPool | None = None
+_main_pool: Optional[ConnectionPool] = None
+_cache_pool: Optional[ConnectionPool] = None
+_rate_limit_pool: Optional[ConnectionPool] = None
+
+# Thread-safe initialization lock
+_init_lock = threading.Lock()
+_initialized = False
 
 
 def get_redis_url(db: int = 0) -> str:
@@ -23,43 +30,61 @@ def get_redis_url(db: int = 0) -> str:
 
 
 async def init_redis_pools() -> None:
-    """Initialize Redis connection pools."""
-    global _main_pool, _cache_pool, _rate_limit_pool
+    """
+    Initialize Redis connection pools.
+    
+    Thread-safe - can be called from multiple threads/coroutines.
+    """
+    global _main_pool, _cache_pool, _rate_limit_pool, _initialized
 
-    _main_pool = ConnectionPool.from_url(
-        get_redis_url(0),
-        max_connections=settings.REDIS_MAX_CONNECTIONS,
-        decode_responses=True,
-    )
+    # Quick check without lock
+    if _initialized:
+        return
 
-    _cache_pool = ConnectionPool.from_url(
-        get_redis_url(settings.REDIS_CACHE_DB),
-        max_connections=settings.REDIS_MAX_CONNECTIONS,
-        decode_responses=True,
-    )
+    with _init_lock:
+        # Double-check after acquiring lock
+        if _initialized:
+            return
 
-    _rate_limit_pool = ConnectionPool.from_url(
-        get_redis_url(settings.REDIS_RATE_LIMIT_DB),
-        max_connections=settings.REDIS_MAX_CONNECTIONS,
-        decode_responses=True,
-    )
+        _main_pool = ConnectionPool.from_url(
+            get_redis_url(0),
+            max_connections=settings.REDIS_MAX_CONNECTIONS,
+            decode_responses=True,
+        )
+
+        _cache_pool = ConnectionPool.from_url(
+            get_redis_url(settings.REDIS_CACHE_DB),
+            max_connections=settings.REDIS_MAX_CONNECTIONS,
+            decode_responses=True,
+        )
+
+        _rate_limit_pool = ConnectionPool.from_url(
+            get_redis_url(settings.REDIS_RATE_LIMIT_DB),
+            max_connections=settings.REDIS_MAX_CONNECTIONS,
+            decode_responses=True,
+        )
+
+        _initialized = True
 
 
 async def close_redis_pools() -> None:
     """Close Redis connection pools."""
-    global _main_pool, _cache_pool, _rate_limit_pool
+    global _main_pool, _cache_pool, _rate_limit_pool, _initialized
 
-    if _main_pool:
-        await _main_pool.disconnect()
-        _main_pool = None
+    with _init_lock:
+        if _main_pool:
+            await _main_pool.disconnect()
+            _main_pool = None
 
-    if _cache_pool:
-        await _cache_pool.disconnect()
-        _cache_pool = None
+        if _cache_pool:
+            await _cache_pool.disconnect()
+            _cache_pool = None
 
-    if _rate_limit_pool:
-        await _rate_limit_pool.disconnect()
-        _rate_limit_pool = None
+        if _rate_limit_pool:
+            await _rate_limit_pool.disconnect()
+            _rate_limit_pool = None
+
+        _initialized = False
 
 
 async def get_redis() -> AsyncGenerator[Redis, None]:
@@ -69,7 +94,7 @@ async def get_redis() -> AsyncGenerator[Redis, None]:
     Yields:
         Redis: Redis client
     """
-    if _main_pool is None:
+    if not _initialized:
         await init_redis_pools()
 
     client = Redis(connection_pool=_main_pool)
@@ -86,7 +111,7 @@ async def get_cache_redis() -> AsyncGenerator[Redis, None]:
     Yields:
         Redis: Redis client for caching
     """
-    if _cache_pool is None:
+    if not _initialized:
         await init_redis_pools()
 
     client = Redis(connection_pool=_cache_pool)
@@ -103,7 +128,7 @@ async def get_rate_limit_redis() -> AsyncGenerator[Redis, None]:
     Yields:
         Redis: Redis client for rate limiting
     """
-    if _rate_limit_pool is None:
+    if not _initialized:
         await init_redis_pools()
 
     client = Redis(connection_pool=_rate_limit_pool)
@@ -124,7 +149,7 @@ async def redis_context(pool: str = "main") -> AsyncGenerator[Redis, None]:
     Yields:
         Redis: Redis client
     """
-    if _main_pool is None:
+    if not _initialized:
         await init_redis_pools()
 
     pool_map = {
@@ -150,7 +175,7 @@ class RedisClient:
     def __init__(self, redis_client: Redis):
         self._redis = redis_client
 
-    async def get(self, key: str) -> str | None:
+    async def get(self, key: str) -> Optional[str]:
         """Get value by key."""
         return await self._redis.get(key)
 
@@ -158,7 +183,7 @@ class RedisClient:
         self,
         key: str,
         value: Any,
-        ttl: int | None = None,
+        ttl: Optional[int] = None,
     ) -> bool:
         """Set value with optional TTL."""
         if ttl:
@@ -185,7 +210,7 @@ class RedisClient:
         """Get remaining TTL for key."""
         return await self._redis.ttl(key)
 
-    async def hget(self, name: str, key: str) -> str | None:
+    async def hget(self, name: str, key: str) -> Optional[str]:
         """Get hash field value."""
         return await self._redis.hget(name, key)
 
@@ -225,3 +250,11 @@ class RedisClient:
         """Check Redis connection."""
         return await self._redis.ping()
 
+    async def eval(
+        self,
+        script: str,
+        numkeys: int,
+        *keys_and_args,
+    ) -> Any:
+        """Execute Lua script."""
+        return await self._redis.eval(script, numkeys, *keys_and_args)

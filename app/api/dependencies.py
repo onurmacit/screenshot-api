@@ -3,7 +3,7 @@ FastAPI dependencies for authentication, rate limiting, etc.
 """
 
 import json
-from typing import Annotated, Optional
+from typing import Annotated, Optional, Union
 from uuid import UUID
 
 from fastapi import Depends, Header, Request
@@ -64,7 +64,7 @@ class CurrentUser:
 
 
 async def get_current_user_from_token(
-    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer_scheme)],
+    credentials: Annotated[Optional[HTTPAuthorizationCredentials], Depends(bearer_scheme)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> CurrentUser:
     """
@@ -115,7 +115,7 @@ async def get_current_user_from_token(
 
 async def get_current_user_from_api_key(
     request: Request,
-    x_api_key: Annotated[str | None, Header(alias="X-API-Key")] = None,
+    x_api_key: Annotated[Optional[str], Header(alias="X-API-Key")] = None,
     db: Annotated[AsyncSession, Depends(get_db)] = None,
     redis: Annotated[Redis, Depends(get_redis)] = None,
 ) -> CurrentUser:
@@ -205,8 +205,8 @@ async def get_current_user_from_api_key(
 
 
 async def get_optional_user(
-    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer_scheme)],
-    x_api_key: Annotated[str | None, Header(alias="X-API-Key")] = None,
+    credentials: Annotated[Optional[HTTPAuthorizationCredentials], Depends(bearer_scheme)],
+    x_api_key: Annotated[Optional[str], Header(alias="X-API-Key")] = None,
     db: Annotated[AsyncSession, Depends(get_db)] = None,
 ) -> Optional[CurrentUser]:
     """

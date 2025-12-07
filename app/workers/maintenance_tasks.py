@@ -2,36 +2,28 @@
 Maintenance Tasks
 
 Celery tasks for cleanup, usage calculation, and maintenance operations.
+Uses sync Celery tasks with asyncio.run for async operations.
 """
 
-import asyncio
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from sqlalchemy import delete, func, select
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import delete, func, select, text
 
 from app.core.config import settings
 from app.core.database import AsyncSessionLocal
 from app.models import AuditLog, RenderJob
 from app.services.storage_service import storage_service
 from app.utils.logger import get_logger
-from app.workers.celery_app import celery_app
+from app.workers.celery_app import celery_app, run_async
 
 logger = get_logger(__name__)
 
 
-def run_async(coro):
-    """Run async function in sync context."""
-    loop = asyncio.new_event_loop()
-    try:
-        return loop.run_until_complete(coro)
-    finally:
-        loop.close()
-
-
 @celery_app.task(
     name="app.workers.maintenance_tasks.cleanup_expired_files",
+    max_retries=2,
+    default_retry_delay=300,
 )
 def cleanup_expired_files() -> dict[str, Any]:
     """
@@ -90,6 +82,8 @@ async def _cleanup_expired_files_async() -> dict[str, Any]:
 
 @celery_app.task(
     name="app.workers.maintenance_tasks.calculate_daily_usage",
+    max_retries=2,
+    default_retry_delay=300,
 )
 def calculate_daily_usage() -> dict[str, Any]:
     """
@@ -149,6 +143,8 @@ async def _calculate_daily_usage_async() -> dict[str, Any]:
 
 @celery_app.task(
     name="app.workers.maintenance_tasks.cleanup_old_audit_logs",
+    max_retries=2,
+    default_retry_delay=300,
 )
 def cleanup_old_audit_logs() -> dict[str, Any]:
     """
@@ -191,6 +187,8 @@ async def _cleanup_old_audit_logs_async() -> dict[str, Any]:
 
 @celery_app.task(
     name="app.workers.maintenance_tasks.cleanup_failed_jobs",
+    max_retries=2,
+    default_retry_delay=300,
 )
 def cleanup_failed_jobs() -> dict[str, Any]:
     """
@@ -231,6 +229,8 @@ async def _cleanup_failed_jobs_async() -> dict[str, Any]:
 
 @celery_app.task(
     name="app.workers.maintenance_tasks.refresh_expired_tokens",
+    max_retries=2,
+    default_retry_delay=300,
 )
 def refresh_expired_tokens() -> dict[str, Any]:
     """
@@ -299,7 +299,6 @@ async def _health_check_async() -> dict[str, Any]:
     # Check database
     try:
         async with AsyncSessionLocal() as db:
-            from sqlalchemy import text
             await db.execute(text("SELECT 1"))
         status["database"] = "healthy"
     except Exception as e:
@@ -316,4 +315,3 @@ async def _health_check_async() -> dict[str, Any]:
     logger.info("Worker health check completed", status=status)
 
     return status
-

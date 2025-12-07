@@ -2,15 +2,14 @@
 Render Tasks
 
 Celery tasks for asynchronous screenshot and PDF rendering.
+Uses sync Celery tasks with asyncio.run for async operations.
 """
 
-import asyncio
 from datetime import datetime, timezone
 from typing import Any, Optional
 from uuid import UUID
 
-from celery import shared_task
-from celery.exceptions import MaxRetriesExceededError, SoftTimeLimitExceeded
+from celery.exceptions import SoftTimeLimitExceeded
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -19,19 +18,11 @@ from app.models import Plan, RenderJob, User
 from app.services.render_service import render_service
 from app.services.storage_service import storage_service
 from app.services.rate_limit_service import rate_limit_service
+from app.utils.exceptions import RenderError, ValidationError
 from app.utils.logger import get_logger
-from app.workers.celery_app import celery_app, get_queue_for_plan
+from app.workers.celery_app import celery_app, get_queue_for_plan, run_async
 
 logger = get_logger(__name__)
-
-
-def run_async(coro):
-    """Run async function in sync context."""
-    loop = asyncio.new_event_loop()
-    try:
-        return loop.run_until_complete(coro)
-    finally:
-        loop.close()
 
 
 async def get_job_with_user(
@@ -66,11 +57,14 @@ async def get_job_with_user(
     bind=True,
     name="app.workers.render_tasks.process_screenshot",
     max_retries=3,
-    default_retry_delay=60,
-    autoretry_for=(Exception,),
+    default_retry_delay=5,
+    autoretry_for=(RenderError, ConnectionError, TimeoutError, OSError),
+    dont_autoretry_for=(ValidationError, ValueError),
     retry_backoff=True,
-    retry_backoff_max=600,
+    retry_backoff_max=120,
     retry_jitter=True,
+    soft_time_limit=270,
+    time_limit=300,
 )
 def process_screenshot(self, job_id: str) -> dict[str, Any]:
     """
@@ -87,12 +81,36 @@ def process_screenshot(self, job_id: str) -> dict[str, Any]:
     """
     logger.info("Processing screenshot job", job_id=job_id, attempt=self.request.retries + 1)
 
-    return run_async(_process_screenshot_async(self, job_id))
+    try:
+        return run_async(_process_screenshot_async(self, job_id))
+    except SoftTimeLimitExceeded:
+        logger.warning("Screenshot job soft time limit exceeded", job_id=job_id)
+        run_async(_mark_job_failed(job_id, "Job timed out"))
+        return {"error": "timeout"}
+
+
+async def _mark_job_failed(job_id: str, error_message: str) -> None:
+    """Mark a job as failed."""
+    async with AsyncSessionLocal() as db:
+        try:
+            result = await db.execute(
+                select(RenderJob).where(RenderJob.id == UUID(job_id))
+            )
+            job = result.scalar_one_or_none()
+            if job:
+                job.status = "failed"
+                job.error_message = error_message
+                job.completed_at = datetime.now(timezone.utc)
+                await db.commit()
+        except Exception as e:
+            logger.error("Failed to mark job as failed", job_id=job_id, error=str(e))
+            await db.rollback()
 
 
 async def _process_screenshot_async(task, job_id: str) -> dict[str, Any]:
     """Async implementation of screenshot processing."""
     async with AsyncSessionLocal() as db:
+        job = None
         try:
             # Get job
             job, user, plan = await get_job_with_user(db, UUID(job_id))
@@ -170,20 +188,22 @@ async def _process_screenshot_async(task, job_id: str) -> dict[str, Any]:
                 "processing_time_ms": metadata["processing_time_ms"],
             }
 
-        except SoftTimeLimitExceeded:
-            logger.warning("Screenshot job timed out", job_id=job_id)
-            job.status = "failed"
-            job.error_message = "Job timed out"
-            job.completed_at = datetime.now(timezone.utc)
-            await db.commit()
-            return {"error": "timeout"}
+        except ValidationError as e:
+            # Don't retry validation errors
+            logger.warning("Validation error in screenshot job", job_id=job_id, error=str(e))
+            if job:
+                job.status = "failed"
+                job.error_message = str(e)
+                job.completed_at = datetime.now(timezone.utc)
+                await db.commit()
+            return {"error": str(e)}
 
-        except Exception as e:
-            logger.exception("Screenshot job failed", job_id=job_id, error=str(e))
+        except (RenderError, ConnectionError, TimeoutError, OSError) as e:
+            logger.warning("Retryable error in screenshot job", job_id=job_id, error=str(e))
 
             # Update job status
             if job:
-                if job.retry_count < job.max_retries:
+                if task.request.retries < task.max_retries:
                     job.status = "pending"  # Will be retried
                 else:
                     job.status = "failed"
@@ -193,23 +213,43 @@ async def _process_screenshot_async(task, job_id: str) -> dict[str, Any]:
                     # Trigger failure webhook
                     if job.webhook_url:
                         from app.workers.webhook_tasks import send_job_webhook
-
                         send_job_webhook.delay(str(job.id), "job.failed")
 
                 await db.commit()
 
-            raise
+            raise  # Re-raise for Celery retry
+
+        except Exception as e:
+            logger.exception("Screenshot job failed", job_id=job_id, error=str(e))
+
+            # Update job status
+            if job:
+                job.status = "failed"
+                job.error_message = str(e)
+                job.completed_at = datetime.now(timezone.utc)
+
+                # Trigger failure webhook
+                if job.webhook_url:
+                    from app.workers.webhook_tasks import send_job_webhook
+                    send_job_webhook.delay(str(job.id), "job.failed")
+
+                await db.commit()
+
+            return {"error": str(e)}
 
 
 @celery_app.task(
     bind=True,
     name="app.workers.render_tasks.process_pdf",
     max_retries=3,
-    default_retry_delay=60,
-    autoretry_for=(Exception,),
+    default_retry_delay=5,
+    autoretry_for=(RenderError, ConnectionError, TimeoutError, OSError),
+    dont_autoretry_for=(ValidationError, ValueError),
     retry_backoff=True,
-    retry_backoff_max=600,
+    retry_backoff_max=120,
     retry_jitter=True,
+    soft_time_limit=270,
+    time_limit=300,
 )
 def process_pdf(self, job_id: str) -> dict[str, Any]:
     """
@@ -223,12 +263,18 @@ def process_pdf(self, job_id: str) -> dict[str, Any]:
     """
     logger.info("Processing PDF job", job_id=job_id, attempt=self.request.retries + 1)
 
-    return run_async(_process_pdf_async(self, job_id))
+    try:
+        return run_async(_process_pdf_async(self, job_id))
+    except SoftTimeLimitExceeded:
+        logger.warning("PDF job soft time limit exceeded", job_id=job_id)
+        run_async(_mark_job_failed(job_id, "Job timed out"))
+        return {"error": "timeout"}
 
 
 async def _process_pdf_async(task, job_id: str) -> dict[str, Any]:
     """Async implementation of PDF processing."""
     async with AsyncSessionLocal() as db:
+        job = None
         try:
             # Get job
             job, user, plan = await get_job_with_user(db, UUID(job_id))
@@ -299,19 +345,20 @@ async def _process_pdf_async(task, job_id: str) -> dict[str, Any]:
                 "processing_time_ms": metadata["processing_time_ms"],
             }
 
-        except SoftTimeLimitExceeded:
-            logger.warning("PDF job timed out", job_id=job_id)
-            job.status = "failed"
-            job.error_message = "Job timed out"
-            job.completed_at = datetime.now(timezone.utc)
-            await db.commit()
-            return {"error": "timeout"}
+        except ValidationError as e:
+            logger.warning("Validation error in PDF job", job_id=job_id, error=str(e))
+            if job:
+                job.status = "failed"
+                job.error_message = str(e)
+                job.completed_at = datetime.now(timezone.utc)
+                await db.commit()
+            return {"error": str(e)}
 
-        except Exception as e:
-            logger.exception("PDF job failed", job_id=job_id, error=str(e))
+        except (RenderError, ConnectionError, TimeoutError, OSError) as e:
+            logger.warning("Retryable error in PDF job", job_id=job_id, error=str(e))
 
             if job:
-                if job.retry_count < job.max_retries:
+                if task.request.retries < task.max_retries:
                     job.status = "pending"
                 else:
                     job.status = "failed"
@@ -320,12 +367,27 @@ async def _process_pdf_async(task, job_id: str) -> dict[str, Any]:
 
                     if job.webhook_url:
                         from app.workers.webhook_tasks import send_job_webhook
-
                         send_job_webhook.delay(str(job.id), "job.failed")
 
                 await db.commit()
 
             raise
+
+        except Exception as e:
+            logger.exception("PDF job failed", job_id=job_id, error=str(e))
+
+            if job:
+                job.status = "failed"
+                job.error_message = str(e)
+                job.completed_at = datetime.now(timezone.utc)
+
+                if job.webhook_url:
+                    from app.workers.webhook_tasks import send_job_webhook
+                    send_job_webhook.delay(str(job.id), "job.failed")
+
+                await db.commit()
+
+            return {"error": str(e)}
 
 
 def queue_render_job(job_id: str, job_type: str, plan_name: str) -> str:
@@ -361,4 +423,3 @@ def queue_render_job(job_id: str, job_type: str, plan_name: str) -> str:
     )
 
     return result.id
-

@@ -3,7 +3,7 @@ Screenshot and PDF rendering endpoints
 """
 
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Optional, Union
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, status
@@ -37,7 +37,7 @@ router = APIRouter()
 
 @router.post(
     "/screenshot",
-    response_model=RenderJobResponse | RenderJobAsyncResponse,
+    response_model=Union[RenderJobResponse, RenderJobAsyncResponse],
     status_code=status.HTTP_200_OK,
     summary="Create screenshot",
     description="Capture a screenshot of a URL.",
@@ -46,7 +46,7 @@ async def create_screenshot(
     request: ScreenshotRequest,
     current_user: RateLimitedUser,
     db: DBSession,
-) -> RenderJobResponse | RenderJobAsyncResponse:
+) -> Union[RenderJobResponse, RenderJobAsyncResponse]:
     """
     Create a screenshot.
 
@@ -209,7 +209,7 @@ async def create_screenshot(
 
 @router.post(
     "/pdf",
-    response_model=RenderJobResponse | RenderJobAsyncResponse,
+    response_model=Union[RenderJobResponse, RenderJobAsyncResponse],
     status_code=status.HTTP_200_OK,
     summary="Generate PDF",
     description="Generate a PDF from a URL.",
@@ -218,7 +218,7 @@ async def create_pdf(
     request: PDFRequest,
     current_user: RateLimitedUser,
     db: DBSession,
-) -> RenderJobResponse | RenderJobAsyncResponse:
+) -> Union[RenderJobResponse, RenderJobAsyncResponse]:
     """
     Generate a PDF.
 

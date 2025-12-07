@@ -79,6 +79,30 @@ class WebhooksListResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class WebhookSecretResponse(BaseModel):
+    """Webhook secret response (after rotation)."""
+
+    webhook_id: UUID
+    secret: str = Field(..., description="New webhook secret. Save it securely!")
+
+    model_config = {"from_attributes": True}
+
+
+class WebhookVerifyRequest(BaseModel):
+    """Request to verify webhook signature."""
+
+    payload: str = Field(..., description="The raw JSON payload string")
+    signature: str = Field(..., description="The signature from X-Webhook-Signature header")
+    secret: str = Field(..., description="Your webhook secret")
+
+
+class WebhookVerifyResponse(BaseModel):
+    """Response from signature verification."""
+
+    valid: bool = Field(..., description="Whether the signature is valid")
+    message: str = Field(..., description="Verification result message")
+
+
 class WebhookPayload(BaseModel):
     """Webhook delivery payload."""
 
@@ -88,3 +112,16 @@ class WebhookPayload(BaseModel):
 
     model_config = {"from_attributes": True}
 
+
+class WebhookDeliveryInfo(BaseModel):
+    """Information about a webhook delivery attempt."""
+
+    webhook_id: UUID
+    event: str
+    status_code: Optional[int] = None
+    success: bool
+    attempt: int
+    error: Optional[str] = None
+    delivered_at: datetime
+
+    model_config = {"from_attributes": True}

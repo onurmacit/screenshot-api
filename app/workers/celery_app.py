@@ -2,15 +2,155 @@
 Celery Application Configuration
 
 Configures Celery with Redis broker, task queues, and beat schedule.
+Includes worker lifecycle management for proper resource cleanup.
 """
+
+import asyncio
+import atexit
+import threading
+from typing import Optional
 
 from celery import Celery
 from celery.schedules import crontab
+from celery.signals import worker_process_init, worker_process_shutdown
 from kombu import Exchange, Queue
 
 from app.core.config import settings
+from app.utils.logger import get_logger
 
-# Create Celery application
+logger = get_logger(__name__)
+
+# =============================================================================
+# Event Loop Management
+# =============================================================================
+
+# Thread-local storage for event loop
+_thread_local = threading.local()
+_worker_initialized = False
+_cleanup_lock = threading.Lock()
+
+
+def get_event_loop() -> asyncio.AbstractEventLoop:
+    """
+    Get or create event loop for current thread.
+    
+    Returns:
+        Event loop for current thread
+    """
+    if not hasattr(_thread_local, "loop") or _thread_local.loop is None:
+        _thread_local.loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(_thread_local.loop)
+    return _thread_local.loop
+
+
+def run_async(coro):
+    """
+    Run async coroutine in sync context.
+    
+    Uses thread-local event loop to avoid conflicts.
+    
+    Args:
+        coro: Async coroutine to run
+        
+    Returns:
+        Result of the coroutine
+    """
+    loop = get_event_loop()
+    return loop.run_until_complete(coro)
+
+
+def cleanup_event_loop():
+    """Clean up thread-local event loop."""
+    if hasattr(_thread_local, "loop") and _thread_local.loop is not None:
+        try:
+            loop = _thread_local.loop
+            # Cancel all pending tasks
+            pending = asyncio.all_tasks(loop)
+            for task in pending:
+                task.cancel()
+            
+            # Run until all tasks are cancelled
+            if pending:
+                loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
+            
+            loop.close()
+        except Exception as e:
+            logger.warning("Error cleaning up event loop", error=str(e))
+        finally:
+            _thread_local.loop = None
+
+
+# =============================================================================
+# Worker Lifecycle Signals
+# =============================================================================
+
+@worker_process_init.connect
+def init_worker_process(**kwargs):
+    """
+    Initialize worker process.
+    
+    Called when a new worker process starts.
+    Sets up event loop and initializes browser pool.
+    """
+    global _worker_initialized
+    
+    logger.info("Initializing Celery worker process")
+    
+    # Create event loop for this worker
+    loop = get_event_loop()
+    
+    # Initialize browser pool for render workers
+    try:
+        from app.services.render_service import browser_pool
+        loop.run_until_complete(browser_pool.initialize())
+        logger.info("Browser pool initialized for worker")
+    except Exception as e:
+        logger.warning("Could not initialize browser pool", error=str(e))
+    
+    _worker_initialized = True
+    logger.info("Celery worker process initialized")
+
+
+@worker_process_shutdown.connect
+def shutdown_worker_process(**kwargs):
+    """
+    Clean up worker process on shutdown.
+    
+    Called when worker process is shutting down.
+    Closes browser pool and cleans up resources.
+    """
+    global _worker_initialized
+    
+    with _cleanup_lock:
+        if not _worker_initialized:
+            return
+        
+        logger.info("Shutting down Celery worker process")
+        
+        # Close browser pool
+        try:
+            from app.services.render_service import browser_pool
+            loop = get_event_loop()
+            loop.run_until_complete(browser_pool.close())
+            logger.info("Browser pool closed")
+        except Exception as e:
+            logger.warning("Error closing browser pool", error=str(e))
+        
+        # Clean up event loop
+        cleanup_event_loop()
+        
+        _worker_initialized = False
+        logger.info("Celery worker process shutdown complete")
+
+
+# Register cleanup on process exit
+atexit.register(lambda: shutdown_worker_process(sender=None))
+
+
+# =============================================================================
+# Celery Application
+# =============================================================================
+
 celery_app = Celery(
     "screenshot_api",
     broker=settings.CELERY_BROKER_URL,
@@ -247,4 +387,3 @@ def get_priority_for_plan(plan_name: str) -> int:
         "free": 1,
     }
     return priority_map.get(plan_name, 1)
-

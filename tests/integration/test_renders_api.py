@@ -10,7 +10,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from httpx import AsyncClient
 
-from app.models.render_job import RenderStatus
+# RenderStatus enum not defined in model, using string values instead
 
 
 class TestScreenshotEndpoint:

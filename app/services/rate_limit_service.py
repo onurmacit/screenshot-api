@@ -2,9 +2,11 @@
 Rate Limit Service
 
 Handles multi-tier rate limiting using Redis sliding window counters.
+Uses atomic Lua scripts to prevent race conditions.
 """
 
 import time
+import uuid
 from typing import Any, Optional
 from uuid import UUID
 
@@ -59,6 +61,35 @@ WINDOWS = {
 }
 
 
+# Lua script for atomic rate limit check
+# Returns: {allowed (0/1), remaining, current_count}
+RATE_LIMIT_LUA_SCRIPT = """
+local key = KEYS[1]
+local window_start = tonumber(ARGV[1])
+local limit = tonumber(ARGV[2])
+local current_time = tonumber(ARGV[3])
+local request_id = ARGV[4]
+local window_size = tonumber(ARGV[5])
+
+-- Remove expired entries
+redis.call('ZREMRANGEBYSCORE', key, 0, window_start)
+
+-- Get current count
+local count = redis.call('ZCARD', key)
+
+-- Check if under limit
+if count < limit then
+    -- Add new request with unique score
+    redis.call('ZADD', key, current_time, current_time .. ':' .. request_id)
+    -- Set expiry
+    redis.call('EXPIRE', key, window_size + 1)
+    return {1, limit - count - 1, count + 1}  -- allowed, remaining, new count
+else
+    return {0, 0, count}  -- not allowed, remaining=0, count
+end
+"""
+
+
 class RateLimitResult:
     """Result of rate limit check."""
 
@@ -96,14 +127,6 @@ class RateLimitService:
     def __init__(self, redis: Optional[Redis] = None):
         self._redis = redis
 
-    async def _get_redis(self) -> Redis:
-        """Get Redis connection."""
-        if self._redis:
-            return self._redis
-        # Use context manager for one-off operations
-        async with redis_context("rate_limit") as redis:
-            return redis
-
     async def check_rate_limit(
         self,
         user_id: UUID,
@@ -113,6 +136,8 @@ class RateLimitService:
     ) -> RateLimitResult:
         """
         Check if request is within rate limits.
+
+        Uses atomic Lua script to prevent race conditions.
 
         Args:
             user_id: User UUID
@@ -183,82 +208,83 @@ class RateLimitService:
         user_id: str,
         limits: dict[str, int],
     ) -> list[RateLimitResult]:
-        """Check rate limits for all time windows."""
+        """Check rate limits for all time windows using atomic operations."""
         results = []
         current_time = int(time.time())
+        request_id = str(uuid.uuid4())
 
         # Check minute window
         if "per_minute" in limits:
-            result = await self._check_window(
+            result = await self._check_window_atomic(
                 redis,
                 user_id,
                 "minute",
                 limits["per_minute"],
                 current_time,
+                request_id,
             )
             results.append(result)
 
         # Check hour window
         if "per_hour" in limits:
-            result = await self._check_window(
+            result = await self._check_window_atomic(
                 redis,
                 user_id,
                 "hour",
                 limits["per_hour"],
                 current_time,
+                request_id,
             )
             results.append(result)
 
         # Check day window
         if "per_day" in limits:
-            result = await self._check_window(
+            result = await self._check_window_atomic(
                 redis,
                 user_id,
                 "day",
                 limits["per_day"],
                 current_time,
+                request_id,
             )
             results.append(result)
 
         return results
 
-    async def _check_window(
+    async def _check_window_atomic(
         self,
         redis: Redis,
         user_id: str,
         window: str,
         limit: int,
         current_time: int,
+        request_id: str,
     ) -> RateLimitResult:
         """
-        Check rate limit for a specific time window using sliding window.
+        Check rate limit for a specific time window using atomic Lua script.
 
-        Uses Redis sorted sets for accurate sliding window counting.
+        Uses sliding window algorithm with sorted sets.
+        Atomic operation prevents race conditions.
         """
         window_size = WINDOWS.get(window, 60)
         window_start = current_time - window_size
         key = f"rl:user:{user_id}:{window}"
-
-        pipe = redis.pipeline()
-
-        # Remove expired entries
-        pipe.zremrangebyscore(key, 0, window_start)
-
-        # Count current entries
-        pipe.zcard(key)
-
-        # Add current request (will be committed only if allowed)
-        pipe.zadd(key, {f"{current_time}:{id(current_time)}": current_time})
-
-        # Set TTL
-        pipe.expire(key, window_size + 1)
-
-        results = await pipe.execute()
-        count = results[1]  # Current count before adding
-
         reset_at = current_time + window_size
-        remaining = max(0, limit - count - 1)
-        allowed = count < limit
+
+        # Execute atomic Lua script
+        result = await redis.eval(
+            RATE_LIMIT_LUA_SCRIPT,
+            1,  # number of keys
+            key,
+            window_start,
+            limit,
+            current_time,
+            request_id,
+            window_size,
+        )
+
+        allowed = result[0] == 1
+        remaining = result[1]
 
         return RateLimitResult(
             allowed=allowed,
@@ -286,13 +312,32 @@ class RateLimitService:
         now = time.gmtime()
         key = f"usage:monthly:{user_id}:{now.tm_year}:{now.tm_mon}"
 
-        async with redis_context("rate_limit") as redis:
-            pipe = redis.pipeline()
-            pipe.incrby(key, amount)
-            pipe.expire(key, WINDOWS["month"] + 86400)  # Extra day buffer
-            results = await pipe.execute()
+        # Lua script for atomic increment with expiry
+        lua_script = """
+        local key = KEYS[1]
+        local amount = tonumber(ARGV[1])
+        local expire = tonumber(ARGV[2])
+        
+        local new_value = redis.call('INCRBY', key, amount)
+        
+        -- Set expiry only if this is a new key (TTL = -1)
+        if redis.call('TTL', key) == -1 then
+            redis.call('EXPIRE', key, expire)
+        end
+        
+        return new_value
+        """
 
-        return results[0]
+        async with redis_context("rate_limit") as redis:
+            result = await redis.eval(
+                lua_script,
+                1,
+                key,
+                amount,
+                WINDOWS["month"] + 86400,  # Extra day buffer
+            )
+
+        return result
 
     async def get_usage(
         self,
@@ -432,4 +477,3 @@ class RateLimitService:
 
 # Global rate limit service instance
 rate_limit_service = RateLimitService()
-

@@ -3,7 +3,7 @@ Refresh Token model
 """
 
 from datetime import datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 from uuid import UUID
 
 from sqlalchemy import Boolean, DateTime, ForeignKey, Index, String
@@ -53,11 +53,11 @@ class RefreshToken(BaseModel):
     )
 
     # Client information
-    device_info: Mapped[str | None] = mapped_column(
+    device_info: Mapped[Optional[str]] = mapped_column(
         String(500),
         nullable=True,
     )
-    ip_address: Mapped[str | None] = mapped_column(
+    ip_address: Mapped[Optional[str]] = mapped_column(
         String(45),  # IPv6 max length
         nullable=True,
     )

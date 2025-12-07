@@ -3,7 +3,7 @@ Audit logging middleware
 """
 
 import time
-from typing import Any, Callable
+from typing import Any, Callable, Optional
 from uuid import uuid4
 
 from fastapi import Request, Response
@@ -101,13 +101,13 @@ class AuditLogMiddleware(BaseHTTPMiddleware):
 
 
 async def log_audit_event(
-    user_id: str | None,
+    user_id: Optional[str],
     action: str,
-    resource_type: str | None = None,
-    resource_id: str | None = None,
-    ip_address: str | None = None,
-    user_agent: str | None = None,
-    metadata: dict[str, Any] | None = None,
+    resource_type: Optional[str] = None,
+    resource_id: Optional[str] = None,
+    ip_address: Optional[str] = None,
+    user_agent: Optional[str] = None,
+    metadata: Optional[dict[str, Any]] = None,
 ) -> None:
     """
     Log an audit event.

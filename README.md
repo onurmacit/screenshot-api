@@ -1,5 +1,12 @@
 # Screenshot API
 
+[![CI/CD](https://github.com/onurmacit/screenshot-api/actions/workflows/ci.yml/badge.svg)](https://github.com/onurmacit/screenshot-api/actions/workflows/ci.yml)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.109+-00a393.svg)](https://fastapi.tiangolo.com/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Docker](https://img.shields.io/badge/docker-ready-blue.svg)](https://www.docker.com/)
+[![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
+
 Production-grade Screenshot and PDF rendering SaaS with multi-tenant architecture, background processing, and S3 storage.
 
 ## 🚀 Features
@@ -69,7 +76,7 @@ Production-grade Screenshot and PDF rendering SaaS with multi-tenant architectur
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-org/screenshot-api.git
+git clone https://github.com/onurmacit/screenshot-api.git
 cd screenshot-api
 
 # Create virtual environment
@@ -97,10 +104,13 @@ nano .env
 
 ```bash
 # Start all services
-docker-compose up -d
+docker-compose -f docker/docker-compose.yml up -d
 
 # View logs
-docker-compose logs -f api
+docker-compose -f docker/docker-compose.yml logs -f api
+
+# Check health
+curl http://localhost:8000/api/v1/health
 ```
 
 ### 4. Run Database Migrations
@@ -266,7 +276,10 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 📞 Support
 
-- Documentation: https://docs.screenshotapi.com
-- Email: support@screenshotapi.com
-- Discord: https://discord.gg/screenshotapi
+- **Issues**: [GitHub Issues](https://github.com/onurmacit/screenshot-api/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/onurmacit/screenshot-api/discussions)
+
+---
+
+Made with ❤️ using FastAPI, Playwright, and Celery
 

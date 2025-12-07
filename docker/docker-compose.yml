@@ -184,7 +184,7 @@ services:
     image: postgres:15-alpine
     container_name: screenshot-postgres
     ports:
-      - "5432:5432"
+      - "5433:5432"  # External port 5433 to avoid conflict with local PostgreSQL
     environment:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres

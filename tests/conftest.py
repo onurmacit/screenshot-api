@@ -35,8 +35,12 @@ from app.models.user import User
 # Test Settings
 # =============================================================================
 
-# Use SQLite for testing
-TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
+# Use PostgreSQL for integration tests (JSONB support required)
+# Fall back to SQLite only for unit tests that don't need JSONB
+TEST_DATABASE_URL = os.environ.get(
+    "TEST_DATABASE_URL",
+    "postgresql+asyncpg://postgres:postgres@localhost:5432/screenshot_api_test"
+)
 
 # Override settings for tests
 os.environ["APP_ENV"] = "test"
@@ -59,12 +63,15 @@ def event_loop() -> Generator:
 @pytest_asyncio.fixture(scope="function")
 async def async_engine():
     """Create async database engine for testing."""
-    engine = create_async_engine(
-        TEST_DATABASE_URL,
-        connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
-        echo=False,
-    )
+    # Check if using SQLite or PostgreSQL
+    is_sqlite = "sqlite" in TEST_DATABASE_URL
+    
+    engine_kwargs = {"echo": False}
+    if is_sqlite:
+        engine_kwargs["connect_args"] = {"check_same_thread": False}
+        engine_kwargs["poolclass"] = StaticPool
+    
+    engine = create_async_engine(TEST_DATABASE_URL, **engine_kwargs)
     
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
@@ -132,16 +139,15 @@ async def client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
 async def test_plan(db_session: AsyncSession) -> Plan:
     """Create a test plan."""
     plan = Plan(
-        id=uuid.uuid4(),
         name="free",
         display_name="Free",
         price_monthly=0,
         price_yearly=0,
         requests_per_month=100,
-        requests_per_minute=10,
-        max_resolution_width=1280,
-        max_resolution_height=720,
-        features=["screenshot", "basic_formats"],
+        max_concurrent_requests=1,
+        max_timeout_ms=30000,
+        max_file_size_mb=10,
+        features={"watermark": True, "full_page": False},
         is_active=True,
     )
     db_session.add(plan)
@@ -154,16 +160,21 @@ async def test_plan(db_session: AsyncSession) -> Plan:
 async def test_pro_plan(db_session: AsyncSession) -> Plan:
     """Create a test pro plan."""
     plan = Plan(
-        id=uuid.uuid4(),
         name="pro",
         display_name="Pro",
-        price_monthly=2900,
-        price_yearly=29000,
-        requests_per_month=10000,
-        requests_per_minute=100,
-        max_resolution_width=1920,
-        max_resolution_height=1080,
-        features=["screenshot", "pdf", "all_formats", "priority_queue", "webhook"],
+        price_monthly=49,
+        price_yearly=490,
+        requests_per_month=25000,
+        max_concurrent_requests=10,
+        max_timeout_ms=60000,
+        max_file_size_mb=50,
+        features={
+            "watermark": False,
+            "full_page": True,
+            "custom_css": True,
+            "webhooks": True,
+            "priority_queue": True,
+        },
         is_active=True,
     )
     db_session.add(plan)
@@ -181,7 +192,7 @@ async def test_user(db_session: AsyncSession, test_plan: Plan) -> User:
         password_hash=get_password_hash("TestPassword123!"),
         plan_id=test_plan.id,
         is_active=True,
-        is_verified=True,
+        email_verified=True,
     )
     db_session.add(user)
     await db_session.commit()
@@ -198,7 +209,7 @@ async def test_pro_user(db_session: AsyncSession, test_pro_plan: Plan) -> User:
         password_hash=get_password_hash("ProPassword123!"),
         plan_id=test_pro_plan.id,
         is_active=True,
-        is_verified=True,
+        email_verified=True,
     )
     db_session.add(user)
     await db_session.commit()
@@ -260,7 +271,8 @@ async def test_render_job(db_session: AsyncSession, test_user: User) -> RenderJo
 async def auth_headers(test_user: User) -> dict[str, str]:
     """Create authorization headers with JWT token."""
     token = create_access_token(
-        data={"sub": str(test_user.id), "email": test_user.email}
+        subject=str(test_user.id),
+        additional_claims={"email": test_user.email, "plan_id": test_user.plan_id}
     )
     return {"Authorization": f"Bearer {token}"}
 
@@ -276,7 +288,8 @@ async def api_key_headers(test_api_key: tuple[APIKey, str]) -> dict[str, str]:
 async def pro_auth_headers(test_pro_user: User) -> dict[str, str]:
     """Create authorization headers for pro user."""
     token = create_access_token(
-        data={"sub": str(test_pro_user.id), "email": test_pro_user.email}
+        subject=str(test_pro_user.id),
+        additional_claims={"email": test_pro_user.email, "plan_id": test_pro_user.plan_id}
     )
     return {"Authorization": f"Bearer {token}"}
 

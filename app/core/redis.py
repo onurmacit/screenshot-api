@@ -5,18 +5,18 @@ Thread-safe connection pool initialization.
 """
 
 import threading
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from typing import Any, AsyncGenerator, Optional
+from typing import Any
 
-import redis.asyncio as redis
 from redis.asyncio import ConnectionPool, Redis
 
 from app.core.config import settings
 
 # Connection pools for different purposes
-_main_pool: Optional[ConnectionPool] = None
-_cache_pool: Optional[ConnectionPool] = None
-_rate_limit_pool: Optional[ConnectionPool] = None
+_main_pool: ConnectionPool | None = None
+_cache_pool: ConnectionPool | None = None
+_rate_limit_pool: ConnectionPool | None = None
 
 # Thread-safe initialization lock
 _init_lock = threading.Lock()
@@ -175,7 +175,7 @@ class RedisClient:
     def __init__(self, redis_client: Redis):
         self._redis = redis_client
 
-    async def get(self, key: str) -> Optional[str]:
+    async def get(self, key: str) -> str | None:
         """Get value by key."""
         return await self._redis.get(key)
 
@@ -183,7 +183,7 @@ class RedisClient:
         self,
         key: str,
         value: Any,
-        ttl: Optional[int] = None,
+        ttl: int | None = None,
     ) -> bool:
         """Set value with optional TTL."""
         if ttl:
@@ -210,7 +210,7 @@ class RedisClient:
         """Get remaining TTL for key."""
         return await self._redis.ttl(key)
 
-    async def hget(self, name: str, key: str) -> Optional[str]:
+    async def hget(self, name: str, key: str) -> str | None:
         """Get hash field value."""
         return await self._redis.hget(name, key)
 

@@ -3,11 +3,12 @@ API Key model
 """
 
 from datetime import datetime
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 from uuid import UUID
 
 from sqlalchemy import Boolean, DateTime, ForeignKey, Index, String
-from sqlalchemy.dialects.postgresql import ARRAY, UUID as PG_UUID
+from sqlalchemy.dialects.postgresql import ARRAY
+from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import BaseModel
@@ -59,20 +60,20 @@ class APIKey(BaseModel):
         nullable=False,
         index=True,
     )
-    name: Mapped[Optional[str]] = mapped_column(
+    name: Mapped[str | None] = mapped_column(
         String(100),
         nullable=True,
     )
 
     # Permissions
-    scopes: Mapped[Optional[list[str]]] = mapped_column(
+    scopes: Mapped[list[str] | None] = mapped_column(
         ARRAY(String),
         nullable=True,
         default=list,
     )
 
     # Usage tracking
-    last_used_at: Mapped[Optional[datetime]] = mapped_column(
+    last_used_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
         nullable=True,
     )
@@ -85,7 +86,7 @@ class APIKey(BaseModel):
     )
 
     # Expiration
-    expires_at: Mapped[Optional[datetime]] = mapped_column(
+    expires_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
         nullable=True,
     )

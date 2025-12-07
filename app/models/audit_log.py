@@ -7,7 +7,8 @@ from typing import TYPE_CHECKING, Any, Optional
 from uuid import UUID
 
 from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, Text, func
-from sqlalchemy.dialects.postgresql import INET, JSONB, UUID as PG_UUID
+from sqlalchemy.dialects.postgresql import INET, JSONB
+from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -44,7 +45,7 @@ class AuditLog(Base):
     )
 
     # Foreign key (nullable for anonymous actions)
-    user_id: Mapped[Optional[UUID]] = mapped_column(
+    user_id: Mapped[UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),
         ForeignKey("users.id", ondelete="SET NULL"),
         nullable=True,
@@ -57,27 +58,27 @@ class AuditLog(Base):
         nullable=False,
         index=True,
     )
-    resource_type: Mapped[Optional[str]] = mapped_column(
+    resource_type: Mapped[str | None] = mapped_column(
         String(50),
         nullable=True,
     )
-    resource_id: Mapped[Optional[str]] = mapped_column(
+    resource_id: Mapped[str | None] = mapped_column(
         String(255),
         nullable=True,
     )
 
     # Client information
-    ip_address: Mapped[Optional[str]] = mapped_column(
+    ip_address: Mapped[str | None] = mapped_column(
         INET,
         nullable=True,
     )
-    user_agent: Mapped[Optional[str]] = mapped_column(
+    user_agent: Mapped[str | None] = mapped_column(
         Text,
         nullable=True,
     )
 
     # Additional metadata
-    extra_data: Mapped[Optional[dict[str, Any]]] = mapped_column(
+    extra_data: Mapped[dict[str, Any] | None] = mapped_column(
         JSONB,
         nullable=True,
     )

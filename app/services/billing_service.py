@@ -4,9 +4,9 @@ Billing Service
 Handles Stripe integration for subscriptions and payments.
 """
 
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from decimal import Decimal
-from typing import Any, Optional
+from typing import Any
 from uuid import UUID
 
 import stripe
@@ -15,7 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.models import BillingInvoice, Plan, User
-from app.utils.exceptions import PaymentError, NotFoundError
+from app.utils.exceptions import NotFoundError, PaymentError
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -51,7 +51,7 @@ class BillingService:
         result = await self.db.execute(query)
         return list(result.scalars().all())
 
-    async def get_plan(self, plan_id: int) -> Optional[Plan]:
+    async def get_plan(self, plan_id: int) -> Plan | None:
         """
         Get plan by ID.
 
@@ -66,7 +66,7 @@ class BillingService:
         )
         return result.scalar_one_or_none()
 
-    async def get_plan_by_name(self, name: str) -> Optional[Plan]:
+    async def get_plan_by_name(self, name: str) -> Plan | None:
         """
         Get plan by name.
 
@@ -88,7 +88,7 @@ class BillingService:
     async def create_or_get_customer(
         self,
         user: User,
-        payment_method_id: Optional[str] = None,
+        payment_method_id: str | None = None,
     ) -> str:
         """
         Create or get Stripe customer for user.
@@ -222,10 +222,10 @@ class BillingService:
                 "plan_id": plan.id,
                 "plan_name": plan.name,
                 "current_period_start": datetime.fromtimestamp(
-                    subscription.current_period_start, tz=timezone.utc
+                    subscription.current_period_start, tz=UTC
                 ),
                 "current_period_end": datetime.fromtimestamp(
-                    subscription.current_period_end, tz=timezone.utc
+                    subscription.current_period_end, tz=UTC
                 ),
             }
 
@@ -359,7 +359,7 @@ class BillingService:
             invoice.status = stripe_invoice.status
             if stripe_invoice.status == "paid":
                 invoice.paid_at = datetime.fromtimestamp(
-                    stripe_invoice.status_transitions.paid_at, tz=timezone.utc
+                    stripe_invoice.status_transitions.paid_at, tz=UTC
                 )
         else:
             # Create new

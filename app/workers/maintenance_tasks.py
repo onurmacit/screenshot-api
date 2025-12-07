@@ -5,12 +5,11 @@ Celery tasks for cleanup, usage calculation, and maintenance operations.
 Uses sync Celery tasks with asyncio.run for async operations.
 """
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from sqlalchemy import delete, func, select, text
 
-from app.core.config import settings
 from app.core.database import AsyncSessionLocal
 from app.models import AuditLog, RenderJob
 from app.services.storage_service import storage_service
@@ -41,7 +40,7 @@ def cleanup_expired_files() -> dict[str, Any]:
 async def _cleanup_expired_files_async() -> dict[str, Any]:
     """Async implementation of expired files cleanup."""
     async with AsyncSessionLocal() as db:
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         # Find expired jobs with S3 keys
         result = await db.execute(
@@ -102,7 +101,7 @@ async def _calculate_daily_usage_async() -> dict[str, Any]:
     """Async implementation of daily usage calculation."""
     async with AsyncSessionLocal() as db:
         # Calculate for yesterday
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         yesterday_start = (now - timedelta(days=1)).replace(
             hour=0, minute=0, second=0, microsecond=0
         )
@@ -164,7 +163,7 @@ async def _cleanup_old_audit_logs_async() -> dict[str, Any]:
     async with AsyncSessionLocal() as db:
         # Delete logs older than 90 days
         retention_days = 90
-        cutoff = datetime.now(timezone.utc) - timedelta(days=retention_days)
+        cutoff = datetime.now(UTC) - timedelta(days=retention_days)
 
         result = await db.execute(
             delete(AuditLog).where(AuditLog.created_at < cutoff)
@@ -207,7 +206,7 @@ async def _cleanup_failed_jobs_async() -> dict[str, Any]:
     """Async implementation of failed jobs cleanup."""
     async with AsyncSessionLocal() as db:
         # Delete failed jobs older than 30 days
-        cutoff = datetime.now(timezone.utc) - timedelta(days=30)
+        cutoff = datetime.now(UTC) - timedelta(days=30)
 
         result = await db.execute(
             delete(RenderJob).where(
@@ -250,7 +249,7 @@ async def _refresh_expired_tokens_async() -> dict[str, Any]:
     from app.models import RefreshToken
 
     async with AsyncSessionLocal() as db:
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         # Delete expired and revoked tokens
         result = await db.execute(
@@ -293,7 +292,7 @@ async def _health_check_async() -> dict[str, Any]:
     status = {
         "database": "unknown",
         "redis": "unknown",
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
     }
 
     # Check database

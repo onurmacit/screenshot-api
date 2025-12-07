@@ -3,7 +3,7 @@ Rate Limit Override model
 """
 
 from datetime import datetime
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 from uuid import UUID
 
 from sqlalchemy import DateTime, ForeignKey, Index, Integer, Text, func
@@ -53,31 +53,31 @@ class RateLimitOverride(Base):
     )
 
     # Custom limits (nullable - if null, use plan defaults)
-    requests_per_minute: Mapped[Optional[int]] = mapped_column(
+    requests_per_minute: Mapped[int | None] = mapped_column(
         Integer,
         nullable=True,
     )
-    requests_per_hour: Mapped[Optional[int]] = mapped_column(
+    requests_per_hour: Mapped[int | None] = mapped_column(
         Integer,
         nullable=True,
     )
-    requests_per_day: Mapped[Optional[int]] = mapped_column(
+    requests_per_day: Mapped[int | None] = mapped_column(
         Integer,
         nullable=True,
     )
-    burst_limit: Mapped[Optional[int]] = mapped_column(
+    burst_limit: Mapped[int | None] = mapped_column(
         Integer,
         nullable=True,
     )
 
     # Documentation
-    reason: Mapped[Optional[str]] = mapped_column(
+    reason: Mapped[str | None] = mapped_column(
         Text,
         nullable=True,
     )
 
     # Expiration
-    expires_at: Mapped[Optional[datetime]] = mapped_column(
+    expires_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
         nullable=True,
     )

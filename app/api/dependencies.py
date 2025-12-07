@@ -2,8 +2,7 @@
 FastAPI dependencies for authentication, rate limiting, etc.
 """
 
-import json
-from typing import Annotated, Optional, Union
+from typing import Annotated
 from uuid import UUID
 
 from fastapi import Depends, Header, Request
@@ -16,9 +15,9 @@ from app.core.config import settings
 from app.core.database import get_db
 from app.core.redis import get_rate_limit_redis, get_redis
 from app.core.security import hash_api_key, verify_access_token, verify_api_key_format
-from app.models import APIKey, Plan, User
+from app.models import APIKey, User
 from app.services.cache_service import cache_service
-from app.services.rate_limit_service import RateLimitService, rate_limit_service
+from app.services.rate_limit_service import rate_limit_service
 from app.utils.exceptions import (
     AuthenticationError,
     AuthorizationError,
@@ -39,12 +38,12 @@ class CurrentUser:
     def __init__(
         self,
         user_id: UUID,
-        email: Optional[str] = None,
-        plan_id: Optional[int] = None,
-        plan_name: Optional[str] = None,
-        plan_features: Optional[dict] = None,
-        api_key_id: Optional[UUID] = None,
-        scopes: Optional[list[str]] = None,
+        email: str | None = None,
+        plan_id: int | None = None,
+        plan_name: str | None = None,
+        plan_features: dict | None = None,
+        api_key_id: UUID | None = None,
+        scopes: list[str] | None = None,
     ):
         self.user_id = user_id
         self.email = email
@@ -64,7 +63,7 @@ class CurrentUser:
 
 
 async def get_current_user_from_token(
-    credentials: Annotated[Optional[HTTPAuthorizationCredentials], Depends(bearer_scheme)],
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer_scheme)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> CurrentUser:
     """
@@ -115,7 +114,7 @@ async def get_current_user_from_token(
 
 async def get_current_user_from_api_key(
     request: Request,
-    x_api_key: Annotated[Optional[str], Header(alias="X-API-Key")] = None,
+    x_api_key: Annotated[str | None, Header(alias="X-API-Key")] = None,
     db: Annotated[AsyncSession, Depends(get_db)] = None,
     redis: Annotated[Redis, Depends(get_redis)] = None,
 ) -> CurrentUser:
@@ -205,10 +204,10 @@ async def get_current_user_from_api_key(
 
 
 async def get_optional_user(
-    credentials: Annotated[Optional[HTTPAuthorizationCredentials], Depends(bearer_scheme)],
-    x_api_key: Annotated[Optional[str], Header(alias="X-API-Key")] = None,
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer_scheme)],
+    x_api_key: Annotated[str | None, Header(alias="X-API-Key")] = None,
     db: Annotated[AsyncSession, Depends(get_db)] = None,
-) -> Optional[CurrentUser]:
+) -> CurrentUser | None:
     """
     Dependency to optionally get current user.
 
@@ -291,4 +290,4 @@ RateLimitRedis = Annotated[Redis, Depends(get_rate_limit_redis)]
 JWTUser = Annotated[CurrentUser, Depends(get_current_user_from_token)]
 APIKeyUser = Annotated[CurrentUser, Depends(get_current_user_from_api_key)]
 RateLimitedUser = Annotated[CurrentUser, Depends(check_rate_limit)]
-OptionalUser = Annotated[Optional[CurrentUser], Depends(get_optional_user)]
+OptionalUser = Annotated[CurrentUser | None, Depends(get_optional_user)]

@@ -6,8 +6,9 @@ from datetime import datetime
 from typing import TYPE_CHECKING, Any, Optional
 from uuid import UUID
 
-from sqlalchemy import BigInteger, DateTime, ForeignKey, Index, Integer, String, Text, Boolean
-from sqlalchemy.dialects.postgresql import JSONB, UUID as PG_UUID
+from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, Index, Integer, String, Text
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import BaseModel
@@ -59,7 +60,7 @@ class RenderJob(BaseModel):
         nullable=False,
         index=True,
     )
-    api_key_id: Mapped[Optional[UUID]] = mapped_column(
+    api_key_id: Mapped[UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),
         ForeignKey("api_keys.id", ondelete="SET NULL"),
         nullable=True,
@@ -90,33 +91,33 @@ class RenderJob(BaseModel):
     )
 
     # Result data
-    result: Mapped[Optional[dict[str, Any]]] = mapped_column(
+    result: Mapped[dict[str, Any] | None] = mapped_column(
         JSONB,
         nullable=True,
     )
 
     # S3 storage
-    s3_key: Mapped[Optional[str]] = mapped_column(
+    s3_key: Mapped[str | None] = mapped_column(
         String(500),
         nullable=True,
     )
-    s3_url: Mapped[Optional[str]] = mapped_column(
+    s3_url: Mapped[str | None] = mapped_column(
         Text,
         nullable=True,
     )
-    file_size_bytes: Mapped[Optional[int]] = mapped_column(
+    file_size_bytes: Mapped[int | None] = mapped_column(
         BigInteger,
         nullable=True,
     )
 
     # Processing metrics
-    processing_time_ms: Mapped[Optional[int]] = mapped_column(
+    processing_time_ms: Mapped[int | None] = mapped_column(
         Integer,
         nullable=True,
     )
 
     # Error handling
-    error_message: Mapped[Optional[str]] = mapped_column(
+    error_message: Mapped[str | None] = mapped_column(
         Text,
         nullable=True,
     )
@@ -132,7 +133,7 @@ class RenderJob(BaseModel):
     )
 
     # Webhook
-    webhook_url: Mapped[Optional[str]] = mapped_column(
+    webhook_url: Mapped[str | None] = mapped_column(
         Text,
         nullable=True,
     )
@@ -156,15 +157,15 @@ class RenderJob(BaseModel):
     )
 
     # Timestamps
-    started_at: Mapped[Optional[datetime]] = mapped_column(
+    started_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
         nullable=True,
     )
-    completed_at: Mapped[Optional[datetime]] = mapped_column(
+    completed_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
         nullable=True,
     )
-    expires_at: Mapped[Optional[datetime]] = mapped_column(
+    expires_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
         nullable=True,
     )

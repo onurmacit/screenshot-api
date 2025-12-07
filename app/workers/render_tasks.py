@@ -5,8 +5,8 @@ Celery tasks for asynchronous screenshot and PDF rendering.
 Uses sync Celery tasks with asyncio.run for async operations.
 """
 
-from datetime import datetime, timezone
-from typing import Any, Optional
+from datetime import UTC, datetime
+from typing import Any
 from uuid import UUID
 
 from celery.exceptions import SoftTimeLimitExceeded
@@ -15,9 +15,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import AsyncSessionLocal
 from app.models import Plan, RenderJob, User
+from app.services.rate_limit_service import rate_limit_service
 from app.services.render_service import render_service
 from app.services.storage_service import storage_service
-from app.services.rate_limit_service import rate_limit_service
 from app.utils.exceptions import RenderError, ValidationError
 from app.utils.logger import get_logger
 from app.workers.celery_app import celery_app, get_queue_for_plan, run_async
@@ -28,7 +28,7 @@ logger = get_logger(__name__)
 async def get_job_with_user(
     db: AsyncSession,
     job_id: UUID,
-) -> tuple[Optional[RenderJob], Optional[User], Optional[Plan]]:
+) -> tuple[RenderJob | None, User | None, Plan | None]:
     """Get render job with associated user and plan."""
     result = await db.execute(
         select(RenderJob).where(RenderJob.id == job_id)
@@ -100,7 +100,7 @@ async def _mark_job_failed(job_id: str, error_message: str) -> None:
             if job:
                 job.status = "failed"
                 job.error_message = error_message
-                job.completed_at = datetime.now(timezone.utc)
+                job.completed_at = datetime.now(UTC)
                 await db.commit()
         except Exception as e:
             logger.error("Failed to mark job as failed", job_id=job_id, error=str(e))
@@ -125,7 +125,7 @@ async def _process_screenshot_async(task, job_id: str) -> dict[str, Any]:
 
             # Update status
             job.status = "processing"
-            job.started_at = datetime.now(timezone.utc)
+            job.started_at = datetime.now(UTC)
             job.retry_count = task.request.retries
             await db.commit()
 
@@ -156,7 +156,7 @@ async def _process_screenshot_async(task, job_id: str) -> dict[str, Any]:
 
             # Update job
             job.status = "completed"
-            job.completed_at = datetime.now(timezone.utc)
+            job.completed_at = datetime.now(UTC)
             job.s3_key = upload_result["s3_key"]
             job.s3_url = upload_result["s3_url"]
             job.file_size_bytes = upload_result["file_size"]
@@ -194,7 +194,7 @@ async def _process_screenshot_async(task, job_id: str) -> dict[str, Any]:
             if job:
                 job.status = "failed"
                 job.error_message = str(e)
-                job.completed_at = datetime.now(timezone.utc)
+                job.completed_at = datetime.now(UTC)
                 await db.commit()
             return {"error": str(e)}
 
@@ -208,7 +208,7 @@ async def _process_screenshot_async(task, job_id: str) -> dict[str, Any]:
                 else:
                     job.status = "failed"
                     job.error_message = str(e)
-                    job.completed_at = datetime.now(timezone.utc)
+                    job.completed_at = datetime.now(UTC)
 
                     # Trigger failure webhook
                     if job.webhook_url:
@@ -226,7 +226,7 @@ async def _process_screenshot_async(task, job_id: str) -> dict[str, Any]:
             if job:
                 job.status = "failed"
                 job.error_message = str(e)
-                job.completed_at = datetime.now(timezone.utc)
+                job.completed_at = datetime.now(UTC)
 
                 # Trigger failure webhook
                 if job.webhook_url:
@@ -289,7 +289,7 @@ async def _process_pdf_async(task, job_id: str) -> dict[str, Any]:
 
             # Update status
             job.status = "processing"
-            job.started_at = datetime.now(timezone.utc)
+            job.started_at = datetime.now(UTC)
             job.retry_count = task.request.retries
             await db.commit()
 
@@ -313,7 +313,7 @@ async def _process_pdf_async(task, job_id: str) -> dict[str, Any]:
 
             # Update job
             job.status = "completed"
-            job.completed_at = datetime.now(timezone.utc)
+            job.completed_at = datetime.now(UTC)
             job.s3_key = upload_result["s3_key"]
             job.s3_url = upload_result["s3_url"]
             job.file_size_bytes = upload_result["file_size"]
@@ -350,7 +350,7 @@ async def _process_pdf_async(task, job_id: str) -> dict[str, Any]:
             if job:
                 job.status = "failed"
                 job.error_message = str(e)
-                job.completed_at = datetime.now(timezone.utc)
+                job.completed_at = datetime.now(UTC)
                 await db.commit()
             return {"error": str(e)}
 
@@ -363,7 +363,7 @@ async def _process_pdf_async(task, job_id: str) -> dict[str, Any]:
                 else:
                     job.status = "failed"
                     job.error_message = str(e)
-                    job.completed_at = datetime.now(timezone.utc)
+                    job.completed_at = datetime.now(UTC)
 
                     if job.webhook_url:
                         from app.workers.webhook_tasks import send_job_webhook
@@ -379,7 +379,7 @@ async def _process_pdf_async(task, job_id: str) -> dict[str, Any]:
             if job:
                 job.status = "failed"
                 job.error_message = str(e)
-                job.completed_at = datetime.now(timezone.utc)
+                job.completed_at = datetime.now(UTC)
 
                 if job.webhook_url:
                     from app.workers.webhook_tasks import send_job_webhook

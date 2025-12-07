@@ -7,7 +7,7 @@ Only trusts X-Forwarded-For headers from configured trusted proxies.
 
 import ipaddress
 import time
-from typing import Callable, Optional
+from collections.abc import Callable
 
 from fastapi import Request, Response
 from fastapi.responses import JSONResponse
@@ -141,21 +141,21 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             Client IP address string
         """
         # Get direct connection IP
-        direct_ip: Optional[str] = None
+        direct_ip: str | None = None
         if request.client:
             direct_ip = request.client.host
-        
+
         # If no trusted proxies configured or direct IP is not trusted,
         # always use direct connection IP
         if not self.trusted_proxies or not direct_ip:
             return direct_ip or "unknown"
-        
+
         # Check if direct connection is from a trusted proxy
         if not is_ip_in_networks(direct_ip, self.trusted_proxies):
             # Direct connection is NOT from a trusted proxy
             # Do not trust any forwarded headers - could be spoofed
             return direct_ip
-        
+
         # Direct connection IS from a trusted proxy
         # Now we can trust X-Forwarded-For header
         forwarded = request.headers.get("X-Forwarded-For")
@@ -163,21 +163,21 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             # X-Forwarded-For format: client, proxy1, proxy2, ...
             # Parse from right to left, finding the first non-trusted IP
             ips = [ip.strip() for ip in forwarded.split(",")]
-            
+
             # Iterate from right to left (most recent proxies first)
             for ip in reversed(ips):
                 if not is_ip_in_networks(ip, self.trusted_proxies):
                     # This is the original client IP
                     return ip
-            
+
             # All IPs are trusted proxies, use the leftmost (original client)
             return ips[0]
-        
+
         # Check X-Real-IP header
         real_ip = request.headers.get("X-Real-IP")
         if real_ip and not is_ip_in_networks(real_ip, self.trusted_proxies):
             return real_ip
-        
+
         # Fall back to direct connection IP
         return direct_ip
 
@@ -226,7 +226,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                 key,
                 self.limit_per_minute,
             )
-            
+
             is_allowed = result[0] == 1
             remaining = result[1]
 

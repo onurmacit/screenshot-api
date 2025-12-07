@@ -3,10 +3,10 @@ Render request/response Pydantic schemas
 """
 
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, Field, HttpUrl, field_validator
+from pydantic import BaseModel, Field, field_validator
 
 
 class ScreenshotRequest(BaseModel):
@@ -18,7 +18,7 @@ class ScreenshotRequest(BaseModel):
         alias="async",
         description="Process asynchronously",
     )
-    webhook_url: Optional[str] = Field(
+    webhook_url: str | None = Field(
         None,
         description="Webhook URL for async notifications",
     )
@@ -40,22 +40,22 @@ class ScreenshotRequest(BaseModel):
     )
 
     # Advanced options (plan-gated)
-    custom_css: Optional[str] = Field(None, description="Custom CSS to inject (pro+)")
-    element_selector: Optional[str] = Field(None, description="Element to capture (pro+)")
-    remove_elements: Optional[list[str]] = Field(None, description="Selectors to remove")
-    geolocation: Optional[dict[str, float]] = Field(
+    custom_css: str | None = Field(None, description="Custom CSS to inject (pro+)")
+    element_selector: str | None = Field(None, description="Element to capture (pro+)")
+    remove_elements: list[str] | None = Field(None, description="Selectors to remove")
+    geolocation: dict[str, float] | None = Field(
         None,
         description="Geolocation {lat, lon} (pro+)",
     )
 
     # Browser options
-    device: Optional[str] = Field(
+    device: str | None = Field(
         None,
         description="Device emulation (mobile, tablet, desktop)",
     )
-    user_agent: Optional[str] = Field(None, description="Custom user agent")
-    extra_http_headers: Optional[dict[str, str]] = Field(None, description="Extra headers")
-    authentication: Optional[dict[str, str]] = Field(
+    user_agent: str | None = Field(None, description="Custom user agent")
+    extra_http_headers: dict[str, str] | None = Field(None, description="Extra headers")
+    authentication: dict[str, str] | None = Field(
         None,
         description="HTTP auth {username, password}",
     )
@@ -104,7 +104,7 @@ class PDFRequest(BaseModel):
         alias="async",
         description="Process asynchronously",
     )
-    webhook_url: Optional[str] = Field(
+    webhook_url: str | None = Field(
         None,
         description="Webhook URL for async notifications",
     )
@@ -116,18 +116,18 @@ class PDFRequest(BaseModel):
     scale: float = Field(default=1.0, ge=0.1, le=2.0, description="Scale factor")
 
     # Margin options (in mm)
-    margin: Optional[dict[str, str]] = Field(
+    margin: dict[str, str] | None = Field(
         None,
         description="Margins {top, right, bottom, left}",
     )
 
     # Page options
-    page_ranges: Optional[str] = Field(None, description="Page ranges (e.g., '1-5,8-11')")
+    page_ranges: str | None = Field(None, description="Page ranges (e.g., '1-5,8-11')")
     prefer_css_page_size: bool = Field(default=False, description="Use CSS page size")
 
     # Header/Footer
-    header_template: Optional[str] = Field(None, description="Header HTML template")
-    footer_template: Optional[str] = Field(None, description="Footer HTML template")
+    header_template: str | None = Field(None, description="Header HTML template")
+    footer_template: str | None = Field(None, description="Footer HTML template")
 
     # Timing
     delay: int = Field(default=0, ge=0, le=10000, description="Delay in ms before render")
@@ -166,21 +166,21 @@ class RenderJobResponse(BaseModel):
     job_id: UUID
     type: str
     status: str
-    url: Optional[str] = Field(None, description="S3 signed URL (if completed)")
-    format: Optional[str] = None
-    size: Optional[SizeInfo] = None
-    file_size: Optional[int] = Field(None, description="File size in bytes")
-    page_count: Optional[int] = Field(None, description="PDF page count")
-    processing_time_ms: Optional[int] = None
+    url: str | None = Field(None, description="S3 signed URL (if completed)")
+    format: str | None = None
+    size: SizeInfo | None = None
+    file_size: int | None = Field(None, description="File size in bytes")
+    page_count: int | None = Field(None, description="PDF page count")
+    processing_time_ms: int | None = None
     cached: bool = False
-    error_message: Optional[str] = None
-    options: Optional[dict[str, Any]] = None
-    result: Optional[dict[str, Any]] = None
-    webhook_url: Optional[str] = None
+    error_message: str | None = None
+    options: dict[str, Any] | None = None
+    result: dict[str, Any] | None = None
+    webhook_url: str | None = None
     created_at: datetime
-    started_at: Optional[datetime] = None
-    completed_at: Optional[datetime] = None
-    expires_at: Optional[datetime] = None
+    started_at: datetime | None = None
+    completed_at: datetime | None = None
+    expires_at: datetime | None = None
 
     model_config = {"from_attributes": True}
 
@@ -191,7 +191,7 @@ class RenderJobAsyncResponse(BaseModel):
     job_id: UUID
     status: str = "pending"
     message: str = "Job queued successfully"
-    webhook_url: Optional[str] = None
+    webhook_url: str | None = None
     check_url: str = Field(..., description="URL to check job status")
 
     model_config = {"from_attributes": True}

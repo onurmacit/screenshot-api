@@ -4,11 +4,11 @@ Storage Service
 Handles S3 file operations for storing rendered screenshots and PDFs.
 """
 
-from datetime import datetime, timedelta, timezone
-from typing import Any, Optional
+from datetime import UTC, datetime, timedelta
+from typing import Any
 
 from app.core.config import settings
-from app.core.s3 import S3Manager, get_s3_client
+from app.core.s3 import S3Manager
 from app.utils.helpers import get_content_type, get_file_extension
 from app.utils.logger import get_logger
 
@@ -28,7 +28,7 @@ class StorageService:
         user_id: str,
         job_id: str,
         file_type: str,
-        metadata: Optional[dict[str, str]] = None,
+        metadata: dict[str, str] | None = None,
     ) -> dict[str, Any]:
         """
         Upload rendered file to S3.
@@ -55,7 +55,7 @@ class StorageService:
             "user-id": user_id,
             "job-id": job_id,
             "file-type": file_type,
-            "created-at": datetime.now(timezone.utc).isoformat(),
+            "created-at": datetime.now(UTC).isoformat(),
         }
         if metadata:
             upload_metadata.update(metadata)
@@ -85,7 +85,7 @@ class StorageService:
     async def generate_download_url(
         self,
         s3_key: str,
-        expires_in: Optional[int] = None,
+        expires_in: int | None = None,
     ) -> str:
         """
         Generate a presigned URL for downloading a file.
@@ -149,7 +149,7 @@ class StorageService:
 
         return deleted_count
 
-    async def get_file_info(self, s3_key: str) -> Optional[dict[str, Any]]:
+    async def get_file_info(self, s3_key: str) -> dict[str, Any] | None:
         """
         Get file metadata from S3.
 
@@ -220,7 +220,7 @@ class StorageService:
             "total": len(expired_keys),
         }
 
-    def calculate_expiry_date(self, days: Optional[int] = None) -> datetime:
+    def calculate_expiry_date(self, days: int | None = None) -> datetime:
         """
         Calculate file expiry date.
 
@@ -233,7 +233,7 @@ class StorageService:
         if days is None:
             days = settings.RENDER_EXPIRY_DAYS
 
-        return datetime.now(timezone.utc) + timedelta(days=days)
+        return datetime.now(UTC) + timedelta(days=days)
 
 
 # Global storage service instance

@@ -2,14 +2,12 @@
 Billing and subscription endpoints
 """
 
-from typing import Optional
 
 from fastapi import APIRouter, Header, Query, Request, status
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import DBSession, JWTUser, OptionalUser
-from app.models import Plan, User
+from app.models import User
 from app.schemas.billing import (
     InvoiceResponse,
     InvoicesListResponse,

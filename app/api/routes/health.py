@@ -2,7 +2,7 @@
 Health check endpoints
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, status
 from fastapi.responses import JSONResponse
@@ -47,7 +47,7 @@ async def health_check(
     try:
         await db.execute(text("SELECT 1"))
         services["database"] = "healthy"
-    except Exception as e:
+    except Exception:
         services["database"] = "unhealthy"
         status_code = status.HTTP_503_SERVICE_UNAVAILABLE
 
@@ -55,7 +55,7 @@ async def health_check(
     try:
         await redis.ping()
         services["redis"] = "healthy"
-    except Exception as e:
+    except Exception:
         services["redis"] = "unhealthy"
         status_code = status.HTTP_503_SERVICE_UNAVAILABLE
 
@@ -64,7 +64,7 @@ async def health_check(
         async with get_s3_client() as s3:
             await s3.head_bucket(Bucket=settings.AWS_S3_BUCKET)
         services["s3"] = "healthy"
-    except Exception as e:
+    except Exception:
         services["s3"] = "unhealthy"
         # S3 failure is not critical for health
 
@@ -72,7 +72,7 @@ async def health_check(
     try:
         # Simple check - verify broker connection
         services["celery"] = "healthy"
-    except Exception as e:
+    except Exception:
         services["celery"] = "unhealthy"
 
     # Determine overall status
@@ -91,7 +91,7 @@ async def health_check(
         "status": overall_status,
         "version": settings.APP_VERSION,
         "environment": settings.APP_ENV,
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
         "services": services,
     }
 

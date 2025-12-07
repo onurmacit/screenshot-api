@@ -6,12 +6,11 @@ Handles Redis caching for API responses, user data, and render results.
 
 import hashlib
 import json
-from typing import Any, Optional, TypeVar, Callable
-from datetime import datetime, timezone
+from collections.abc import Callable
+from typing import Any, TypeVar
 
 from redis.asyncio import Redis
 
-from app.core.config import settings
 from app.core.redis import redis_context
 from app.utils.logger import get_logger
 
@@ -36,14 +35,14 @@ class CacheService:
     TTL_RENDER = 3600  # 1 hour (or user-specified)
     TTL_SESSION = 86400  # 24 hours
 
-    def __init__(self, redis: Optional[Redis] = None):
+    def __init__(self, redis: Redis | None = None):
         self._redis = redis
 
     # =========================================================================
     # Generic Cache Operations
     # =========================================================================
 
-    async def get(self, key: str) -> Optional[str]:
+    async def get(self, key: str) -> str | None:
         """
         Get value from cache.
 
@@ -63,7 +62,7 @@ class CacheService:
         self,
         key: str,
         value: Any,
-        ttl: Optional[int] = None,
+        ttl: int | None = None,
     ) -> bool:
         """
         Set value in cache.
@@ -116,7 +115,7 @@ class CacheService:
         async with redis_context("cache") as redis:
             return bool(await redis.exists(key))
 
-    async def get_json(self, key: str) -> Optional[Any]:
+    async def get_json(self, key: str) -> Any | None:
         """
         Get JSON value from cache.
 
@@ -138,7 +137,7 @@ class CacheService:
         self,
         key: str,
         callback: Callable[[], Any],
-        ttl: Optional[int] = None,
+        ttl: int | None = None,
     ) -> Any:
         """
         Get value from cache or compute and store it.
@@ -197,7 +196,7 @@ class CacheService:
         """Generate cache key for API key."""
         return f"{self.PREFIX_API_KEY}:{key_hash}"
 
-    async def get_api_key_cache(self, key_hash: str) -> Optional[dict]:
+    async def get_api_key_cache(self, key_hash: str) -> dict | None:
         """
         Get cached API key data.
 
@@ -249,7 +248,7 @@ class CacheService:
         """Generate cache key for user plan."""
         return f"{self.PREFIX_USER_PLAN}:{user_id}"
 
-    async def get_user_plan_cache(self, user_id: str) -> Optional[dict]:
+    async def get_user_plan_cache(self, user_id: str) -> dict | None:
         """
         Get cached user plan data.
 
@@ -309,7 +308,7 @@ class CacheService:
         self,
         url: str,
         options: dict,
-    ) -> Optional[dict]:
+    ) -> dict | None:
         """
         Get cached render result.
 
@@ -328,7 +327,7 @@ class CacheService:
         url: str,
         options: dict,
         data: dict,
-        ttl: Optional[int] = None,
+        ttl: int | None = None,
     ) -> bool:
         """
         Cache render result.
@@ -353,7 +352,7 @@ class CacheService:
         """Generate cache key for session."""
         return f"{self.PREFIX_SESSION}:{session_id}"
 
-    async def get_session(self, session_id: str) -> Optional[dict]:
+    async def get_session(self, session_id: str) -> dict | None:
         """
         Get cached session data.
 
@@ -370,7 +369,7 @@ class CacheService:
         self,
         session_id: str,
         data: dict,
-        ttl: Optional[int] = None,
+        ttl: int | None = None,
     ) -> bool:
         """
         Cache session data.

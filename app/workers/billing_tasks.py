@@ -5,7 +5,6 @@ Celery tasks for Stripe synchronization and billing operations.
 Uses sync Celery tasks with asyncio.run for async operations.
 """
 
-from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID
 

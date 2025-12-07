@@ -7,7 +7,7 @@ Uses atomic Lua scripts to prevent race conditions.
 
 import time
 import uuid
-from typing import Any, Optional
+from typing import Any
 from uuid import UUID
 
 from redis.asyncio import Redis
@@ -124,15 +124,15 @@ class RateLimitResult:
 class RateLimitService:
     """Service for rate limiting operations."""
 
-    def __init__(self, redis: Optional[Redis] = None):
+    def __init__(self, redis: Redis | None = None):
         self._redis = redis
 
     async def check_rate_limit(
         self,
         user_id: UUID,
         plan_name: str,
-        api_key_id: Optional[UUID] = None,
-        override: Optional[dict[str, int]] = None,
+        api_key_id: UUID | None = None,
+        override: dict[str, int] | None = None,
     ) -> RateLimitResult:
         """
         Check if request is within rate limits.

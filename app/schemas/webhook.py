@@ -3,7 +3,6 @@ Webhook Pydantic schemas
 """
 
 from datetime import datetime
-from typing import Optional
 from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator
@@ -43,13 +42,13 @@ class WebhookCreate(BaseModel):
 class WebhookUpdate(BaseModel):
     """Webhook update request."""
 
-    url: Optional[str] = None
-    events: Optional[list[str]] = None
-    is_active: Optional[bool] = None
+    url: str | None = None
+    events: list[str] | None = None
+    is_active: bool | None = None
 
     @field_validator("url")
     @classmethod
-    def validate_url(cls, v: Optional[str]) -> Optional[str]:
+    def validate_url(cls, v: str | None) -> str | None:
         """Validate webhook URL."""
         if v and not v.startswith("https://"):
             raise ValueError("Webhook URL must use HTTPS")
@@ -61,10 +60,10 @@ class WebhookResponse(BaseModel):
 
     webhook_id: UUID
     url: str
-    secret: Optional[str] = Field(None, description="Only returned on creation")
+    secret: str | None = Field(None, description="Only returned on creation")
     events: list[str]
     is_active: bool
-    last_triggered_at: Optional[datetime]
+    last_triggered_at: datetime | None
     failure_count: int
     created_at: datetime
 
@@ -118,10 +117,10 @@ class WebhookDeliveryInfo(BaseModel):
 
     webhook_id: UUID
     event: str
-    status_code: Optional[int] = None
+    status_code: int | None = None
     success: bool
     attempt: int
-    error: Optional[str] = None
+    error: str | None = None
     delivered_at: datetime
 
     model_config = {"from_attributes": True}

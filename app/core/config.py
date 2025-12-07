@@ -3,7 +3,7 @@ Application configuration using pydantic-settings
 """
 
 from functools import lru_cache
-from typing import Any, Optional
+from typing import Any
 
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -81,8 +81,8 @@ class Settings(BaseSettings):
     AWS_SECRET_ACCESS_KEY: str = ""
     AWS_REGION: str = "us-east-1"
     AWS_S3_BUCKET: str = "screenshot-api-renders"
-    AWS_S3_ENDPOINT_URL: Optional[str] = None  # For MinIO compatibility (internal)
-    AWS_S3_PUBLIC_URL: Optional[str] = None  # Public URL for presigned URLs (external)
+    AWS_S3_ENDPOINT_URL: str | None = None  # For MinIO compatibility (internal)
+    AWS_S3_PUBLIC_URL: str | None = None  # Public URL for presigned URLs (external)
 
     # ==========================================================================
     # Stripe
@@ -113,7 +113,7 @@ class Settings(BaseSettings):
     # ==========================================================================
     RATE_LIMIT_ENABLED: bool = True
     IP_RATE_LIMIT_PER_MINUTE: int = 60
-    
+
     # Trusted proxies for X-Forwarded-For header
     # Only trust X-Forwarded-For from these IPs/CIDR ranges
     # Examples: ["10.0.0.1", "172.16.0.0/12", "192.168.1.0/24"]
@@ -144,8 +144,8 @@ class Settings(BaseSettings):
     # ==========================================================================
     # Monitoring
     # ==========================================================================
-    SENTRY_DSN: Optional[str] = None
-    DATADOG_API_KEY: Optional[str] = None
+    SENTRY_DSN: str | None = None
+    DATADOG_API_KEY: str | None = None
 
     # ==========================================================================
     # CORS

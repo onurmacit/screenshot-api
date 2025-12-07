@@ -2,15 +2,11 @@
 Authentication endpoints
 """
 
-from datetime import datetime
-from typing import Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Request, status
-from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi import APIRouter, Request, status
 
 from app.api.dependencies import DBSession, JWTUser
-from app.core.config import settings
 from app.schemas.auth import (
     APIKeyCreate,
     APIKeyCreateResponse,
@@ -23,7 +19,6 @@ from app.schemas.auth import (
     TokenResponse,
 )
 from app.services.auth_service import AuthService
-from app.utils.exceptions import ValidationError
 
 router = APIRouter()
 

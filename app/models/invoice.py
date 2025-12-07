@@ -4,7 +4,7 @@ Billing Invoice model
 
 from datetime import date, datetime
 from decimal import Decimal
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 from uuid import UUID
 
 from sqlalchemy import Date, DateTime, ForeignKey, Index, Numeric, String
@@ -47,7 +47,7 @@ class BillingInvoice(BaseModel):
     )
 
     # Stripe integration
-    stripe_invoice_id: Mapped[Optional[str]] = mapped_column(
+    stripe_invoice_id: Mapped[str | None] = mapped_column(
         String(255),
         unique=True,
         nullable=True,
@@ -82,7 +82,7 @@ class BillingInvoice(BaseModel):
     )
 
     # Payment timestamp
-    paid_at: Mapped[Optional[datetime]] = mapped_column(
+    paid_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
         nullable=True,
     )

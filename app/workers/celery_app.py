@@ -8,7 +8,6 @@ Includes worker lifecycle management for proper resource cleanup.
 import asyncio
 import atexit
 import threading
-from typing import Optional
 
 from celery import Celery
 from celery.schedules import crontab
@@ -68,11 +67,11 @@ def cleanup_event_loop():
             pending = asyncio.all_tasks(loop)
             for task in pending:
                 task.cancel()
-            
+
             # Run until all tasks are cancelled
             if pending:
                 loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
-            
+
             loop.close()
         except Exception as e:
             logger.warning("Error cleaning up event loop", error=str(e))
@@ -93,12 +92,12 @@ def init_worker_process(**kwargs):
     Sets up event loop and initializes browser pool.
     """
     global _worker_initialized
-    
+
     logger.info("Initializing Celery worker process")
-    
+
     # Create event loop for this worker
     loop = get_event_loop()
-    
+
     # Initialize browser pool for render workers
     try:
         from app.services.render_service import browser_pool
@@ -106,7 +105,7 @@ def init_worker_process(**kwargs):
         logger.info("Browser pool initialized for worker")
     except Exception as e:
         logger.warning("Could not initialize browser pool", error=str(e))
-    
+
     _worker_initialized = True
     logger.info("Celery worker process initialized")
 
@@ -120,13 +119,13 @@ def shutdown_worker_process(**kwargs):
     Closes browser pool and cleans up resources.
     """
     global _worker_initialized
-    
+
     with _cleanup_lock:
         if not _worker_initialized:
             return
-        
+
         logger.info("Shutting down Celery worker process")
-        
+
         # Close browser pool
         try:
             from app.services.render_service import browser_pool
@@ -135,10 +134,10 @@ def shutdown_worker_process(**kwargs):
             logger.info("Browser pool closed")
         except Exception as e:
             logger.warning("Error closing browser pool", error=str(e))
-        
+
         # Clean up event loop
         cleanup_event_loop()
-        
+
         _worker_initialized = False
         logger.info("Celery worker process shutdown complete")
 

@@ -2,15 +2,13 @@
 Usage tracking endpoints
 """
 
-from datetime import datetime, timedelta, timezone
-from typing import Optional
+from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Query
 from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import APIKeyUser, DBSession, JWTUser
-from app.models import Plan, RenderJob, UsageRecord
+from app.models import RenderJob
 from app.schemas.usage import (
     CurrentUsageResponse,
     DailyUsage,
@@ -115,11 +113,11 @@ async def get_current_usage(
 async def get_usage_history(
     current_user: JWTUser,
     db: DBSession,
-    start_date: Optional[str] = Query(
+    start_date: str | None = Query(
         None,
         description="Start date (ISO format: YYYY-MM-DD)",
     ),
-    end_date: Optional[str] = Query(
+    end_date: str | None = Query(
         None,
         description="End date (ISO format: YYYY-MM-DD)",
     ),
@@ -141,12 +139,12 @@ async def get_usage_history(
 
     # Parse dates
     if start_date:
-        start = datetime.fromisoformat(start_date).replace(tzinfo=timezone.utc)
+        start = datetime.fromisoformat(start_date).replace(tzinfo=UTC)
     else:
         start = now - timedelta(days=30)
 
     if end_date:
-        end = datetime.fromisoformat(end_date).replace(tzinfo=timezone.utc)
+        end = datetime.fromisoformat(end_date).replace(tzinfo=UTC)
     else:
         end = now
 

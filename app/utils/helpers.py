@@ -5,7 +5,7 @@ Helper utility functions
 import hashlib
 import secrets
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 
@@ -21,7 +21,7 @@ def generate_request_id() -> str:
 
 def utc_now() -> datetime:
     """Get current UTC datetime."""
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def hash_string(value: str) -> str:

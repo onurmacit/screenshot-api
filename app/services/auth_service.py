@@ -4,8 +4,7 @@ Authentication Service
 Handles user registration, login, JWT tokens, and API key management.
 """
 
-from datetime import datetime, timedelta, timezone
-from typing import Any, Optional
+from datetime import datetime, timedelta
 from uuid import UUID
 
 from sqlalchemy import select
@@ -18,7 +17,6 @@ from app.core.security import (
     generate_api_key,
     hash_api_key,
     hash_password,
-    verify_access_token,
     verify_password,
     verify_refresh_token,
 )
@@ -49,7 +47,7 @@ class AuthService:
         self,
         email: str,
         password: str,
-        full_name: Optional[str] = None,
+        full_name: str | None = None,
     ) -> tuple[User, str, str]:
         """
         Register a new user.
@@ -104,8 +102,8 @@ class AuthService:
         self,
         email: str,
         password: str,
-        ip_address: Optional[str] = None,
-        device_info: Optional[str] = None,
+        ip_address: str | None = None,
+        device_info: str | None = None,
     ) -> tuple[User, str, str, int]:
         """
         Authenticate user and return tokens.
@@ -240,7 +238,7 @@ class AuthService:
         user_id: UUID,
         name: str,
         scopes: list[str],
-        expires_at: Optional[datetime] = None,
+        expires_at: datetime | None = None,
     ) -> tuple[str, APIKey]:
         """
         Create a new API key for user.
@@ -428,8 +426,8 @@ class AuthService:
     async def _create_refresh_token(
         self,
         user: User,
-        ip_address: Optional[str] = None,
-        device_info: Optional[str] = None,
+        ip_address: str | None = None,
+        device_info: str | None = None,
     ) -> str:
         """Create and store refresh token."""
         token = create_refresh_token(subject=str(user.id))
@@ -451,14 +449,14 @@ class AuthService:
 
         return token
 
-    async def get_user_by_id(self, user_id: UUID) -> Optional[User]:
+    async def get_user_by_id(self, user_id: UUID) -> User | None:
         """Get user by ID."""
         result = await self.db.execute(
             select(User).where(User.id == user_id)
         )
         return result.scalar_one_or_none()
 
-    async def get_user_by_email(self, email: str) -> Optional[User]:
+    async def get_user_by_email(self, email: str) -> User | None:
         """Get user by email."""
         result = await self.db.execute(
             select(User).where(User.email == email.lower())

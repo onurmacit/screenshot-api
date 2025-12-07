@@ -7,7 +7,8 @@ from typing import TYPE_CHECKING, Any, Optional
 from uuid import UUID
 
 from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, func
-from sqlalchemy.dialects.postgresql import JSONB, UUID as PG_UUID
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -51,12 +52,12 @@ class UsageRecord(Base):
         nullable=False,
         index=True,
     )
-    api_key_id: Mapped[Optional[UUID]] = mapped_column(
+    api_key_id: Mapped[UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),
         ForeignKey("api_keys.id", ondelete="SET NULL"),
         nullable=True,
     )
-    render_job_id: Mapped[Optional[UUID]] = mapped_column(
+    render_job_id: Mapped[UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),
         ForeignKey("render_jobs.id", ondelete="CASCADE"),
         nullable=True,
@@ -74,7 +75,7 @@ class UsageRecord(Base):
     )
 
     # Additional metadata
-    extra_data: Mapped[Optional[dict[str, Any]]] = mapped_column(
+    extra_data: Mapped[dict[str, Any] | None] = mapped_column(
         JSONB,
         nullable=True,
     )

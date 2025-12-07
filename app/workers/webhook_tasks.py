@@ -9,13 +9,12 @@ import hashlib
 import hmac
 import json
 import secrets
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
 import httpx
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.database import AsyncSessionLocal
@@ -134,7 +133,7 @@ async def _send_webhook_async(
             return {"error": "Webhook inactive"}
 
         # Build full payload
-        timestamp = datetime.now(timezone.utc).isoformat()
+        timestamp = datetime.now(UTC).isoformat()
         full_payload = {
             "event": event,
             "timestamp": timestamp,
@@ -166,7 +165,7 @@ async def _send_webhook_async(
             if response.is_success:
                 # Success - reset failure count
                 webhook.failure_count = 0
-                webhook.last_triggered_at = datetime.now(timezone.utc)
+                webhook.last_triggered_at = datetime.now(UTC)
                 await db.commit()
 
                 logger.info(
@@ -281,7 +280,7 @@ async def _send_job_webhook_async(
             # Fallback: Use a combination of job ID and app secret for deterministic secret
             webhook_secret = hmac.new(
                 settings.SECRET_KEY.encode("utf-8"),
-                f"job_webhook:{job_id}".encode("utf-8"),
+                f"job_webhook:{job_id}".encode(),
                 hashlib.sha256
             ).hexdigest()
 
@@ -306,7 +305,7 @@ async def _send_job_webhook_async(
             payload["error_message"] = job.error_message
 
         # Build full payload
-        timestamp = datetime.now(timezone.utc).isoformat()
+        timestamp = datetime.now(UTC).isoformat()
         full_payload = {
             "event": event,
             "timestamp": timestamp,

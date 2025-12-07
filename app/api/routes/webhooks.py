@@ -7,22 +7,19 @@ Includes HMAC signature validation for secure webhook verification.
 import hashlib
 import hmac
 import secrets
-from typing import Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Header, HTTPException, Request, status
+from fastapi import APIRouter, status
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import DBSession, JWTUser
-from app.core.config import settings
 from app.models import Webhook
 from app.schemas.webhook import (
     WebhookCreate,
     WebhookResponse,
+    WebhookSecretResponse,
     WebhooksListResponse,
     WebhookUpdate,
-    WebhookSecretResponse,
     WebhookVerifyRequest,
     WebhookVerifyResponse,
 )
@@ -80,14 +77,14 @@ def verify_webhook_signature(
         received_sig = signature[7:]
     else:
         received_sig = signature
-    
+
     # Calculate expected signature
     expected_sig = hmac.new(
         secret.encode("utf-8"),
         payload.encode("utf-8"),
         hashlib.sha256
     ).hexdigest()
-    
+
     # Use constant-time comparison to prevent timing attacks
     return hmac.compare_digest(expected_sig, received_sig)
 
@@ -139,7 +136,7 @@ async def create_webhook(
         url=request.url,
         events=request.events,
     )
-    
+
     await db.commit()
 
     return WebhookResponse(
@@ -272,7 +269,7 @@ async def update_webhook(
             resource_type="webhook",
             resource_id=str(webhook_id),
         )
-    
+
     await db.commit()
 
     return WebhookResponse(
@@ -318,7 +315,7 @@ async def delete_webhook(
             resource_type="webhook",
             resource_id=str(webhook_id),
         )
-    
+
     await db.commit()
 
 
@@ -353,27 +350,27 @@ async def rotate_webhook_secret(
         )
     )
     webhook = result.scalar_one_or_none()
-    
+
     if not webhook:
         raise NotFoundError(
             "Webhook not found",
             resource_type="webhook",
             resource_id=str(webhook_id),
         )
-    
+
     # Generate new secret
     new_secret = generate_webhook_secret()
     webhook.secret = new_secret
     webhook.failure_count = 0  # Reset failure count on secret rotation
-    
+
     await db.commit()
-    
+
     logger.info(
         "Webhook secret rotated",
         webhook_id=str(webhook_id),
         user_id=str(current_user.user_id),
     )
-    
+
     return WebhookSecretResponse(
         webhook_id=webhook.id,
         secret=new_secret,
@@ -407,7 +404,7 @@ async def verify_signature(
         signature=request.signature,
         secret=request.secret,
     )
-    
+
     return WebhookVerifyResponse(
         valid=is_valid,
         message="Signature is valid" if is_valid else "Signature is invalid",

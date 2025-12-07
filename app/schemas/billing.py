@@ -4,7 +4,7 @@ Billing Pydantic schemas
 
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Any, Optional
+from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -31,7 +31,7 @@ class PlanResponse(BaseModel):
     name: str
     display_name: str
     price_monthly: Decimal
-    price_yearly: Optional[Decimal]
+    price_yearly: Decimal | None
     requests_per_month: int
     max_concurrent_requests: int
     max_timeout_ms: int
@@ -79,14 +79,14 @@ class InvoiceResponse(BaseModel):
     """Invoice response."""
 
     id: UUID
-    stripe_invoice_id: Optional[str]
+    stripe_invoice_id: str | None
     amount: Decimal
     currency: str
     status: str
     period_start: date
     period_end: date
-    paid_at: Optional[datetime]
-    invoice_pdf: Optional[str] = Field(None, description="URL to download PDF")
+    paid_at: datetime | None
+    invoice_pdf: str | None = Field(None, description="URL to download PDF")
     created_at: datetime
 
     model_config = {"from_attributes": True}

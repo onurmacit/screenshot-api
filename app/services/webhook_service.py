@@ -4,26 +4,24 @@ Webhook Service
 Handles webhook delivery with retry logic and signature verification.
 """
 
-import hashlib
 import hmac
 import json
-from datetime import datetime, timezone
-from typing import Any, Optional
+from datetime import UTC, datetime
+from typing import Any
 from uuid import UUID
 
 import httpx
-from sqlalchemy import select, update
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from tenacity import (
     retry,
+    retry_if_exception_type,
     stop_after_attempt,
     wait_exponential,
-    retry_if_exception_type,
 )
 
 from app.core.security import generate_webhook_secret, sign_webhook_payload
 from app.models import Webhook
-from app.utils.exceptions import ExternalServiceError
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -42,11 +40,11 @@ class WebhookPayload:
         self,
         event: str,
         data: dict[str, Any],
-        timestamp: Optional[datetime] = None,
+        timestamp: datetime | None = None,
     ):
         self.event = event
         self.data = data
-        self.timestamp = timestamp or datetime.now(timezone.utc)
+        self.timestamp = timestamp or datetime.now(UTC)
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
@@ -116,7 +114,7 @@ class WebhookService:
         self,
         webhook_id: UUID,
         user_id: UUID,
-    ) -> Optional[Webhook]:
+    ) -> Webhook | None:
         """
         Get webhook by ID for a user.
 
@@ -156,10 +154,10 @@ class WebhookService:
         self,
         webhook_id: UUID,
         user_id: UUID,
-        url: Optional[str] = None,
-        events: Optional[list[str]] = None,
-        is_active: Optional[bool] = None,
-    ) -> Optional[Webhook]:
+        url: str | None = None,
+        events: list[str] | None = None,
+        is_active: bool | None = None,
+    ) -> Webhook | None:
         """
         Update a webhook.
 
@@ -322,7 +320,7 @@ class WebhookService:
             if success:
                 # Reset failure count on success
                 webhook.failure_count = 0
-                webhook.last_triggered_at = datetime.now(timezone.utc)
+                webhook.last_triggered_at = datetime.now(UTC)
             else:
                 # Increment failure count
                 webhook.failure_count += 1

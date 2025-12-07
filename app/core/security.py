@@ -4,14 +4,13 @@ Security utilities - JWT, password hashing, API key generation
 
 import hashlib
 import secrets
-from datetime import datetime, timedelta, timezone
-from typing import Any, Optional, Union
+from datetime import UTC, datetime, timedelta
+from typing import Any
 
 import bcrypt
 from jose import JWTError, jwt
 
 from app.core.config import settings
-
 
 # =============================================================================
 # Password Hashing
@@ -47,10 +46,10 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 
 
 def create_access_token(
-    subject: Union[str, Any],
-    expires_delta: Optional[timedelta] = None,
-    additional_claims: Optional[dict[str, Any]] = None,
-    data: Optional[dict[str, Any]] = None,
+    subject: str | Any,
+    expires_delta: timedelta | None = None,
+    additional_claims: dict[str, Any] | None = None,
+    data: dict[str, Any] | None = None,
 ) -> str:
     """
     Create a JWT access token.
@@ -65,15 +64,15 @@ def create_access_token(
         Encoded JWT token string
     """
     if expires_delta:
-        expire = datetime.now(timezone.utc) + expires_delta
+        expire = datetime.now(UTC) + expires_delta
     else:
-        expire = datetime.now(timezone.utc) + timedelta(
+        expire = datetime.now(UTC) + timedelta(
             minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES
         )
 
     to_encode: dict[str, Any] = {
         "exp": expire,
-        "iat": datetime.now(timezone.utc),
+        "iat": datetime.now(UTC),
         "type": "access",
     }
 
@@ -98,8 +97,8 @@ def create_access_token(
 
 
 def create_refresh_token(
-    subject: Union[str, Any],
-    expires_delta: Optional[timedelta] = None,
+    subject: str | Any,
+    expires_delta: timedelta | None = None,
 ) -> str:
     """
     Create a JWT refresh token.
@@ -112,16 +111,16 @@ def create_refresh_token(
         Encoded JWT refresh token string
     """
     if expires_delta:
-        expire = datetime.now(timezone.utc) + expires_delta
+        expire = datetime.now(UTC) + expires_delta
     else:
-        expire = datetime.now(timezone.utc) + timedelta(
+        expire = datetime.now(UTC) + timedelta(
             days=settings.REFRESH_TOKEN_EXPIRE_DAYS
         )
 
     to_encode: dict[str, Any] = {
         "sub": str(subject),
         "exp": expire,
-        "iat": datetime.now(timezone.utc),
+        "iat": datetime.now(UTC),
         "type": "refresh",
     }
 
@@ -152,7 +151,7 @@ def decode_token(token: str) -> dict[str, Any]:
     )
 
 
-def verify_access_token(token: str) -> Optional[dict[str, Any]]:
+def verify_access_token(token: str) -> dict[str, Any] | None:
     """
     Verify an access token and return its payload.
 
@@ -171,7 +170,7 @@ def verify_access_token(token: str) -> Optional[dict[str, Any]]:
         return None
 
 
-def verify_refresh_token(token: str) -> Optional[dict[str, Any]]:
+def verify_refresh_token(token: str) -> dict[str, Any] | None:
     """
     Verify a refresh token and return its payload.
 

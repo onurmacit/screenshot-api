@@ -2,22 +2,17 @@
 Screenshot and PDF rendering endpoints
 """
 
-from datetime import datetime, timezone
-from typing import Optional, Union
+from typing import Union
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query, status
-from sqlalchemy import select, func
-from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi import APIRouter, Query, status
+from sqlalchemy import func, select
 
 from app.api.dependencies import (
     DBSession,
     RateLimitedUser,
-    check_rate_limit,
-    get_current_user_from_api_key,
 )
 from app.models import RenderJob
-from app.workers.render_tasks import process_screenshot, process_pdf
 from app.schemas.render import (
     PDFRequest,
     RenderJobAsyncResponse,
@@ -32,6 +27,7 @@ from app.services.storage_service import storage_service
 from app.utils.exceptions import NotFoundError, ValidationError
 from app.utils.helpers import utc_now
 from app.utils.validators import validate_url
+from app.workers.render_tasks import process_pdf, process_screenshot
 
 router = APIRouter()
 
@@ -47,7 +43,7 @@ async def create_screenshot(
     request: ScreenshotRequest,
     current_user: RateLimitedUser,
     db: DBSession,
-) -> Union[RenderJobResponse, RenderJobAsyncResponse]:
+) -> RenderJobResponse | RenderJobAsyncResponse:
     """
     Create a screenshot.
 
@@ -225,7 +221,7 @@ async def create_pdf(
     request: PDFRequest,
     current_user: RateLimitedUser,
     db: DBSession,
-) -> Union[RenderJobResponse, RenderJobAsyncResponse]:
+) -> RenderJobResponse | RenderJobAsyncResponse:
     """
     Generate a PDF.
 
@@ -431,8 +427,8 @@ async def get_job(
 async def list_jobs(
     current_user: RateLimitedUser,
     db: DBSession,
-    status: Optional[str] = Query(None, description="Filter by status"),
-    type: Optional[str] = Query(None, description="Filter by type (screenshot/pdf)"),
+    status: str | None = Query(None, description="Filter by status"),
+    type: str | None = Query(None, description="Filter by type (screenshot/pdf)"),
     limit: int = Query(20, ge=1, le=100, description="Number of results"),
     offset: int = Query(0, ge=0, description="Offset for pagination"),
     sort: str = Query("created_at", description="Sort field"),

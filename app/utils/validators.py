@@ -6,7 +6,7 @@ Validation utilities for URLs, emails, passwords, and render options.
 
 import re
 from ipaddress import ip_address, ip_network
-from typing import Any, Optional
+from typing import Any
 from urllib.parse import urlparse
 
 # Email regex pattern
@@ -80,26 +80,26 @@ def is_valid_url(
     """
     try:
         parsed = urlparse(url)
-        
+
         # Check scheme
         if parsed.scheme not in ("http", "https"):
             return False
-        
+
         # Check hostname exists
         if not parsed.netloc:
             return False
-        
+
         hostname = parsed.hostname
         if not hostname:
             return False
-        
+
         # Check for localhost
         if not allow_localhost:
             if hostname.lower() in ("localhost", "127.0.0.1", "::1"):
                 return False
             if hostname.lower().endswith(".localhost"):
                 return False
-        
+
         # Check for private IPs
         if not allow_private_ip:
             try:
@@ -110,7 +110,7 @@ def is_valid_url(
             except ValueError:
                 # Not an IP address, continue
                 pass
-        
+
         # Check for dangerous schemes in URL
         dangerous_patterns = [
             "javascript:",
@@ -121,18 +121,18 @@ def is_valid_url(
         for pattern in dangerous_patterns:
             if pattern in url.lower():
                 return False
-        
+
         return True
-        
+
     except Exception:
         return False
 
 
 def validate_url(
-    url: str, 
+    url: str,
     allow_localhost: bool = False,
     require_https: bool = False,
-) -> tuple[bool, Optional[str]]:
+) -> tuple[bool, str | None]:
     """
     Validate a URL and return validation result with error message.
     
@@ -146,18 +146,18 @@ def validate_url(
     """
     if not url:
         return False, "URL is required"
-    
+
     # Check HTTPS requirement
     if require_https and not url.lower().startswith("https://"):
         return False, "HTTPS is required"
-    
+
     if not is_valid_url(url, allow_localhost=allow_localhost):
         if "localhost" in url.lower() or "127.0.0.1" in url:
             return False, "Localhost URLs are not allowed"
         if any(ip in url for ip in ["192.168.", "10.", "172.16."]):
             return False, "Private IP addresses are not allowed"
         return False, "Invalid URL format. Must be http:// or https://"
-    
+
     return True, None
 
 
@@ -173,7 +173,7 @@ def sanitize_url(url: str) -> str:
     """
     # Strip whitespace
     url = url.strip()
-    
+
     # Lowercase the scheme and host
     parsed = urlparse(url)
     return parsed._replace(
@@ -208,23 +208,23 @@ def is_valid_password(password: str) -> tuple[bool, list[str]]:
         Tuple of (is_valid, list of error messages)
     """
     errors = []
-    
+
     if len(password) < 8:
         errors.append("Password must be at least 8 characters long")
-    
+
     if not any(c.isupper() for c in password):
         errors.append("Password must contain at least one uppercase letter")
-    
+
     if not any(c.islower() for c in password):
         errors.append("Password must contain at least one lowercase letter")
-    
+
     if not any(c.isdigit() for c in password):
         errors.append("Password must contain at least one digit")
-    
+
     special_chars = set("!@#$%^&*()_+-=[]{}|;':\",./<>?")
     if not any(c in special_chars for c in password):
         errors.append("Password must contain at least one special character")
-    
+
     return len(errors) == 0, errors
 
 
@@ -247,43 +247,43 @@ def validate_screenshot_options(
         Tuple of (is_valid, list of error messages)
     """
     errors = []
-    
+
     # Apply defaults if requested
     if apply_defaults:
         for key, value in DEFAULT_SCREENSHOT_OPTIONS.items():
             if key not in options:
                 options[key] = value
-    
+
     # Validate width
     width = options.get("width")
     if width is not None:
         if not isinstance(width, int) or width < MIN_WIDTH or width > max_width:
             errors.append(f"Width must be between {MIN_WIDTH} and {max_width}")
-    
+
     # Validate height
     height = options.get("height")
     if height is not None:
         if not isinstance(height, int) or height < MIN_HEIGHT or height > max_height:
             errors.append(f"Height must be between {MIN_HEIGHT} and {max_height}")
-    
+
     # Validate format
     format_ = options.get("format")
     if format_ is not None:
         if format_.lower() not in VALID_SCREENSHOT_FORMATS:
             errors.append(f"Format must be one of: {', '.join(VALID_SCREENSHOT_FORMATS)}")
-    
+
     # Validate quality (for JPEG/WebP)
     quality = options.get("quality")
     if quality is not None:
         if not isinstance(quality, int) or quality < 1 or quality > 100:
             errors.append("Quality must be between 1 and 100")
-    
+
     # Validate delay
     delay = options.get("delay")
     if delay is not None:
         if not isinstance(delay, int) or delay < 0 or delay > 30000:
             errors.append("Delay must be between 0 and 30000 milliseconds")
-    
+
     return len(errors) == 0, errors
 
 
@@ -302,19 +302,19 @@ def validate_pdf_options(
         Tuple of (is_valid, list of error messages)
     """
     errors = []
-    
+
     # Apply defaults if requested
     if apply_defaults:
         for key, value in DEFAULT_PDF_OPTIONS.items():
             if key not in options:
                 options[key] = value
-    
+
     # Validate format
     format_ = options.get("format")
     if format_ is not None:
         if format_ not in VALID_PDF_PAGE_FORMATS:
             errors.append(f"PDF format must be one of: {', '.join(VALID_PDF_PAGE_FORMATS)}")
-    
+
     # Validate margins
     margin = options.get("margin")
     if margin is not None:
@@ -325,13 +325,13 @@ def validate_pdf_options(
                 value = margin.get(side)
                 if value is not None and not isinstance(value, str):
                     errors.append(f"Margin {side} must be a string (e.g., '10mm', '1in')")
-    
+
     # Validate scale
     scale = options.get("scale")
     if scale is not None:
         if not isinstance(scale, (int, float)) or scale < 0.1 or scale > 2:
             errors.append("Scale must be between 0.1 and 2")
-    
+
     return len(errors) == 0, errors
 
 

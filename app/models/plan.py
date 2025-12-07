@@ -4,7 +4,7 @@ Subscription Plan model
 
 from datetime import datetime
 from decimal import Decimal
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import Boolean, DateTime, Integer, Numeric, String, func
 from sqlalchemy.dialects.postgresql import JSONB
@@ -63,7 +63,7 @@ class Plan(Base):
         Numeric(10, 2),
         nullable=False,
     )
-    price_yearly: Mapped[Optional[Decimal]] = mapped_column(
+    price_yearly: Mapped[Decimal | None] = mapped_column(
         Numeric(10, 2),
         nullable=True,
     )
@@ -90,14 +90,14 @@ class Plan(Base):
     )
 
     # Features (JSON object)
-    features: Mapped[Optional[dict[str, Any]]] = mapped_column(
+    features: Mapped[dict[str, Any] | None] = mapped_column(
         JSONB,
         nullable=True,
         default=dict,
     )
 
     # Stripe integration
-    stripe_price_id: Mapped[Optional[str]] = mapped_column(
+    stripe_price_id: Mapped[str | None] = mapped_column(
         String(255),
         nullable=True,
     )

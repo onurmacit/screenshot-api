@@ -2,7 +2,7 @@
 Base model with common columns and utilities
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 from uuid import uuid4
 
@@ -15,7 +15,7 @@ from app.core.database import Base
 
 def utc_now() -> datetime:
     """Get current UTC datetime."""
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 class TimestampMixin:

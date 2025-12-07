@@ -9,7 +9,7 @@ import asyncio
 import io
 import threading
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any, Optional
 
 from PIL import Image
@@ -44,20 +44,20 @@ class BrowserPool:
     def __init__(self):
         if hasattr(self, "_init_done") and self._init_done:
             return
-        
+
         # Thread-safe locks
         self._init_lock = threading.Lock()
         self._context_lock = threading.Lock()
-        
+
         # State
         self._initialized = False
         self._playwright = None
-        self._browser: Optional[Browser] = None
+        self._browser: Browser | None = None
         self._contexts: list[BrowserContext] = []
-        self._available_contexts: Optional[asyncio.Queue] = None
+        self._available_contexts: asyncio.Queue | None = None
         self._render_counts: dict[int, int] = {}  # Use id() as key
         self._context_map: dict[int, BrowserContext] = {}  # id -> context mapping
-        
+
         self._init_done = True
 
     async def initialize(self) -> None:
@@ -117,19 +117,19 @@ class BrowserPool:
                 await asyncio.wait_for(context.close(), timeout=5.0)
             except Exception:
                 pass
-        
+
         if self._browser:
             try:
                 await asyncio.wait_for(self._browser.close(), timeout=5.0)
             except Exception:
                 pass
-        
+
         if self._playwright:
             try:
                 await self._playwright.stop()
             except Exception:
                 pass
-        
+
         self._contexts = []
         self._render_counts = {}
         self._context_map = {}
@@ -150,14 +150,14 @@ class BrowserPool:
             bypass_csp=True,
             ignore_https_errors=True,
         )
-        
+
         context_id = id(context)
-        
+
         with self._context_lock:
             self._contexts.append(context)
             self._render_counts[context_id] = 0
             self._context_map[context_id] = context
-        
+
         return context
 
     async def acquire_context(self) -> BrowserContext:
@@ -182,7 +182,7 @@ class BrowserPool:
         # Check if context needs refresh
         with self._context_lock:
             render_count = self._render_counts.get(context_id, 0)
-        
+
         if render_count >= settings.BROWSER_MAX_RENDERS_PER_CONTEXT:
             logger.info(
                 "Context reached max renders, refreshing",
@@ -204,11 +204,11 @@ class BrowserPool:
             return
 
         context_id = id(context)
-        
+
         with self._context_lock:
             if context_id in self._render_counts:
                 self._render_counts[context_id] += 1
-        
+
         await self._available_contexts.put(context)
 
     async def _refresh_context(self, old_context: BrowserContext) -> BrowserContext:
@@ -222,7 +222,7 @@ class BrowserPool:
             New browser context
         """
         old_context_id = id(old_context)
-        
+
         # Remove old context from tracking
         with self._context_lock:
             if old_context in self._contexts:
@@ -233,7 +233,7 @@ class BrowserPool:
         # Close old context with timeout
         try:
             await asyncio.wait_for(old_context.close(), timeout=5.0)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             logger.warning("Context close timed out", context_id=old_context_id)
         except Exception as e:
             logger.warning("Error closing context", error=str(e))
@@ -274,7 +274,7 @@ class BrowserPool:
             for context in contexts_to_close:
                 try:
                     await asyncio.wait_for(context.close(), timeout=5.0)
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     logger.warning("Context close timed out during shutdown")
                 except Exception as e:
                     logger.warning("Error closing context", error=str(e))
@@ -283,7 +283,7 @@ class BrowserPool:
             if self._browser:
                 try:
                     await asyncio.wait_for(self._browser.close(), timeout=10.0)
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     logger.warning("Browser close timed out")
                 except Exception as e:
                     logger.warning("Error closing browser", error=str(e))
@@ -336,7 +336,7 @@ class RenderService:
         Yields:
             New page instance
         """
-        page: Optional[Page] = None
+        page: Page | None = None
         try:
             page = await context.new_page()
             yield page
@@ -344,7 +344,7 @@ class RenderService:
             if page:
                 try:
                     await asyncio.wait_for(page.close(), timeout=5.0)
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     logger.warning("Page close timed out")
                 except Exception as e:
                     logger.warning("Error closing page", error=str(e))
@@ -353,7 +353,7 @@ class RenderService:
         self,
         url: str,
         options: dict[str, Any],
-        user_plan: Optional[dict] = None,
+        user_plan: dict | None = None,
     ) -> tuple[bytes, dict[str, Any]]:
         """
         Capture a screenshot of a URL.
@@ -370,8 +370,8 @@ class RenderService:
             RenderError: If screenshot capture fails
         """
         context = await self.pool.acquire_context()
-        start_time = datetime.now(timezone.utc)
-        screenshot_bytes: Optional[bytes] = None
+        start_time = datetime.now(UTC)
+        screenshot_bytes: bytes | None = None
 
         try:
             async with self._get_page(context) as page:
@@ -464,7 +464,7 @@ class RenderService:
                     screenshot_bytes = await page.screenshot(**screenshot_options)
 
             # Calculate processing time
-            end_time = datetime.now(timezone.utc)
+            end_time = datetime.now(UTC)
             processing_time_ms = int((end_time - start_time).total_seconds() * 1000)
 
             # Get image dimensions - properly close PIL Image
@@ -505,7 +505,7 @@ class RenderService:
         self,
         url: str,
         options: dict[str, Any],
-        user_plan: Optional[dict] = None,
+        user_plan: dict | None = None,
     ) -> tuple[bytes, dict[str, Any]]:
         """
         Generate a PDF from a URL.
@@ -522,8 +522,8 @@ class RenderService:
             RenderError: If PDF generation fails
         """
         context = await self.pool.acquire_context()
-        start_time = datetime.now(timezone.utc)
-        pdf_bytes: Optional[bytes] = None
+        start_time = datetime.now(UTC)
+        pdf_bytes: bytes | None = None
 
         try:
             async with self._get_page(context) as page:
@@ -581,7 +581,7 @@ class RenderService:
                 pdf_bytes = await page.pdf(**pdf_options)
 
             # Calculate processing time
-            end_time = datetime.now(timezone.utc)
+            end_time = datetime.now(UTC)
             processing_time_ms = int((end_time - start_time).total_seconds() * 1000)
 
             # Count pages (approximate)
@@ -657,7 +657,7 @@ class RenderService:
         img = None
         overlay = None
         output = None
-        
+
         try:
             from PIL import ImageDraw, ImageFont
 
@@ -709,10 +709,10 @@ class RenderService:
             output = io.BytesIO()
             result_img.save(output, format=format.upper())
             result = output.getvalue()
-            
+
             # Close result_img
             result_img.close()
-            
+
             return result
 
         except Exception as e:

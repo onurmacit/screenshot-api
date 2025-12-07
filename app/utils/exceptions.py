@@ -2,7 +2,7 @@
 Custom exceptions for the application
 """
 
-from typing import Any, Optional
+from typing import Any
 
 
 class APIError(Exception):
@@ -12,8 +12,8 @@ class APIError(Exception):
         self,
         message: str,
         status_code: int = 500,
-        error_code: Optional[str] = None,
-        details: Optional[dict[str, Any]] = None,
+        error_code: str | None = None,
+        details: dict[str, Any] | None = None,
     ):
         self.message = message
         self.status_code = status_code
@@ -38,7 +38,7 @@ class ValidationError(APIError):
     def __init__(
         self,
         message: str = "Validation failed",
-        details: Optional[dict[str, Any]] = None,
+        details: dict[str, Any] | None = None,
     ):
         super().__init__(
             message=message,
@@ -54,7 +54,7 @@ class AuthenticationError(APIError):
     def __init__(
         self,
         message: str = "Authentication failed",
-        details: Optional[dict[str, Any]] = None,
+        details: dict[str, Any] | None = None,
     ):
         super().__init__(
             message=message,
@@ -70,7 +70,7 @@ class AuthorizationError(APIError):
     def __init__(
         self,
         message: str = "Access denied",
-        details: Optional[dict[str, Any]] = None,
+        details: dict[str, Any] | None = None,
     ):
         super().__init__(
             message=message,
@@ -86,8 +86,8 @@ class NotFoundError(APIError):
     def __init__(
         self,
         message: str = "Resource not found",
-        resource_type: Optional[str] = None,
-        resource_id: Optional[str] = None,
+        resource_type: str | None = None,
+        resource_id: str | None = None,
     ):
         details = {}
         if resource_type:
@@ -109,8 +109,8 @@ class RateLimitError(APIError):
     def __init__(
         self,
         message: str = "Rate limit exceeded",
-        retry_after: Optional[int] = None,
-        limit: Optional[int] = None,
+        retry_after: int | None = None,
+        limit: int | None = None,
         remaining: int = 0,
     ):
         details: dict[str, Any] = {"remaining": remaining}
@@ -133,7 +133,7 @@ class ConflictError(APIError):
     def __init__(
         self,
         message: str = "Resource already exists",
-        details: Optional[dict[str, Any]] = None,
+        details: dict[str, Any] | None = None,
     ):
         super().__init__(
             message=message,
@@ -149,7 +149,7 @@ class PaymentError(APIError):
     def __init__(
         self,
         message: str = "Payment processing failed",
-        details: Optional[dict[str, Any]] = None,
+        details: dict[str, Any] | None = None,
     ):
         super().__init__(
             message=message,
@@ -165,8 +165,8 @@ class QuotaExceededError(APIError):
     def __init__(
         self,
         message: str = "Usage quota exceeded",
-        current_usage: Optional[int] = None,
-        limit: Optional[int] = None,
+        current_usage: int | None = None,
+        limit: int | None = None,
     ):
         details: dict[str, Any] = {}
         if current_usage is not None:
@@ -188,7 +188,7 @@ class RenderError(APIError):
     def __init__(
         self,
         message: str = "Rendering failed",
-        details: Optional[dict[str, Any]] = None,
+        details: dict[str, Any] | None = None,
     ):
         super().__init__(
             message=message,
@@ -204,8 +204,8 @@ class ExternalServiceError(APIError):
     def __init__(
         self,
         message: str = "External service error",
-        service: Optional[str] = None,
-        details: Optional[dict[str, Any]] = None,
+        service: str | None = None,
+        details: dict[str, Any] | None = None,
     ):
         if details is None:
             details = {}
@@ -226,7 +226,7 @@ class ServiceUnavailableError(APIError):
     def __init__(
         self,
         message: str = "Service temporarily unavailable",
-        retry_after: Optional[int] = None,
+        retry_after: int | None = None,
     ):
         details: dict[str, Any] = {}
         if retry_after:

@@ -35,9 +35,12 @@ def get_session() -> aioboto3.Session:
 
 
 @asynccontextmanager
-async def get_s3_client() -> AsyncGenerator[Any, None]:
+async def get_s3_client(use_public_url: bool = False) -> AsyncGenerator[Any, None]:
     """
     Get async S3 client.
+
+    Args:
+        use_public_url: If True, use public URL for presigned URL generation
 
     Yields:
         S3 client
@@ -49,7 +52,10 @@ async def get_s3_client() -> AsyncGenerator[Any, None]:
     }
 
     # For MinIO or other S3-compatible storage
-    if settings.AWS_S3_ENDPOINT_URL:
+    # Use public URL for presigned URLs so signature matches
+    if use_public_url and settings.AWS_S3_PUBLIC_URL:
+        client_kwargs["endpoint_url"] = settings.AWS_S3_PUBLIC_URL
+    elif settings.AWS_S3_ENDPOINT_URL:
         client_kwargs["endpoint_url"] = settings.AWS_S3_ENDPOINT_URL
 
     async with session.client("s3", **client_kwargs) as client:
@@ -170,7 +176,8 @@ class S3Manager:
         if expires_in is None:
             expires_in = settings.SIGNED_URL_EXPIRY_SECONDS
 
-        async with get_s3_client() as client:
+        # Use public URL client so signature matches the access host
+        async with get_s3_client(use_public_url=True) as client:
             url = await client.generate_presigned_url(
                 "get_object",
                 Params={
@@ -262,8 +269,10 @@ class S3Manager:
 
     def _get_object_url(self, key: str) -> str:
         """Get the base URL for an S3 object."""
-        if settings.AWS_S3_ENDPOINT_URL:
-            return f"{settings.AWS_S3_ENDPOINT_URL}/{self.bucket}/{key}"
+        # Use public URL if available, otherwise fall back to endpoint URL
+        base_url = settings.AWS_S3_PUBLIC_URL or settings.AWS_S3_ENDPOINT_URL
+        if base_url:
+            return f"{base_url}/{self.bucket}/{key}"
         return f"https://{self.bucket}.s3.{settings.AWS_REGION}.amazonaws.com/{key}"
 
 

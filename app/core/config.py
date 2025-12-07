@@ -81,7 +81,8 @@ class Settings(BaseSettings):
     AWS_SECRET_ACCESS_KEY: str = ""
     AWS_REGION: str = "us-east-1"
     AWS_S3_BUCKET: str = "screenshot-api-renders"
-    AWS_S3_ENDPOINT_URL: Optional[str] = None  # For MinIO compatibility
+    AWS_S3_ENDPOINT_URL: Optional[str] = None  # For MinIO compatibility (internal)
+    AWS_S3_PUBLIC_URL: Optional[str] = None  # Public URL for presigned URLs (external)
 
     # ==========================================================================
     # Stripe

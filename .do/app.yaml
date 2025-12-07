@@ -1,0 +1,232 @@
+name: screenshot-api
+region: nyc
+services:
+  # ============================================================================
+  # API Service
+  # ============================================================================
+  - name: api
+    github:
+      repo: onurmacit/screenshot-api
+      branch: main
+      deploy_on_push: true
+    
+    source_dir: /
+    build_command: |
+      pip install --upgrade pip
+      pip install -r requirements.txt
+      playwright install chromium --with-deps
+    
+    run_command: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    
+    environment_slug: python
+    instance_count: 1
+    instance_size_slug: basic-xxs  # Start small, scale up later
+    
+    envs:
+      # Application
+      - key: APP_ENV
+        value: production
+      - key: APP_NAME
+        value: ScreenshotAPI
+      - key: DEBUG
+        value: "false"
+      - key: LOG_LEVEL
+        value: INFO
+      
+      # Security (set these in DO dashboard as encrypted env vars)
+      - key: SECRET_KEY
+        scope: RUN_TIME
+        type: SECRET
+      - key: JWT_ALGORITHM
+        value: HS256
+      
+      # Database (will be auto-injected by DO)
+      - key: DATABASE_URL
+        scope: RUN_TIME
+        type: SECRET
+      
+      # Redis (will be auto-injected by DO)
+      - key: REDIS_URL
+        scope: RUN_TIME
+        type: SECRET
+      - key: CELERY_BROKER_URL
+        scope: RUN_TIME
+        type: SECRET
+      - key: CELERY_RESULT_BACKEND
+        scope: RUN_TIME
+        type: SECRET
+      
+      # AWS S3 / DigitalOcean Spaces
+      - key: AWS_ACCESS_KEY_ID
+        scope: RUN_TIME
+        type: SECRET
+      - key: AWS_SECRET_ACCESS_KEY
+        scope: RUN_TIME
+        type: SECRET
+      - key: AWS_REGION
+        value: nyc3
+      - key: AWS_S3_BUCKET
+        value: screenshot-api-renders
+      - key: AWS_S3_ENDPOINT_URL
+        value: https://nyc3.digitaloceanspaces.com
+      - key: AWS_S3_PUBLIC_URL
+        value: https://screenshotbeam.nyc3.digitaloceanspaces.com
+      
+      # Stripe (set as encrypted env vars)
+      - key: STRIPE_SECRET_KEY
+        scope: RUN_TIME
+        type: SECRET
+      - key: STRIPE_WEBHOOK_SECRET
+        scope: RUN_TIME
+        type: SECRET
+      - key: STRIPE_PUBLISHABLE_KEY
+        scope: RUN_TIME
+        type: SECRET
+      
+      # Trusted Proxies (DigitalOcean App Platform)
+      - key: TRUSTED_PROXIES
+        value: '["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"]'
+    
+    http_port: 8000
+    routes:
+      - path: /
+    
+    health_check:
+      http_path: /api/v1/health
+      initial_delay_seconds: 30
+      period_seconds: 10
+      timeout_seconds: 5
+      success_threshold: 1
+      failure_threshold: 3
+
+  # ============================================================================
+  # Celery Worker (Default Queue)
+  # ============================================================================
+  - name: worker
+    github:
+      repo: onurmacit/screenshot-api
+      branch: main
+      deploy_on_push: true
+    
+    source_dir: /
+    build_command: |
+      pip install --upgrade pip
+      pip install -r requirements.txt
+      playwright install chromium --with-deps
+    
+    run_command: celery -A app.workers.celery_app worker --loglevel=info -Q default,low_priority -c 2
+    
+    environment_slug: python
+    instance_count: 1
+    instance_size_slug: basic-xxs
+    
+    envs:
+      # Application
+      - key: APP_ENV
+        value: production
+      - key: DEBUG
+        value: "false"
+      - key: LOG_LEVEL
+        value: INFO
+      
+      # Database
+      - key: DATABASE_URL
+        scope: RUN_TIME
+        type: SECRET
+      
+      # Redis
+      - key: REDIS_URL
+        scope: RUN_TIME
+        type: SECRET
+      - key: CELERY_BROKER_URL
+        scope: RUN_TIME
+        type: SECRET
+      - key: CELERY_RESULT_BACKEND
+        scope: RUN_TIME
+        type: SECRET
+      
+      # AWS S3 / DigitalOcean Spaces
+      - key: AWS_ACCESS_KEY_ID
+        scope: RUN_TIME
+        type: SECRET
+      - key: AWS_SECRET_ACCESS_KEY
+        scope: RUN_TIME
+        type: SECRET
+      - key: AWS_REGION
+        value: nyc3
+      - key: AWS_S3_BUCKET
+        value: screenshot-api-renders
+      - key: AWS_S3_ENDPOINT_URL
+        value: https://nyc3.digitaloceanspaces.com
+      - key: AWS_S3_PUBLIC_URL
+        value: https://screenshotbeam.nyc3.digitaloceanspaces.com
+
+  # ============================================================================
+  # Celery Worker (High Priority Queue)
+  # ============================================================================
+  - name: worker-high
+    github:
+      repo: onurmacit/screenshot-api
+      branch: main
+      deploy_on_push: true
+    
+    source_dir: /
+    build_command: |
+      pip install --upgrade pip
+      pip install -r requirements.txt
+      playwright install chromium --with-deps
+    
+    run_command: celery -A app.workers.celery_app worker --loglevel=info -Q high_priority -c 2
+    
+    environment_slug: python
+    instance_count: 1
+    instance_size_slug: basic-xxs
+    
+    envs:
+      # Application
+      - key: APP_ENV
+        value: production
+      - key: DEBUG
+        value: "false"
+      - key: LOG_LEVEL
+        value: INFO
+      
+      # Database
+      - key: DATABASE_URL
+        scope: RUN_TIME
+        type: SECRET
+      
+      # Redis
+      - key: REDIS_URL
+        scope: RUN_TIME
+        type: SECRET
+      - key: CELERY_BROKER_URL
+        scope: RUN_TIME
+        type: SECRET
+      - key: CELERY_RESULT_BACKEND
+        scope: RUN_TIME
+        type: SECRET
+      
+      # AWS S3 / DigitalOcean Spaces
+      - key: AWS_ACCESS_KEY_ID
+        scope: RUN_TIME
+        type: SECRET
+      - key: AWS_SECRET_ACCESS_KEY
+        scope: RUN_TIME
+        type: SECRET
+      - key: AWS_REGION
+        value: nyc3
+      - key: AWS_S3_BUCKET
+        value: screenshot-api-renders
+      - key: AWS_S3_ENDPOINT_URL
+        value: https://nyc3.digitaloceanspaces.com
+      - key: AWS_S3_PUBLIC_URL
+        value: https://screenshotbeam.nyc3.digitaloceanspaces.com
+
+databases:
+  - name: screenshot-api-db
+    engine: PG
+    production: true
+    version: "15"
+    cluster_name: screenshot-api-db-cluster
+

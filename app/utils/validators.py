@@ -128,19 +128,28 @@ def is_valid_url(
         return False
 
 
-def validate_url(url: str, allow_localhost: bool = False) -> tuple[bool, Optional[str]]:
+def validate_url(
+    url: str, 
+    allow_localhost: bool = False,
+    require_https: bool = False,
+) -> tuple[bool, Optional[str]]:
     """
     Validate a URL and return validation result with error message.
     
     Args:
         url: URL to validate
         allow_localhost: Whether to allow localhost URLs
+        require_https: Whether to require HTTPS (default: False)
     
     Returns:
         Tuple of (is_valid, error_message or None)
     """
     if not url:
         return False, "URL is required"
+    
+    # Check HTTPS requirement
+    if require_https and not url.lower().startswith("https://"):
+        return False, "HTTPS is required"
     
     if not is_valid_url(url, allow_localhost=allow_localhost):
         if "localhost" in url.lower() or "127.0.0.1" in url:

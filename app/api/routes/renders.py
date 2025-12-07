@@ -17,6 +17,7 @@ from app.api.dependencies import (
     get_current_user_from_api_key,
 )
 from app.models import RenderJob
+from app.workers.render_tasks import process_screenshot, process_pdf
 from app.schemas.render import (
     PDFRequest,
     RenderJobAsyncResponse,
@@ -60,7 +61,9 @@ async def create_screenshot(
     - **delay**: Wait time before capture (ms)
     """
     # Validate URL
-    validated_url = validate_url(request.url, require_https=False)
+    is_valid, error_message = validate_url(request.url, require_https=False)
+    if not is_valid:
+        raise ValidationError(error_message or "Invalid URL")
 
     # Check feature availability based on plan
     if request.custom_css and not current_user.has_feature("custom_css"):
@@ -112,7 +115,7 @@ async def create_screenshot(
         api_key_id=current_user.api_key_id,
         type="screenshot",
         status="pending",
-        url=validated_url,
+        url=request.url,
         options=options,
         webhook_url=request.webhook_url,
         priority=_get_priority(current_user.plan_name),
@@ -125,8 +128,12 @@ async def create_screenshot(
 
     # Async mode - queue job and return immediately
     if request.async_mode:
-        # Queue the job (will be implemented in Celery tasks)
-        # For now, just return the job info
+        # Queue the job to Celery
+        queue = "high_priority" if _get_priority(current_user.plan_name) >= 3 else "default"
+        process_screenshot.apply_async(
+            args=[str(render_job.id)],
+            queue=queue,
+        )
 
         return RenderJobAsyncResponse(
             job_id=render_job.id,
@@ -144,7 +151,7 @@ async def create_screenshot(
 
         # Capture screenshot
         image_bytes, metadata = await render_service.capture_screenshot(
-            url=validated_url,
+            url=request.url,
             options=options,
             user_plan=current_user.plan_features,
         )
@@ -231,7 +238,9 @@ async def create_pdf(
     - **print_background**: Print background graphics
     """
     # Validate URL
-    validated_url = validate_url(request.url, require_https=False)
+    is_valid, error_message = validate_url(request.url, require_https=False)
+    if not is_valid:
+        raise ValidationError(error_message or "Invalid URL")
 
     # Build options dict
     options = {
@@ -254,7 +263,7 @@ async def create_pdf(
         api_key_id=current_user.api_key_id,
         type="pdf",
         status="pending",
-        url=validated_url,
+        url=request.url,
         options=options,
         webhook_url=request.webhook_url,
         priority=_get_priority(current_user.plan_name),
@@ -267,6 +276,13 @@ async def create_pdf(
 
     # Async mode
     if request.async_mode:
+        # Queue the job to Celery
+        queue = "high_priority" if _get_priority(current_user.plan_name) >= 3 else "default"
+        process_pdf.apply_async(
+            args=[str(render_job.id)],
+            queue=queue,
+        )
+
         return RenderJobAsyncResponse(
             job_id=render_job.id,
             status="pending",
@@ -283,7 +299,7 @@ async def create_pdf(
 
         # Generate PDF
         pdf_bytes, metadata = await render_service.generate_pdf(
-            url=validated_url,
+            url=request.url,
             options=options,
             user_plan=current_user.plan_features,
         )

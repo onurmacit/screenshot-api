@@ -25,6 +25,12 @@ _initialized = False
 
 def get_redis_url(db: int = 0) -> str:
     """Get Redis URL with specific database number."""
+    # Upstash Redis doesn't support database numbers, use the same URL for all
+    # For other Redis instances, append database number
+    if "upstash.io" in settings.REDIS_URL or "rediss://" in settings.REDIS_URL:
+        # Upstash Redis - no database numbers
+        return settings.REDIS_URL
+    # Standard Redis - append database number
     base_url = settings.REDIS_URL.rsplit("/", 1)[0]
     return f"{base_url}/{db}"
 

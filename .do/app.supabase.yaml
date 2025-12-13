@@ -1,5 +1,5 @@
 name: screenshot-api
-region: nyc
+region: nyc  # NYC (New York) - Amerika pazarı için önerilen
 services:
   # ============================================================================
   # API Service
@@ -40,12 +40,14 @@ services:
       - key: JWT_ALGORITHM
         value: HS256
       
-      # Database (auto-injected by database component - see databases section)
+      # Database (Supabase PostgreSQL - set as encrypted env var)
+      # Format: postgresql+asyncpg://postgres:[PASSWORD]@db.[PROJECT_REF].supabase.co:5432/postgres
       - key: DATABASE_URL
         scope: RUN_TIME
         type: SECRET
       
-      # Redis (will be auto-injected by DO)
+      # Redis (Upstash Redis - set as encrypted env vars)
+      # Format: redis://default:[PASSWORD]@[HOST]:[PORT] or rediss:// for TLS
       - key: REDIS_URL
         scope: RUN_TIME
         type: SECRET
@@ -98,9 +100,6 @@ services:
       timeout_seconds: 5
       success_threshold: 1
       failure_threshold: 3
-    
-    # Link to database component (auto-injects DATABASE_URL)
-    database: screenshot-api-db
 
   # ============================================================================
   # Celery Worker (Default Queue)
@@ -132,12 +131,12 @@ services:
       - key: LOG_LEVEL
         value: INFO
       
-      # Database (auto-injected by database component - see databases section)
+      # Database (Supabase PostgreSQL - set as encrypted env var)
       - key: DATABASE_URL
         scope: RUN_TIME
         type: SECRET
       
-      # Redis
+      # Redis (Upstash Redis - set as encrypted env vars)
       - key: REDIS_URL
         scope: RUN_TIME
         type: SECRET
@@ -175,9 +174,6 @@ services:
         scope: RUN_TIME
         type: SECRET
     
-    # Link to database component (auto-injects DATABASE_URL)
-    database: screenshot-api-db
-
   # ============================================================================
   # Celery Worker (High Priority Queue)
   # ============================================================================
@@ -208,12 +204,12 @@ services:
       - key: LOG_LEVEL
         value: INFO
       
-      # Database (auto-injected by database component - see databases section)
+      # Database (Supabase PostgreSQL - set as encrypted env var)
       - key: DATABASE_URL
         scope: RUN_TIME
         type: SECRET
       
-      # Redis
+      # Redis (Upstash Redis - set as encrypted env vars)
       - key: REDIS_URL
         scope: RUN_TIME
         type: SECRET
@@ -239,14 +235,6 @@ services:
         value: https://nyc3.digitaloceanspaces.com
       - key: AWS_S3_PUBLIC_URL
         value: https://screenshotbeam.nyc3.digitaloceanspaces.com
-    
-    # Link to database component (auto-injects DATABASE_URL)
-    database: screenshot-api-db
 
-databases:
-  - name: screenshot-api-db
-    engine: PG
-    production: true
-    version: "15"
-    cluster_name: screenshot-api-db-cluster
-
+# Note: No database component - using Supabase PostgreSQL instead
+# DATABASE_URL must be set as encrypted environment variable

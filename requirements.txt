@@ -42,7 +42,7 @@ stripe==7.10.0
 playwright==1.41.0
 
 # Image Processing
-pillow==10.2.0
+pillow>=10.2.0
 
 # HTTP Client
 httpx==0.26.0

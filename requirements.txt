@@ -38,9 +38,6 @@ aioboto3==12.3.0
 # Stripe
 stripe==7.10.0
 
-# Playwright (Browser Rendering)
-playwright==1.41.0
-
 # Image Processing
 pillow>=10.2.0
 

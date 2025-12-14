@@ -1,122 +1,45 @@
 # =============================================================================
 # Screenshot API - API Service Dockerfile
 # =============================================================================
-# Multi-stage build for optimized production image
+# Using Playwright base image for Chromium support
 
-# -----------------------------------------------------------------------------
-# Stage 1: Builder
-# -----------------------------------------------------------------------------
-FROM python:3.12-slim AS builder
-
-# Set environment variables
-ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1 \
-    PIP_NO_CACHE_DIR=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1
-
-# Install build dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
-    libpq-dev \
-    && rm -rf /var/lib/apt/lists/*
-
-# Create virtual environment
-RUN python -m venv /opt/venv
-ENV PATH="/opt/venv/bin:$PATH"
-
-# Install Python dependencies
-WORKDIR /app
-COPY requirements.txt .
-RUN pip install --upgrade pip && \
-    pip install -r requirements.txt
-
-# Install Playwright and Chromium
-RUN pip install playwright && \
-    playwright install chromium
-
-# -----------------------------------------------------------------------------
-# Stage 2: Production
-# -----------------------------------------------------------------------------
-FROM python:3.12-slim AS production
+FROM mcr.microsoft.com/playwright/python:v1.42.0-jammy
 
 # Labels
 LABEL maintainer="Screenshot API Team <team@screenshotapi.com>" \
       version="1.0.0" \
-      description="Screenshot API - FastAPI Application"
+      description="Screenshot API - FastAPI Application with Playwright"
 
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PYTHONFAULTHANDLER=1 \
-    PATH="/opt/venv/bin:$PATH" \
-    APP_HOME=/app \
-    PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
-
-# Install runtime dependencies including Playwright deps
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    libpq5 \
-    curl \
-    # Playwright/Chromium dependencies
-    libnss3 \
-    libnspr4 \
-    libatk1.0-0 \
-    libatk-bridge2.0-0 \
-    libcups2 \
-    libdrm2 \
-    libdbus-1-3 \
-    libxkbcommon0 \
-    libatspi2.0-0 \
-    libxcomposite1 \
-    libxdamage1 \
-    libxfixes3 \
-    libxrandr2 \
-    libgbm1 \
-    libasound2 \
-    libpango-1.0-0 \
-    libcairo2 \
-    fonts-liberation \
-    fonts-noto-color-emoji \
-    && rm -rf /var/lib/apt/lists/* \
-    && apt-get clean
-
-# Create non-root user
-RUN groupadd --gid 1000 appgroup && \
-    useradd --uid 1000 --gid appgroup --shell /bin/bash --create-home appuser
-
-# Copy virtual environment from builder
-COPY --from=builder /opt/venv /opt/venv
-
-# Copy Playwright browsers from builder
-# Copy to both locations for compatibility
-COPY --from=builder /root/.cache/ms-playwright /home/appuser/.cache/ms-playwright
-RUN chown -R appuser:appgroup /home/appuser/.cache
-
-# Also copy to /workspace for DigitalOcean App Platform compatibility
-RUN mkdir -p /workspace/.cache
-COPY --from=builder /root/.cache/ms-playwright /workspace/.cache/ms-playwright
-RUN chown -R appuser:appgroup /workspace/.cache
+    APP_HOME=/app
 
 # Set working directory
 WORKDIR $APP_HOME
 
+# Install Python dependencies
+COPY requirements.txt .
+RUN pip install --upgrade pip && \
+    pip install -r requirements.txt
+
+# Install Chromium (Playwright base image already has dependencies)
+RUN playwright install chromium
+
 # Copy application code
-COPY --chown=appuser:appgroup . .
+COPY . .
 
 # Create necessary directories
-RUN mkdir -p /app/logs && chown -R appuser:appgroup /app
-
-# Switch to non-root user
-USER appuser
+RUN mkdir -p /app/logs
 
 # Expose port
-EXPOSE 8000
+EXPOSE 8080
 
 # Health check - DigitalOcean App Platform handles health checks via http_path
-# Health check disabled here, using App Platform's http_path health check instead
 # HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-#     CMD curl -f http://localhost:8000/api/v1/health/live || exit 1
+#     CMD curl -f http://localhost:8080/api/v1/health/live || exit 1
 
 # Default command - DigitalOcean App Platform sets PORT env var
 # This is a fallback, App Platform will use run_command from app spec
 CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8080}"]
-

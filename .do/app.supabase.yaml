@@ -84,10 +84,6 @@ services:
       # Trusted Proxies (DigitalOcean App Platform)
       - key: TRUSTED_PROXIES
         value: '["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"]'
-      
-      # Playwright
-      - key: PLAYWRIGHT_BROWSERS_PATH
-        value: /workspace/.cache/ms-playwright
     
     http_port: 8080
     
@@ -167,10 +163,6 @@ services:
       - key: STRIPE_PUBLISHABLE_KEY
         scope: RUN_TIME
         type: SECRET
-      
-      # Playwright
-      - key: PLAYWRIGHT_BROWSERS_PATH
-        value: /workspace/.cache/ms-playwright
     
   # ============================================================================
   # Celery Worker (High Priority Queue)
@@ -229,10 +221,6 @@ services:
         value: https://nyc3.digitaloceanspaces.com
       - key: AWS_S3_PUBLIC_URL
         value: https://screenshotbeam.nyc3.digitaloceanspaces.com
-      
-      # Playwright
-      - key: PLAYWRIGHT_BROWSERS_PATH
-        value: /workspace/.cache/ms-playwright
 
 # Note: No database component - using Supabase PostgreSQL instead
 # DATABASE_URL must be set as encrypted environment variable

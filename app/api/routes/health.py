@@ -4,15 +4,14 @@ Health check endpoints
 
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, status
 from fastapi.responses import JSONResponse
 from redis.asyncio import Redis
 from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.core.database import get_db
-from app.core.redis import get_redis
+from app.core.database import engine
+from app.core.redis import get_redis_url, init_redis_pools
 from app.core.s3 import get_s3_client
 
 router = APIRouter()
@@ -27,10 +26,7 @@ router = APIRouter()
     "/",
     include_in_schema=False,
 )
-async def health_check(
-    db: AsyncSession = Depends(get_db),
-    redis: Redis = Depends(get_redis),
-) -> dict:
+async def health_check() -> dict:
     """
     Comprehensive health check endpoint.
 
@@ -43,17 +39,21 @@ async def health_check(
     services = {}
     status_code = status.HTTP_200_OK
 
-    # Check database
+    # Check database - use direct connection to avoid dependency injection issues
     try:
-        await db.execute(text("SELECT 1"))
+        async with engine.connect() as conn:
+            await conn.execute(text("SELECT 1"))
         services["database"] = "healthy"
     except Exception:
         services["database"] = "unhealthy"
         status_code = status.HTTP_503_SERVICE_UNAVAILABLE
 
-    # Check Redis
+    # Check Redis - create temporary connection for health check
     try:
+        await init_redis_pools()
+        redis = Redis.from_url(get_redis_url(0), decode_responses=False)
         await redis.ping()
+        await redis.aclose()
         services["redis"] = "healthy"
     except Exception:
         services["redis"] = "unhealthy"
@@ -106,10 +106,7 @@ async def health_check(
     summary="Readiness probe",
     description="Kubernetes readiness probe endpoint.",
 )
-async def readiness_check(
-    db: AsyncSession = Depends(get_db),
-    redis: Redis = Depends(get_redis),
-) -> dict:
+async def readiness_check() -> dict:
     """
     Kubernetes readiness probe.
 
@@ -118,10 +115,14 @@ async def readiness_check(
     """
     try:
         # Check database connection
-        await db.execute(text("SELECT 1"))
+        async with engine.connect() as conn:
+            await conn.execute(text("SELECT 1"))
 
         # Check Redis connection
+        await init_redis_pools()
+        redis = Redis.from_url(get_redis_url(0), decode_responses=False)
         await redis.ping()
+        await redis.aclose()
 
         return {"ready": True}
 

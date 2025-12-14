@@ -1,5 +1,5 @@
 name: screenshot-api
-region: nyc
+region: nyc  # NYC (New York) - Amerika pazarı için önerilen
 services:
   # ============================================================================
   # API Service
@@ -10,15 +10,10 @@ services:
       branch: main
       deploy_on_push: true
     
-    source_dir: /
-    build_command: |
-      pip install --upgrade pip
-      pip install -r requirements.txt
-      playwright install chromium --with-deps
+    dockerfile_path: docker/Dockerfile.api
     
     run_command: uvicorn app.main:app --host 0.0.0.0 --port $PORT
     
-    environment_slug: python
     instance_count: 1
     instance_size_slug: basic-xxs  # Start small, scale up later
     
@@ -40,12 +35,14 @@ services:
       - key: JWT_ALGORITHM
         value: HS256
       
-      # Database (auto-injected by database component - see databases section)
+      # Database (Supabase PostgreSQL - set as encrypted env var)
+      # Format: postgresql+asyncpg://postgres:[PASSWORD]@db.[PROJECT_REF].supabase.co:5432/postgres
       - key: DATABASE_URL
         scope: RUN_TIME
         type: SECRET
       
-      # Redis (will be auto-injected by DO)
+      # Redis (Upstash Redis - set as encrypted env vars)
+      # Format: redis://default:[PASSWORD]@[HOST]:[PORT] or rediss:// for TLS
       - key: REDIS_URL
         scope: RUN_TIME
         type: SECRET
@@ -87,9 +84,7 @@ services:
       - key: TRUSTED_PROXIES
         value: '["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"]'
     
-    http_port: 8000
-    routes:
-      - path: /
+    http_port: 8080
     
     health_check:
       http_path: /api/v1/health
@@ -98,9 +93,6 @@ services:
       timeout_seconds: 5
       success_threshold: 1
       failure_threshold: 3
-    
-    # Link to database component (auto-injects DATABASE_URL)
-    database: screenshot-api-db
 
   # ============================================================================
   # Celery Worker (Default Queue)
@@ -111,15 +103,10 @@ services:
       branch: main
       deploy_on_push: true
     
-    source_dir: /
-    build_command: |
-      pip install --upgrade pip
-      pip install -r requirements.txt
-      playwright install chromium --with-deps
+    dockerfile_path: docker/Dockerfile.worker
     
     run_command: celery -A app.workers.celery_app worker --loglevel=info -Q default,low_priority,billing -c 2
     
-    environment_slug: python
     instance_count: 1
     instance_size_slug: basic-xxs
     
@@ -132,12 +119,12 @@ services:
       - key: LOG_LEVEL
         value: INFO
       
-      # Database (auto-injected by database component - see databases section)
+      # Database (Supabase PostgreSQL - set as encrypted env var)
       - key: DATABASE_URL
         scope: RUN_TIME
         type: SECRET
       
-      # Redis
+      # Redis (Upstash Redis - set as encrypted env vars)
       - key: REDIS_URL
         scope: RUN_TIME
         type: SECRET
@@ -175,9 +162,6 @@ services:
         scope: RUN_TIME
         type: SECRET
     
-    # Link to database component (auto-injects DATABASE_URL)
-    database: screenshot-api-db
-
   # ============================================================================
   # Celery Worker (High Priority Queue)
   # ============================================================================
@@ -187,15 +171,10 @@ services:
       branch: main
       deploy_on_push: true
     
-    source_dir: /
-    build_command: |
-      pip install --upgrade pip
-      pip install -r requirements.txt
-      playwright install chromium --with-deps
+    dockerfile_path: docker/Dockerfile.worker-high
     
     run_command: celery -A app.workers.celery_app worker --loglevel=info -Q high_priority -c 2
     
-    environment_slug: python
     instance_count: 1
     instance_size_slug: basic-xxs
     
@@ -208,12 +187,12 @@ services:
       - key: LOG_LEVEL
         value: INFO
       
-      # Database (auto-injected by database component - see databases section)
+      # Database (Supabase PostgreSQL - set as encrypted env var)
       - key: DATABASE_URL
         scope: RUN_TIME
         type: SECRET
       
-      # Redis
+      # Redis (Upstash Redis - set as encrypted env vars)
       - key: REDIS_URL
         scope: RUN_TIME
         type: SECRET
@@ -239,14 +218,6 @@ services:
         value: https://nyc3.digitaloceanspaces.com
       - key: AWS_S3_PUBLIC_URL
         value: https://screenshotbeam.nyc3.digitaloceanspaces.com
-    
-    # Link to database component (auto-injects DATABASE_URL)
-    database: screenshot-api-db
 
-databases:
-  - name: screenshot-api-db
-    engine: PG
-    production: true
-    version: "15"
-    cluster_name: screenshot-api-db-cluster
-
+# Note: No database component - using Supabase PostgreSQL instead
+# DATABASE_URL must be set as encrypted environment variable

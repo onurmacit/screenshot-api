@@ -144,6 +144,10 @@ async def transaction_context() -> AsyncGenerator[AsyncSession, None]:
 
 async def init_db() -> None:
     """Initialize database tables."""
+    # Skip table creation in production (use migrations instead)
+    # This prevents connection pool exhaustion during startup
+    if settings.is_production:
+        return
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 

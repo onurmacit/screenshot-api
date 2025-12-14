@@ -49,8 +49,10 @@ class Settings(BaseSettings):
     # Database
     # ==========================================================================
     DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/screenshot_api"
-    DATABASE_POOL_SIZE: int = 20
-    DATABASE_MAX_OVERFLOW: int = 10
+    # Supabase Session Mode limit: ~15 connections, use smaller pool
+    # Keep total connections (pool_size + max_overflow) under 15
+    DATABASE_POOL_SIZE: int = 8
+    DATABASE_MAX_OVERFLOW: int = 4
     DATABASE_POOL_TIMEOUT: int = 30
 
     @property

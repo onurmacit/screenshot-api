@@ -13,6 +13,8 @@ services:
     dockerfile_path: docker/Dockerfile.api
     docker_context: .
     
+    run_command: sh -c "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"
+    
     instance_count: 1
     instance_size_slug: basic-xxs  # Start small, scale up later
     
@@ -109,6 +111,8 @@ services:
     dockerfile_path: docker/Dockerfile.worker
     docker_context: .
     
+    run_command: celery -A app.workers.celery_app worker --loglevel=info -Q default,low_priority,billing -c 2
+    
     instance_count: 1
     instance_size_slug: basic-xxs
     
@@ -179,6 +183,8 @@ services:
     
     dockerfile_path: docker/Dockerfile.worker-high
     docker_context: .
+    
+    run_command: celery -A app.workers.celery_app worker --loglevel=info -Q high_priority -c 2
     
     instance_count: 1
     instance_size_slug: basic-xxs

@@ -1,11 +1,8 @@
 # =============================================================================
-# Screenshot API - API Service Dockerfile
+# Screenshot API - Celery Worker (High Priority Queue) Dockerfile
 # =============================================================================
-# Multi-stage build for optimized production image
+# Same as worker but for high priority queue
 
-# -----------------------------------------------------------------------------
-# Stage 1: Builder
-# -----------------------------------------------------------------------------
 FROM python:3.12-slim AS builder
 
 # Set environment variables
@@ -30,7 +27,7 @@ COPY requirements.txt .
 RUN pip install --upgrade pip && \
     pip install -r requirements.txt
 
-# Install Playwright and Chromium
+# Install Playwright
 RUN pip install playwright && \
     playwright install chromium
 
@@ -42,7 +39,7 @@ FROM python:3.12-slim AS production
 # Labels
 LABEL maintainer="Screenshot API Team <team@screenshotapi.com>" \
       version="1.0.0" \
-      description="Screenshot API - FastAPI Application"
+      description="Screenshot API - Celery Worker (High Priority) with Playwright"
 
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -56,7 +53,6 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq5 \
     curl \
-    # Playwright/Chromium dependencies
     libnss3 \
     libnspr4 \
     libatk1.0-0 \
@@ -76,6 +72,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libcairo2 \
     fonts-liberation \
     fonts-noto-color-emoji \
+    fonts-unifont \
+    fonts-ipafont-gothic \
+    fonts-wqy-zenhei \
+    fonts-freefont-ttf \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 
@@ -102,13 +102,9 @@ RUN mkdir -p /app/logs && chown -R appuser:appgroup /app
 # Switch to non-root user
 USER appuser
 
-# Expose port
-EXPOSE 8000
-
 # Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8000/api/v1/health/live || exit 1
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
+    CMD celery -A app.workers.celery_app inspect ping -d celery@$HOSTNAME || exit 1
 
-# Default command (use $PORT from environment for DigitalOcean)
-CMD uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}
-
+# Default command - high priority queue
+CMD ["celery", "-A", "app.workers.celery_app", "worker", "--loglevel=info", "-Q", "high_priority", "-c", "2"]

@@ -6,7 +6,7 @@
 # -----------------------------------------------------------------------------
 # Stage 1: Builder
 # -----------------------------------------------------------------------------
-FROM python:3.11-slim AS builder
+FROM python:3.12-slim AS builder
 
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -37,7 +37,7 @@ RUN pip install playwright && \
 # -----------------------------------------------------------------------------
 # Stage 2: Production
 # -----------------------------------------------------------------------------
-FROM python:3.11-slim AS production
+FROM python:3.12-slim AS production
 
 # Labels
 LABEL maintainer="Screenshot API Team <team@screenshotapi.com>" \
@@ -112,6 +112,6 @@ USER appuser
 HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
     CMD celery -A app.workers.celery_app inspect ping -d celery@$HOSTNAME || exit 1
 
-# Default command - can be overridden
-CMD ["celery", "-A", "app.workers.celery_app", "worker", "--loglevel=info", "-c", "2"]
+# Default command - default, low_priority, billing queues
+CMD ["celery", "-A", "app.workers.celery_app", "worker", "--loglevel=info", "-Q", "default,low_priority,billing", "-c", "2"]
 

@@ -110,7 +110,7 @@ EXPOSE 8000
 # HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 #     CMD curl -f http://localhost:8000/api/v1/health/live || exit 1
 
-# Default command - use shell form to support PORT env var from DigitalOcean
-# DigitalOcean App Platform sets PORT environment variable at runtime
-CMD sh -c "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"
+# Default command - DigitalOcean App Platform sets PORT env var
+# This is a fallback, App Platform will use run_command from app spec
+CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8080}"]
 

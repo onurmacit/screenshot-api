@@ -85,8 +85,6 @@ services:
         value: '["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"]'
     
     http_port: 8080
-    routes:
-      - path: /
     
     health_check:
       http_path: /api/v1/health

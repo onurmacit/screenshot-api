@@ -9,6 +9,14 @@ alerts:
   - rule: DEPLOYMENT_FAILED
   - rule: DOMAIN_FAILED
 
+ingress:
+  rules:
+    - component:
+        name: screenshot-api
+      match:
+        path:
+          prefix: /
+
 services:
   # ============================================================================
   # API Service

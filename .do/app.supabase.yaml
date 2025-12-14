@@ -15,6 +15,7 @@ services:
       pip install --upgrade pip
       pip install -r requirements.txt
       playwright install chromium
+      playwright install-deps chromium
     
     run_command: uvicorn app.main:app --host 0.0.0.0 --port $PORT
     
@@ -88,6 +89,10 @@ services:
       # Trusted Proxies (DigitalOcean App Platform)
       - key: TRUSTED_PROXIES
         value: '["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"]'
+      
+      # Playwright
+      - key: PLAYWRIGHT_BROWSERS_PATH
+        value: /workspace/.cache/ms-playwright
     
     http_port: 8000
     
@@ -113,6 +118,7 @@ services:
       pip install --upgrade pip
       pip install -r requirements.txt
       playwright install chromium
+      playwright install-deps chromium
     
     run_command: celery -A app.workers.celery_app worker --loglevel=info -Q default,low_priority,billing -c 2
     
@@ -171,6 +177,10 @@ services:
       - key: STRIPE_PUBLISHABLE_KEY
         scope: RUN_TIME
         type: SECRET
+      
+      # Playwright
+      - key: PLAYWRIGHT_BROWSERS_PATH
+        value: /workspace/.cache/ms-playwright
     
   # ============================================================================
   # Celery Worker (High Priority Queue)
@@ -186,6 +196,7 @@ services:
       pip install --upgrade pip
       pip install -r requirements.txt
       playwright install chromium
+      playwright install-deps chromium
     
     run_command: celery -A app.workers.celery_app worker --loglevel=info -Q high_priority -c 2
     
@@ -233,6 +244,10 @@ services:
         value: https://nyc3.digitaloceanspaces.com
       - key: AWS_S3_PUBLIC_URL
         value: https://screenshotbeam.nyc3.digitaloceanspaces.com
+      
+      # Playwright
+      - key: PLAYWRIGHT_BROWSERS_PATH
+        value: /workspace/.cache/ms-playwright
 
 # Note: No database component - using Supabase PostgreSQL instead
 # DATABASE_URL must be set as encrypted environment variable

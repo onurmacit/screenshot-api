@@ -13,7 +13,7 @@ services:
   # ============================================================================
   # API Service
   # ============================================================================
-    - name: screenshot-api
+  - name: screenshot-api
     github:
       repo: onurmacit/screenshot-api
       branch: main

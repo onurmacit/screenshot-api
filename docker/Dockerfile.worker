@@ -93,8 +93,14 @@ RUN groupadd --gid 1000 appgroup && \
 COPY --from=builder /opt/venv /opt/venv
 
 # Copy Playwright browsers from builder
+# Copy to both locations for compatibility
 COPY --from=builder /root/.cache/ms-playwright /home/appuser/.cache/ms-playwright
 RUN chown -R appuser:appgroup /home/appuser/.cache
+
+# Also copy to /workspace for DigitalOcean App Platform compatibility
+RUN mkdir -p /workspace/.cache
+COPY --from=builder /root/.cache/ms-playwright /workspace/.cache/ms-playwright
+RUN chown -R appuser:appgroup /workspace/.cache
 
 # Set working directory
 WORKDIR $APP_HOME

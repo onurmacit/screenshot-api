@@ -149,7 +149,7 @@ app.include_router(
 
 app.include_router(
     renders.router,
-    prefix="/api/v1/render",
+    prefix="/api/v1/renders",
     tags=["Renders"],
 )
 

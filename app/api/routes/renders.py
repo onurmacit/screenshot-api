@@ -136,7 +136,7 @@ async def create_screenshot(
             status="pending",
             message="Job queued successfully",
             webhook_url=request.webhook_url,
-            check_url=f"/api/v1/render/jobs/{render_job.id}",
+            check_url=f"/api/v1/renders/jobs/{render_job.id}",
         )
 
     # Sync mode - process immediately
@@ -284,7 +284,7 @@ async def create_pdf(
             status="pending",
             message="Job queued successfully",
             webhook_url=request.webhook_url,
-            check_url=f"/api/v1/render/jobs/{render_job.id}",
+            check_url=f"/api/v1/renders/jobs/{render_job.id}",
         )
 
     # Sync mode

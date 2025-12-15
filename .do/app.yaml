@@ -1,5 +1,5 @@
 name: screenshotbeam-app
-region: nyc  # NYC (New York) - Amerika pazarı için önerilen
+region: nyc
 
 domains:
   - domain: screenshotbeam.com
@@ -9,19 +9,11 @@ alerts:
   - rule: DEPLOYMENT_FAILED
   - rule: DOMAIN_FAILED
 
-ingress:
-  rules:
-    - component:
-        name: screenshot-api
-      match:
-        authority:
-          exact: ""
-        path:
-          prefix: /
+# BURADA INGRESS BÖLÜMÜ OLMAYACAK! SİLDİĞİNİZDEN EMİN OLUN.
 
 services:
   # ============================================================================
-  # API Service
+  # API Service (Web Sunucusu)
   # ============================================================================
   - name: screenshot-api
     github:
@@ -31,13 +23,16 @@ services:
     
     dockerfile_path: docker/Dockerfile.api
     
+    # http_port: 8080 tanımı, DigitalOcean'a "Bu servisi / (kök) adresine bağla" der.
+    # Ekstra bir ingress yazarsanız çakışma çıkar.
+    http_port: 8080
+    
     run_command: uvicorn app.main:app --host 0.0.0.0 --port $PORT
     
     instance_count: 1
-    instance_size_slug: basic-xxs  # Start small, scale up later
+    instance_size_slug: basic-xxs
     
     envs:
-      # Application
       - key: APP_ENV
         value: production
       - key: APP_NAME
@@ -46,22 +41,14 @@ services:
         value: "false"
       - key: LOG_LEVEL
         value: INFO
-      
-      # Security (set these in DO dashboard as encrypted env vars)
       - key: SECRET_KEY
         scope: RUN_AND_BUILD_TIME
         type: SECRET
       - key: JWT_ALGORITHM
         value: HS256
-      
-      # Database (Supabase PostgreSQL - set as encrypted env var)
-      # Format: postgresql+asyncpg://postgres:[PASSWORD]@db.[PROJECT_REF].supabase.co:5432/postgres
       - key: DATABASE_URL
         scope: RUN_AND_BUILD_TIME
         type: SECRET
-      
-      # Redis (Upstash Redis - set as encrypted env vars)
-      # Format: redis://default:[PASSWORD]@[HOST]:[PORT] or rediss:// for TLS
       - key: REDIS_URL
         scope: RUN_AND_BUILD_TIME
         type: SECRET
@@ -71,8 +58,6 @@ services:
       - key: CELERY_RESULT_BACKEND
         scope: RUN_AND_BUILD_TIME
         type: SECRET
-      
-      # AWS S3 / DigitalOcean Spaces
       - key: AWS_ACCESS_KEY_ID
         scope: RUN_AND_BUILD_TIME
         type: SECRET
@@ -87,8 +72,6 @@ services:
         value: https://nyc3.digitaloceanspaces.com
       - key: AWS_S3_PUBLIC_URL
         value: https://screenshotbeam-space.nyc3.digitaloceanspaces.com
-      
-      # Stripe (set as encrypted env vars)
       - key: STRIPE_SECRET_KEY
         scope: RUN_AND_BUILD_TIME
         type: SECRET
@@ -98,13 +81,8 @@ services:
       - key: STRIPE_PUBLISHABLE_KEY
         scope: RUN_AND_BUILD_TIME
         type: SECRET
-      
-      # Trusted Proxies (DigitalOcean App Platform)
       - key: TRUSTED_PROXIES
         value: '["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"]'
-    
-    # Note: http_port removed - using ingress section instead to avoid conflict
-    # http_port: 8080
     
     health_check:
       http_path: /api/v1/health
@@ -131,20 +109,15 @@ services:
     instance_size_slug: basic-xxs
     
     envs:
-      # Application
       - key: APP_ENV
         value: production
       - key: DEBUG
         value: "false"
       - key: LOG_LEVEL
         value: INFO
-      
-      # Database (Supabase PostgreSQL - set as encrypted env var)
       - key: DATABASE_URL
         scope: RUN_AND_BUILD_TIME
         type: SECRET
-      
-      # Redis (Upstash Redis - set as encrypted env vars)
       - key: REDIS_URL
         scope: RUN_AND_BUILD_TIME
         type: SECRET
@@ -154,8 +127,6 @@ services:
       - key: CELERY_RESULT_BACKEND
         scope: RUN_AND_BUILD_TIME
         type: SECRET
-      
-      # AWS S3 / DigitalOcean Spaces
       - key: AWS_ACCESS_KEY_ID
         scope: RUN_AND_BUILD_TIME
         type: SECRET
@@ -170,8 +141,6 @@ services:
         value: https://nyc3.digitaloceanspaces.com
       - key: AWS_S3_PUBLIC_URL
         value: https://screenshotbeam-space.nyc3.digitaloceanspaces.com
-      
-      # Stripe (required for billing tasks)
       - key: STRIPE_SECRET_KEY
         scope: RUN_AND_BUILD_TIME
         type: SECRET
@@ -199,20 +168,15 @@ services:
     instance_size_slug: basic-xxs
     
     envs:
-      # Application
       - key: APP_ENV
         value: production
       - key: DEBUG
         value: "false"
       - key: LOG_LEVEL
         value: INFO
-      
-      # Database (Supabase PostgreSQL - set as encrypted env var)
       - key: DATABASE_URL
         scope: RUN_AND_BUILD_TIME
         type: SECRET
-      
-      # Redis (Upstash Redis - set as encrypted env vars)
       - key: REDIS_URL
         scope: RUN_AND_BUILD_TIME
         type: SECRET
@@ -222,8 +186,6 @@ services:
       - key: CELERY_RESULT_BACKEND
         scope: RUN_AND_BUILD_TIME
         type: SECRET
-      
-      # AWS S3 / DigitalOcean Spaces
       - key: AWS_ACCESS_KEY_ID
         scope: RUN_AND_BUILD_TIME
         type: SECRET
@@ -238,6 +200,3 @@ services:
         value: https://nyc3.digitaloceanspaces.com
       - key: AWS_S3_PUBLIC_URL
         value: https://screenshotbeam-space.nyc3.digitaloceanspaces.com
-
-# Note: No database component - using Supabase PostgreSQL instead
-# DATABASE_URL must be set as encrypted environment variable

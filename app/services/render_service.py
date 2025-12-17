@@ -176,22 +176,86 @@ class BrowserPool:
         if self._available_contexts is None:
             raise RenderError("Browser pool not properly initialized")
 
-        context = await self._available_contexts.get()
-        context_id = id(context)
+        # Try to get a valid context, refresh if needed
+        max_attempts = 3
+        for attempt in range(max_attempts):
+            context = await self._available_contexts.get()
+            context_id = id(context)
 
-        # Check if context needs refresh
-        with self._context_lock:
-            render_count = self._render_counts.get(context_id, 0)
+            # Check if context is still valid (not closed)
+            try:
+                # Try to check if browser is connected
+                if self._browser and not self._browser.is_connected():
+                    logger.warning("Browser disconnected, reinitializing pool")
+                    await self._reinitialize_pool()
+                    context = await self._available_contexts.get()
+                    context_id = id(context)
+            except Exception as e:
+                logger.warning("Error checking browser connection", error=str(e))
 
-        if render_count >= settings.BROWSER_MAX_RENDERS_PER_CONTEXT:
-            logger.info(
-                "Context reached max renders, refreshing",
-                context_id=context_id,
-                render_count=render_count,
-            )
-            context = await self._refresh_context(context)
+            # Check if context needs refresh based on render count
+            with self._context_lock:
+                render_count = self._render_counts.get(context_id, 0)
 
-        return context
+            if render_count >= settings.BROWSER_MAX_RENDERS_PER_CONTEXT:
+                logger.info(
+                    "Context reached max renders, refreshing",
+                    context_id=context_id,
+                    render_count=render_count,
+                )
+                try:
+                    context = await self._refresh_context(context)
+                except Exception as e:
+                    logger.warning("Failed to refresh context, creating new one", error=str(e))
+                    context = await self._create_context()
+
+            # Validate context by trying to create a test page
+            try:
+                # Quick validation - just check if we can create a page
+                test_page = await asyncio.wait_for(context.new_page(), timeout=5.0)
+                await test_page.close()
+                return context
+            except Exception as e:
+                logger.warning(
+                    f"Context validation failed (attempt {attempt + 1}/{max_attempts})",
+                    error=str(e),
+                )
+                # Remove invalid context from tracking
+                with self._context_lock:
+                    if context in self._contexts:
+                        self._contexts.remove(context)
+                    self._render_counts.pop(context_id, None)
+                    self._context_map.pop(context_id, None)
+                
+                # Create a fresh context
+                try:
+                    context = await self._create_context()
+                    return context
+                except Exception as create_error:
+                    logger.error("Failed to create new context", error=str(create_error))
+                    if attempt == max_attempts - 1:
+                        raise RenderError(f"Failed to acquire valid browser context: {str(e)}")
+
+        raise RenderError("Failed to acquire valid browser context after max attempts")
+    
+    async def _reinitialize_pool(self) -> None:
+        """Reinitialize the browser pool if browser is disconnected."""
+        logger.info("Reinitializing browser pool")
+        
+        # Close existing resources
+        await self._cleanup_on_error()
+        
+        # Reset state
+        self._initialized = False
+        self._playwright = None
+        self._browser = None
+        self._contexts = []
+        self._available_contexts = None
+        self._render_counts = {}
+        self._context_map = {}
+        
+        # Reinitialize
+        await self.initialize()
 
     async def release_context(self, context: BrowserContext) -> None:
         """
@@ -375,10 +439,15 @@ class RenderService:
 
         try:
             async with self._get_page(context) as page:
-                # Set viewport
+                # Set viewport with device scale factor for HD quality
                 width = options.get("width", 1920)
                 height = options.get("height", 1080)
-                await page.set_viewport_size({"width": width, "height": height})
+                device_scale_factor = options.get("device_scale_factor", 2)  # Default 2x for HD
+                await page.set_viewport_size({
+                    "width": width,
+                    "height": height,
+                    "device_scale_factor": device_scale_factor,
+                })
 
                 # Set user agent if provided
                 if options.get("user_agent"):
@@ -435,14 +504,26 @@ class RenderService:
                         except Exception:
                             pass
 
-                # Screenshot options
+                # Screenshot options with high quality settings
                 screenshot_options: dict[str, Any] = {
                     "type": options.get("format", "png"),
                     "full_page": options.get("full_page", False),
                 }
 
+                # For PNG, ensure lossless quality
+                if screenshot_options["type"] == "png":
+                    # PNG is always lossless, but we can ensure no compression
+                    screenshot_options["omit_background"] = False
+                
                 if screenshot_options["type"] == "jpeg":
-                    screenshot_options["quality"] = options.get("quality", 90)
+                    screenshot_options["quality"] = options.get("quality", 100)  # Default 100 for HD
+                
+                # WebP is not natively supported by Playwright, capture as PNG and convert
+                convert_to_webp = False
+                webp_quality = options.get("quality", 100)
+                if screenshot_options["type"] == "webp":
+                    screenshot_options["type"] = "png"  # Capture as PNG first
+                    convert_to_webp = True
 
                 # Capture specific element or full page
                 if options.get("element_selector") and user_plan and user_plan.get("element_selector"):
@@ -462,6 +543,10 @@ class RenderService:
                         )
                 else:
                     screenshot_bytes = await page.screenshot(**screenshot_options)
+                
+                # Convert to WebP if requested
+                if convert_to_webp:
+                    screenshot_bytes = self._convert_to_webp(screenshot_bytes, webp_quality)
 
             # Calculate processing time
             end_time = datetime.now(UTC)
@@ -618,6 +703,42 @@ class RenderService:
             )
         finally:
             await self.pool.release_context(context)
+
+    def _convert_to_webp(self, image_bytes: bytes, quality: int = 100) -> bytes:
+        """
+        Convert PNG image bytes to WebP format.
+        
+        Args:
+            image_bytes: PNG image data
+            quality: WebP quality (1-100)
+            
+        Returns:
+            WebP image bytes
+        """
+        img = None
+        output = None
+        try:
+            img = Image.open(io.BytesIO(image_bytes))
+            output = io.BytesIO()
+            
+            # Convert to RGB if necessary (WebP doesn't support all modes)
+            if img.mode in ('RGBA', 'LA', 'P'):
+                # For transparency support
+                img.save(output, format='WEBP', quality=quality, lossless=(quality == 100))
+            else:
+                if img.mode != 'RGB':
+                    img = img.convert('RGB')
+                img.save(output, format='WEBP', quality=quality, lossless=(quality == 100))
+            
+            return output.getvalue()
+        except Exception as e:
+            logger.warning("Failed to convert to WebP, returning original", error=str(e))
+            return image_bytes
+        finally:
+            if img:
+                img.close()
+            if output:
+                output.close()
 
     def _get_image_dimensions(self, image_bytes: bytes) -> tuple[int, int]:
         """

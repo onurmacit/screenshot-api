@@ -1,0 +1,121 @@
+services:
+  # ==========================================
+  # API Servisi (Web Sunucusu)
+  # ==========================================
+  screenshot-api:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.api
+    container_name: screenshot-api
+    ports:
+      - "127.0.0.1:8000:8000"
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+    env_file:
+      - .env
+    restart: always
+    mem_limit: 800m
+    memswap_limit: 2g
+    # No depends_on - using external Supabase and Upstash services
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ==========================================
+  # Celery Worker (Default Queue)
+  # ==========================================
+  worker:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.worker
+    container_name: screenshot-worker
+    command: celery -A app.workers.celery_app worker --loglevel=info -Q default,low_priority,billing -c 2
+    env_file:
+      - .env
+    restart: always
+    mem_limit: 800m
+    memswap_limit: 2g
+    # No depends_on - using external Supabase and Upstash services
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ==========================================
+  # Celery Worker (High Priority Queue)
+  # ==========================================
+  worker-high:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.worker-high
+    container_name: screenshot-worker-high
+    command: celery -A app.workers.celery_app worker --loglevel=info -Q high_priority -c 2
+    env_file:
+      - .env
+    restart: always
+    mem_limit: 800m
+    memswap_limit: 2g
+    # No depends_on - using external Supabase and Upstash services
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ==========================================
+  # PostgreSQL Database
+  # ==========================================
+  postgres:
+    image: postgres:15-alpine
+    container_name: screenshot-postgres
+    ports:
+      - "127.0.0.1:5432:5432"
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-screenshot_api}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    env_file:
+      - .env
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: always
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ==========================================
+  # Redis Cache & Queue
+  # ==========================================
+  redis:
+    image: redis:7.2-alpine
+    container_name: screenshot-redis
+    ports:
+      - "127.0.0.1:6379:6379"
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: always
+    mem_limit: 256m
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  postgres_data:
+  redis_data:

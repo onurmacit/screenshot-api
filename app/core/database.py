@@ -27,13 +27,34 @@ NAMING_CONVENTION = {
 }
 
 # Create async engine
+# Remove statement_cache_size from URL and pass as connect_args for pgbouncer compatibility
+database_url = settings.DATABASE_URL
+connect_args = {}
+if "statement_cache_size" in database_url:
+    # Extract statement_cache_size from URL
+    if "?" in database_url:
+        base_url, query_string = database_url.split("?", 1)
+        params = []
+        for param in query_string.split("&"):
+            if "=" in param:
+                key, value = param.split("=", 1)
+                if key == "statement_cache_size":
+                    connect_args["statement_cache_size"] = int(value)
+                else:
+                    params.append(param)
+        if params:
+            database_url = f"{base_url}?{'&'.join(params)}"
+        else:
+            database_url = base_url
+
 engine = create_async_engine(
-    settings.DATABASE_URL,
+    database_url,
     echo=settings.DEBUG,
     pool_size=settings.DATABASE_POOL_SIZE,
     max_overflow=settings.DATABASE_MAX_OVERFLOW,
     pool_timeout=settings.DATABASE_POOL_TIMEOUT,
     pool_pre_ping=True,
+    connect_args=connect_args if connect_args else None,
 )
 
 # Create session factory

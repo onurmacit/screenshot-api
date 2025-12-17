@@ -58,7 +58,23 @@ class Settings(BaseSettings):
     @property
     def DATABASE_URL_SYNC(self) -> str:
         """Return sync database URL for Alembic migrations."""
-        return self.DATABASE_URL.replace("+asyncpg", "")
+        # Remove asyncpg driver and asyncpg-specific query parameters
+        url = self.DATABASE_URL.replace("+asyncpg", "")
+        # Remove asyncpg-specific query parameters (statement_cache_size)
+        if "?" in url:
+            base_url, query_string = url.split("?", 1)
+            # Filter out asyncpg-specific parameters
+            params = []
+            for param in query_string.split("&"):
+                # Check if parameter name (before =) is statement_cache_size
+                param_name = param.split("=")[0] if "=" in param else param
+                if param_name != "statement_cache_size":
+                    params.append(param)
+            if params:
+                url = f"{base_url}?{'&'.join(params)}"
+            else:
+                url = base_url
+        return url
 
     # ==========================================================================
     # Redis

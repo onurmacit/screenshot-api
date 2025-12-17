@@ -27,6 +27,9 @@ class ScreenshotRequest(BaseModel):
     width: int = Field(default=1920, ge=320, le=3840, description="Viewport width")
     height: int = Field(default=1080, ge=240, le=2160, description="Viewport height")
     full_page: bool = Field(default=False, description="Capture full page")
+    device_scale_factor: float = Field(
+        default=2.0, ge=1.0, le=3.0, description="Device pixel ratio for HD quality (1.0-3.0)"
+    )
 
     # Image options
     format: str = Field(default="png", description="Output format (png, jpeg, webp)")

@@ -93,6 +93,7 @@ async def create_screenshot(
         "format": request.format,
         "quality": request.quality,
         "full_page": request.full_page,
+        "device_scale_factor": request.device_scale_factor,
         "delay": request.delay,
         "wait_until": request.wait_until,
         "custom_css": request.custom_css,

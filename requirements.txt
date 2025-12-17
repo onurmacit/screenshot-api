@@ -9,8 +9,8 @@ python-multipart==0.0.6
 starlette==0.35.1
 
 # Database
-sqlalchemy[asyncio]==2.0.25
-asyncpg==0.29.0
+sqlalchemy[asyncio]==2.0.36
+asyncpg==0.30.0
 alembic==1.13.1
 psycopg2-binary==2.9.9
 
@@ -40,7 +40,7 @@ stripe==7.10.0
 
 # Playwright (Browser Rendering)
 # Note: Browser binaries are installed in Dockerfile, this is just the Python package
-playwright==1.41.0
+playwright==1.49.1
 
 # Image Processing
 pillow>=10.2.0

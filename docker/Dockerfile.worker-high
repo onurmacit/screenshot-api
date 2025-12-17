@@ -3,7 +3,7 @@
 # =============================================================================
 # Using Playwright base image for Chromium support
 
-FROM mcr.microsoft.com/playwright/python:v1.49.1-noble
+FROM mcr.microsoft.com/playwright/python:v1.57.0-noble
 
 # Labels
 LABEL maintainer="Screenshot API Team <team@screenshotapi.com>" \

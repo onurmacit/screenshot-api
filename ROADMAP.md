@@ -1,35 +1,33 @@
 # 🗺️ Screenshot API - Yol Haritası
 
-**Mevcut Durum:** MVP hazır, production deployment bekliyor  
-**Domain:** screenshotbeam.com (alınacak)  
-**Platform:** DigitalOcean App Platform (kurulacak)
+**Mevcut Durum:** MVP ve Infrastructure hazır, API ve Landing Page canlıda.
+**Domain:** screenshotbeam.com (Vercel) / api.screenshotbeam.com (DigitalOcean)
+**Platform:** DigitalOcean Droplet (Docker Compose)
 
 ---
 
-## 📍 Mevcut Durum
+## 📍 Mevcut Durum (Aralık 2024)
 
 ### ✅ Tamamlananlar
 - [x] Backend API (FastAPI + Playwright)
 - [x] Database models & migrations
 - [x] Authentication & Authorization (JWT + API Keys)
-- [x] Rendering service (Screenshot + PDF)
-- [x] Celery background jobs
-- [x] S3 storage integration
+- [x] Rendering service (Screenshot + PDF + WebP Desteği)
+- [x] Celery background jobs & Worker yapısı
+- [x] S3 storage integration (DigitalOcean Spaces)
 - [x] Rate limiting (multi-tier)
-- [x] Billing & usage tracking
-- [x] Testing (107+ tests, %95+ coverage)
-- [x] Docker setup
-- [x] CI/CD pipeline (GitHub Actions)
-- [x] Landing page (Next.js, Vercel'de canlı)
-- [x] Deployment dokümantasyonu
+- [x] Billing & usage tracking (Backend logic)
+- [x] Docker setup & Docker Compose configuration
+- [x] Domain Migration (Root domain -> Vercel, api subdomain -> DO)
+- [x] SSL Certificates (Let's Encrypt & Vercel)
+- [x] Landing page integration (Next.js)
 
-### ⏳ Bekleyenler
-- [ ] Domain alımı (screenshotbeam.com)
-- [ ] DigitalOcean App Platform setup
-- [ ] Production deployment
-- [ ] Domain DNS configuration
-- [ ] SSL certificates
-- [ ] Production testing
+### ⏳ Sırada Bekleyenler (Kısa Vadeli)
+- [ ] User Dashboard (Kullanıcı giriş yapıp API Key yönetebilmeli)
+- [ ] Usage Statistics (Kullanıcı günlük/aylık kullanımını görebilmeli)
+- [ ] Stripe UI Integration (Abonelik paketlerinin frontend ile bağlanması)
+- [ ] Error Tracking (Sentry entegrasyonu)
+- [ ] Automated CI/CD (GitHub Actions ile Droplet'e otomatik deploy)
 
 ---
 

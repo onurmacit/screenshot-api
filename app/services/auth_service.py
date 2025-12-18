@@ -7,6 +7,7 @@ Handles user registration, login, JWT tokens, and API key management.
 from datetime import datetime, timedelta
 from uuid import UUID
 
+import httpx
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -134,6 +135,97 @@ class AuthService:
             raise AuthenticationError("Account is deactivated")
 
         logger.info("User logged in", user_id=str(user.id))
+
+        # Generate tokens
+        access_token = self._create_user_access_token(user)
+        refresh_token = await self._create_refresh_token(
+            user,
+            ip_address=ip_address,
+            device_info=device_info,
+        )
+
+        expires_in = settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
+
+        return user, access_token, refresh_token, expires_in
+
+    async def social_login(
+        self,
+        provider: str,
+        token: str,
+        full_name: str | None = None,
+        ip_address: str | None = None,
+        device_info: str | None = None,
+    ) -> tuple[User, str, str, int]:
+        """
+        Authenticate user via social provider and return tokens.
+        """
+        email = None
+        
+        # NOTE: This is where we would verify the token with the provider
+        # For Google: verify ID token
+        # For GitHub: call /user endpoint with access token
+        
+        if provider == "google":
+            async with httpx.AsyncClient() as client:
+                res = await client.get(f"https://oauth2.googleapis.com/tokeninfo?id_token={token}")
+                if res.status_code != 200:
+                    logger.error("Invalid Google token", status_code=res.status_code, response=res.text)
+                    raise AuthenticationError("Invalid Google token")
+                data = res.json()
+                email = data.get("email")
+                full_name = data.get("name", full_name)
+        elif provider == "github":
+            async with httpx.AsyncClient() as client:
+                # GitHub token verification
+                res = await client.get("https://api.github.com/user", headers={"Authorization": f"token {token}"})
+                if res.status_code != 200:
+                    logger.error("Invalid GitHub token", status_code=res.status_code, response=res.text)
+                    raise AuthenticationError("Invalid GitHub token")
+                data = res.json()
+                email = data.get("email")
+                if not email:
+                    # Fetch emails if not in public profile
+                    res_emails = await client.get("https://api.github.com/user/emails", headers={"Authorization": f"token {token}"})
+                    if res_emails.status_code == 200:
+                        emails = res_emails.json()
+                        primary_email = next((e["email"] for e in emails if e.get("primary")), None)
+                        email = primary_email or (emails[0]["email"] if emails else None)
+                full_name = data.get("name", full_name)
+        else:
+            raise ValidationError(f"Unsupported provider: {provider}")
+
+        if not email:
+            raise AuthenticationError("Could not retrieve email from provider")
+
+        # Find or create user
+        result = await self.db.execute(
+            select(User).where(User.email == email.lower())
+        )
+        user = result.scalar_one_or_none()
+
+        if not user:
+            # Get free plan
+            plan_result = await self.db.execute(
+                select(Plan).where(Plan.name == "free")
+            )
+            free_plan = plan_result.scalar_one_or_none()
+
+            user = User(
+                email=email.lower(),
+                password_hash="social_auth_no_password", # Unique marker
+                full_name=full_name,
+                plan_id=free_plan.id if free_plan else None,
+                is_active=True,
+                email_verified=True, # Social emails are typically verified
+            )
+            self.db.add(user)
+            await self.db.commit()
+            await self.db.refresh(user)
+            logger.info("New social user created", user_id=str(user.id), provider=provider)
+        else:
+            if not user.is_active:
+                raise AuthenticationError("Account is deactivated")
+            logger.info("Existing social user logged in", user_id=str(user.id), provider=provider)
 
         # Generate tokens
         access_token = self._create_user_access_token(user)

@@ -15,6 +15,7 @@ from app.schemas.auth import (
     LoginResponse,
     RegisterRequest,
     RegisterResponse,
+    SocialLoginRequest,
     TokenRefreshRequest,
     TokenResponse,
 )
@@ -83,6 +84,42 @@ async def login(
     user, access_token, refresh_token, expires_in = await auth_service.login(
         email=request.email,
         password=request.password,
+        ip_address=ip_address,
+        device_info=device_info,
+    )
+
+    return LoginResponse(
+        access_token=access_token,
+        refresh_token=refresh_token,
+        token_type="bearer",
+        expires_in=expires_in,
+    )
+
+
+@router.post(
+    "/social-login",
+    response_model=LoginResponse,
+    summary="Social Login",
+    description="Authenticate via a social provider (Google/GitHub) and get access tokens.",
+)
+async def social_login(
+    request: SocialLoginRequest,
+    req: Request,
+    db: DBSession,
+) -> LoginResponse:
+    """
+    Login via social provider.
+    """
+    auth_service = AuthService(db)
+
+    # Get client info
+    ip_address = req.client.host if req.client else None
+    device_info = req.headers.get("User-Agent")
+
+    user, access_token, refresh_token, expires_in = await auth_service.social_login(
+        provider=request.provider,
+        token=request.token,
+        full_name=request.full_name,
         ip_address=ip_address,
         device_info=device_info,
     )

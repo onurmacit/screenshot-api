@@ -57,6 +57,14 @@ class LoginResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class SocialLoginRequest(BaseModel):
+    """Social login request structure."""
+
+    provider: str = Field(..., description="'google' or 'github'")
+    token: str = Field(..., description="ID token for Google, access token for GitHub")
+    full_name: str | None = Field(None, description="Optional full name from provider")
+
+
 class TokenResponse(BaseModel):
     """Token response."""
 

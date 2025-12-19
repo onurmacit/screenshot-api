@@ -16,6 +16,7 @@ from app.core.database import close_db, init_db
 from app.core.redis import close_redis_pools, init_redis_pools
 from app.middleware.error_handler import error_handler_middleware
 from app.middleware.rate_limit import RateLimitMiddleware
+from app.middleware.security import SecurityHeadersMiddleware
 from app.utils.exceptions import APIError
 from app.utils.logger import configure_logging, logger
 
@@ -76,6 +77,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Security headers middleware
+app.add_middleware(SecurityHeadersMiddleware)
 
 # Rate limiting middleware
 if settings.RATE_LIMIT_ENABLED:

@@ -128,7 +128,12 @@ class AuthService:
         user = result.scalar_one_or_none()
 
         if not user or not verify_password(password, user.password_hash):
-            logger.warning("Failed login attempt", email=email)
+            logger.warning(
+                "Failed login attempt", 
+                email=email, 
+                ip_address=ip_address,
+                device_info=device_info
+            )
             raise AuthenticationError("Invalid email or password")
 
         if not user.is_active:

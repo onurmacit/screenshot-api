@@ -7,17 +7,20 @@ Thread-safe browser pool with automatic context refresh and proper cleanup.
 
 import asyncio
 import io
+import socket
 import threading
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
+from ipaddress import ip_address
 from typing import Any, Optional
 
 from PIL import Image
-from playwright.async_api import Browser, BrowserContext, Page, async_playwright
+from playwright.async_api import Browser, BrowserContext, Page, Route, async_playwright
 
 from app.core.config import settings
 from app.utils.exceptions import RenderError
 from app.utils.logger import get_logger
+from app.utils.validators import PRIVATE_IP_RANGES
 
 logger = get_logger(__name__)
 
@@ -413,6 +416,68 @@ class RenderService:
                 except Exception as e:
                     logger.warning("Error closing page", error=str(e))
 
+    async def _setup_ssrf_protection(self, page: Page):
+        """
+        Setup request interception to prevent SSRF.
+        
+        Blocks:
+        - Requests to private IP ranges (localhost, internal network, etc.)
+        - Dangerous protocols (file://, ftp://, etc.)
+        """
+        async def handle_route(route: Route):
+            url = route.request.url.lower()
+            from urllib.parse import urlparse
+            
+            parsed = urlparse(url)
+            
+            # 1. Block dangerous schemes
+            if parsed.scheme not in ("http", "https"):
+                logger.warning("SSRF blocked: Dangerous scheme", url=url)
+                await route.abort("blockedbyclient")
+                return
+
+            # 2. Block private IPs
+            hostname = parsed.hostname
+            if not hostname:
+                await route.abort("blockedbyclient")
+                return
+
+            # Skip DNS check for common CDNs/trusted domains if performance is an issue
+            # but for maximum security, we resolve everything.
+            try:
+                # Basic hostname check (covers localhost, 127.0.0.1 without DNS)
+                if hostname in ("localhost", "127.0.0.1", "::1"):
+                    logger.warning("SSRF blocked: Localhost", url=url)
+                    await route.abort("blockedbyclient")
+                    return
+
+                # Resolve DNS to check for private IP ranges (anti-SSRF)
+                # Note: This is an async-friendly way to use socket.getaddrinfo
+                loop = asyncio.get_event_loop()
+                addr_info = await loop.run_in_executor(
+                    None, 
+                    socket.getaddrinfo, 
+                    hostname, 
+                    None
+                )
+                
+                for info in addr_info:
+                    ip = ip_address(info[4][0])
+                    for private_range in PRIVATE_IP_RANGES:
+                        if ip in private_range:
+                            logger.warning("SSRF blocked: Private IP", url=url, ip=str(ip))
+                            await route.abort("blockedbyclient")
+                            return
+            except Exception as e:
+                # If DNS resolution fails, it might be a malicious/non-existent domain
+                # but we'll let Playwright handle the failure unless we want to be paranoid.
+                pass
+
+            await route.continue_()
+
+        # Intercept all requests
+        await page.route("**/*", handle_route)
+
     async def capture_screenshot(
         self,
         url: str,
@@ -439,6 +504,9 @@ class RenderService:
 
         try:
             async with self._get_page(context) as page:
+                # Enable SSRF protection
+                await self._setup_ssrf_protection(page)
+
                 # Set viewport with device scale factor for HD quality
                 width = options.get("width", 1920)
                 height = options.get("height", 1080)
@@ -612,6 +680,9 @@ class RenderService:
 
         try:
             async with self._get_page(context) as page:
+                # Enable SSRF protection
+                await self._setup_ssrf_protection(page)
+
                 # Navigate to URL
                 timeout = options.get("timeout", settings.BROWSER_TIMEOUT_MS)
                 wait_until = options.get("wait_until", "networkidle")

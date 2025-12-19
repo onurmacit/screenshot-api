@@ -15,7 +15,11 @@ services:
     restart: always
     mem_limit: 800m
     memswap_limit: 2g
-    # No depends_on - using external Supabase and Upstash services
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     logging:
       driver: "json-file"
       options:
@@ -30,13 +34,21 @@ services:
       context: .
       dockerfile: docker/Dockerfile.worker
     container_name: screenshot-worker
-    command: celery -A app.workers.celery_app worker --loglevel=info -Q default,low_priority,billing -c 2
+    command: celery -A app.workers.celery_app worker --loglevel=info -Q default,low_priority,billing -c 2 -n worker-default@%h
+    healthcheck:
+      test: [ "CMD-SHELL", "celery -A app.workers.celery_app inspect ping -d worker-default@%h || exit 1" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
     env_file:
       - .env
     restart: always
     mem_limit: 800m
     memswap_limit: 2g
-    # No depends_on - using external Supabase and Upstash services
+    depends_on:
+      redis:
+        condition: service_healthy
     logging:
       driver: "json-file"
       options:
@@ -51,13 +63,21 @@ services:
       context: .
       dockerfile: docker/Dockerfile.worker-high
     container_name: screenshot-worker-high
-    command: celery -A app.workers.celery_app worker --loglevel=info -Q high_priority -c 2
+    command: celery -A app.workers.celery_app worker --loglevel=info -Q high_priority -c 2 -n worker-high@%h
+    healthcheck:
+      test: [ "CMD-SHELL", "celery -A app.workers.celery_app inspect ping -d worker-high@%h || exit 1" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
     env_file:
       - .env
     restart: always
     mem_limit: 800m
     memswap_limit: 2g
-    # No depends_on - using external Supabase and Upstash services
+    depends_on:
+      redis:
+        condition: service_healthy
     logging:
       driver: "json-file"
       options:
@@ -79,9 +99,9 @@ services:
     env_file:
       - .env
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - ./data/postgres:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}" ]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -102,9 +122,9 @@ services:
       - "127.0.0.1:6379:6379"
     command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
     volumes:
-      - redis_data:/data
+      - ./data/redis:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: [ "CMD", "redis-cli", "ping" ]
       interval: 5s
       timeout: 5s
       retries: 5

@@ -54,11 +54,14 @@ export default function LoginPage() {
     return (
         <div className="flex flex-col items-center gap-6 w-full">
             <Image
-                src="/logo-arkaplansız 1.svg"
+                src="/logo-hd.svg"
                 alt="Logo"
                 width={80}
                 height={80}
+                priority
+                quality={100}
                 className="h-20 w-auto"
+                style={{ imageRendering: "-webkit-optimize-contrast" }}
             />
             <Card className="w-full">
                 <CardHeader>

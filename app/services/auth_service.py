@@ -29,6 +29,7 @@ from app.utils.exceptions import (
     ValidationError,
 )
 from app.utils.helpers import hash_string, utc_now
+from app.services.cache_service import cache_service
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -72,10 +73,7 @@ class AuthService:
             raise ConflictError("Email already registered")
 
         # Get free plan
-        result = await self.db.execute(
-            select(Plan).where(Plan.name == "free")
-        )
-        free_plan = result.scalar_one_or_none()
+        free_plan = await self._get_plan_by_name("free")
 
         # Create user
         user = User(
@@ -210,10 +208,7 @@ class AuthService:
 
         if not user:
             # Get free plan
-            plan_result = await self.db.execute(
-                select(Plan).where(Plan.name == "free")
-            )
-            free_plan = plan_result.scalar_one_or_none()
+            free_plan = await self._get_plan_by_name("free")
 
             user = User(
                 email=email.lower(),
@@ -559,4 +554,40 @@ class AuthService:
             select(User).where(User.email == email.lower())
         )
         return result.scalar_one_or_none()
+
+    async def _get_plan_by_name(self, name: str) -> Plan | None:
+        """Get plan by name with caching."""
+        # Try cache first
+        cached_plan = await cache_service.get_plan_cache(name)
+        if cached_plan:
+            # We return a Plan object but be aware it's not attached to the session
+            # For read-only purposes this is fine. 
+            # If we need it attached, we'd need to merge it.
+            return Plan(**cached_plan)
+
+        # Database lookup
+        result = await self.db.execute(
+            select(Plan).where(Plan.name == name)
+        )
+        plan = result.scalar_one_or_none()
+
+        if plan:
+            # Cache the plan data
+            plan_data = {
+                "id": plan.id,
+                "name": plan.name,
+                "display_name": plan.display_name,
+                "price_monthly": float(plan.price_monthly),
+                "price_yearly": float(plan.price_yearly) if plan.price_yearly else None,
+                "requests_per_month": plan.requests_per_month,
+                "max_concurrent_requests": plan.max_concurrent_requests,
+                "max_timeout_ms": plan.max_timeout_ms,
+                "max_file_size_mb": plan.max_file_size_mb,
+                "features": plan.features,
+                "stripe_price_id": plan.stripe_price_id,
+                "is_active": plan.is_active,
+            }
+            await cache_service.set_plan_cache(name, plan_data)
+
+        return plan
 

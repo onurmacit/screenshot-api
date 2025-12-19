@@ -56,11 +56,13 @@ class UsageRecord(Base):
         PG_UUID(as_uuid=True),
         ForeignKey("api_keys.id", ondelete="SET NULL"),
         nullable=True,
+        index=True,
     )
     render_job_id: Mapped[UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),
         ForeignKey("render_jobs.id", ondelete="CASCADE"),
         nullable=True,
+        index=True,
     )
 
     # Usage data
@@ -110,6 +112,8 @@ class UsageRecord(Base):
     __table_args__ = (
         Index("idx_usage_user_date", "user_id", "created_at"),
         Index("idx_usage_created", "created_at"),
+        Index("idx_usage_api_key", "api_key_id"),
+        Index("idx_usage_render_job", "render_job_id"),
     )
 
     def __repr__(self) -> str:

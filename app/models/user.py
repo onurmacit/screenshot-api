@@ -93,7 +93,7 @@ class User(BaseModel):
         "APIKey",
         back_populates="user",
         cascade="all, delete-orphan",
-        lazy="selectin",
+        lazy="noload",
     )
     render_jobs: Mapped[list["RenderJob"]] = relationship(
         "RenderJob",

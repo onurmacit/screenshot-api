@@ -28,12 +28,14 @@ class CacheService:
     PREFIX_RENDER = "render"
     PREFIX_USAGE = "usage:monthly"
     PREFIX_SESSION = "session"
+    PREFIX_PLAN = "plan"
 
     # Default TTLs (in seconds)
     TTL_API_KEY = 300  # 5 minutes
     TTL_USER_PLAN = 3600  # 1 hour
     TTL_RENDER = 3600  # 1 hour (or user-specified)
     TTL_SESSION = 86400  # 24 hours
+    TTL_PLAN = 86400  # 24 hours
 
     def __init__(self, redis: Redis | None = None):
         self._redis = redis
@@ -396,6 +398,58 @@ class CacheService:
             True if deleted
         """
         cache_key = self._session_cache_key(session_id)
+        return await self.delete(cache_key)
+
+    # =========================================================================
+    # Plan Cache
+    # =========================================================================
+
+    def _plan_cache_key(self, plan_name: str) -> str:
+        """Generate cache key for plan."""
+        return f"{self.PREFIX_PLAN}:{plan_name}"
+
+    async def get_plan_cache(self, plan_name: str) -> dict | None:
+        """
+        Get cached plan data.
+
+        Args:
+            plan_name: Plan name
+
+        Returns:
+            Cached plan data or None
+        """
+        cache_key = self._plan_cache_key(plan_name)
+        return await self.get_json(cache_key)
+
+    async def set_plan_cache(
+        self,
+        plan_name: str,
+        data: dict,
+    ) -> bool:
+        """
+        Cache plan data.
+
+        Args:
+            plan_name: Plan name
+            data: Plan data to cache
+
+        Returns:
+            True if cached
+        """
+        cache_key = self._plan_cache_key(plan_name)
+        return await self.set(cache_key, data, self.TTL_PLAN)
+
+    async def invalidate_plan_cache(self, plan_name: str) -> bool:
+        """
+        Invalidate plan cache.
+
+        Args:
+            plan_name: Plan name
+
+        Returns:
+            True if invalidated
+        """
+        cache_key = self._plan_cache_key(plan_name)
         return await self.delete(cache_key)
 
 

@@ -64,6 +64,7 @@ class RenderJob(BaseModel):
         PG_UUID(as_uuid=True),
         ForeignKey("api_keys.id", ondelete="SET NULL"),
         nullable=True,
+        index=True,
     )
 
     # Job type and status
@@ -194,6 +195,7 @@ class RenderJob(BaseModel):
         Index("idx_render_jobs_status", "status"),
         Index("idx_render_jobs_created", "created_at"),
         Index("idx_render_jobs_type", "type"),
+        Index("idx_render_jobs_api_key", "api_key_id"),
         Index("idx_render_jobs_priority", "priority", "created_at"),
     )
 

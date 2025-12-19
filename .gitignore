@@ -171,3 +171,6 @@ secrets/
 
 !dashboard/lib/
 
+# Local data persistence
+data/
+

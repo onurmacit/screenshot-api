@@ -7,7 +7,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse, Response
 from prometheus_fastapi_instrumentator import Instrumentator
 
 from app.api.routes import auth, billing, health, renders, usage, webhooks
@@ -182,14 +182,54 @@ app.include_router(
 
 
 @app.get("/", include_in_schema=False)
-async def root() -> dict:
-    """Root endpoint with API information."""
-    return {
-        "name": settings.APP_NAME,
-        "version": settings.APP_VERSION,
-        "docs": "/docs",
-        "health": "/api/v1/health",
-    }
+async def root(request: Request) -> Response:
+    """
+    Root endpoint.
+    
+    - Browser requests (Accept: text/html) -> Redirect to dashboard login
+    - API requests (Accept: application/json) -> Return API information
+    """
+    accept_header = request.headers.get("Accept", "").lower()
+    user_agent = request.headers.get("User-Agent", "").lower()
+    
+    # Check if it's a browser request
+    has_html = "text/html" in accept_header
+    has_json = "application/json" in accept_header
+    
+    # Browser detection logic:
+    # 1. If HTML is accepted but JSON is not -> browser
+    # 2. If accept header is empty/*/* and User-Agent indicates browser -> browser
+    is_browser_request = (
+        has_html and not has_json
+    ) or (
+        (not accept_header or accept_header == "*/*" or "*/*" in accept_header)
+        and any(
+            browser in user_agent
+            for browser in ["mozilla", "chrome", "safari", "firefox", "edge", "opera"]
+        )
+    )
+    
+    # Redirect browser requests to login page
+    if is_browser_request:
+        login_url = f"{settings.DASHBOARD_URL}/login"
+        logger.debug(
+            "Browser request detected, redirecting to login",
+            login_url=login_url,
+            accept=accept_header,
+            user_agent=user_agent[:50] if user_agent else None,
+        )
+        return RedirectResponse(url=login_url, status_code=302)
+    
+    # Return API information for API clients
+    logger.debug("API request detected, returning JSON", accept=accept_header)
+    return JSONResponse(
+        {
+            "name": settings.APP_NAME,
+            "version": settings.APP_VERSION,
+            "docs": "/docs",
+            "health": "/api/v1/health",
+        }
+    )
 
 
 # =============================================================================

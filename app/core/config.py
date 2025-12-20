@@ -170,6 +170,11 @@ class Settings(BaseSettings):
     # ==========================================================================
     CORS_ORIGINS: list[str] = ["http://localhost:3000", "http://localhost:8000"]
 
+    # ==========================================================================
+    # Frontend / Dashboard
+    # ==========================================================================
+    DASHBOARD_URL: str = "https://screenshotbeam.com"
+
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod
     def parse_cors_origins(cls, v: Any) -> list[str]:

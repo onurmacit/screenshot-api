@@ -68,17 +68,22 @@ export default function ApiKeysPage() {
     };
 
     const handleCreateKey = async () => {
-        if (!newKeyName.trim()) return;
+        if (!newKeyName.trim()) {
+            toast.error("Please enter a key name");
+            return;
+        }
 
         setIsCreating(true);
         try {
-            const result = await authApi.createApiKey({ name: newKeyName });
+            const result = await authApi.createApiKey({ name: newKeyName.trim() });
             setCreatedKey(result.api_key);
             setKeys([result, ...keys]); // Add to list
+            setNewKeyName(""); // Clear input
             toast.success("API Key created successfully");
-        } catch (error) {
-            toast.error("Failed to create API key");
-            console.error(error);
+        } catch (error: any) {
+            const errorMessage = error?.response?.data?.detail || error?.message || "Failed to create API key";
+            toast.error(errorMessage);
+            console.error("API key creation error:", error);
         } finally {
             setIsCreating(false);
         }
@@ -171,7 +176,13 @@ export default function ApiKeysPage() {
                                 </DialogFooter>
                             </div>
                         ) : (
-                            <div className="space-y-4 py-4">
+                            <form
+                                onSubmit={(e) => {
+                                    e.preventDefault();
+                                    handleCreateKey();
+                                }}
+                                className="space-y-4 py-4"
+                            >
                                 <div className="space-y-2">
                                     <Label htmlFor="name">Key Name</Label>
                                     <Input
@@ -179,16 +190,25 @@ export default function ApiKeysPage() {
                                         placeholder="e.g. My Production App"
                                         value={newKeyName}
                                         onChange={(e) => setNewKeyName(e.target.value)}
+                                        disabled={isCreating}
+                                        autoFocus
                                     />
                                 </div>
                                 <DialogFooter>
-                                    <Button variant="outline" onClick={() => setIsDialogOpen(false)}>Cancel</Button>
-                                    <Button onClick={handleCreateKey} disabled={isCreating || !newKeyName}>
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        onClick={() => setIsDialogOpen(false)}
+                                        disabled={isCreating}
+                                    >
+                                        Cancel
+                                    </Button>
+                                    <Button type="submit" disabled={isCreating || !newKeyName.trim()}>
                                         {isCreating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                                         Create Key
                                     </Button>
                                 </DialogFooter>
-                            </div>
+                            </form>
                         )}
                     </DialogContent>
                 </Dialog>

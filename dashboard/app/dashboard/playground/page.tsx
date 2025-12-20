@@ -54,8 +54,8 @@ export default function PlaygroundPage() {
                 }
             });
 
-            if (response.data.status === "completed" && response.data.result?.url) {
-                setResult(response.data.result.url);
+            if (response.data.status === "completed" && response.data.url) {
+                setResult(response.data.url);
             } else if (response.data.id) {
                 // Async job started
                 setError("Job started asynchronously. Check Jobs page.");

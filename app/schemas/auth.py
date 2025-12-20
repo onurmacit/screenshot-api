@@ -126,8 +126,10 @@ class APIKeyCreateResponse(BaseModel):
     key_id: UUID
     name: str | None
     scopes: list[str]
+    last_used_at: datetime | None
     created_at: datetime
     expires_at: datetime | None
+    is_active: bool
 
     model_config = {"from_attributes": True}
 

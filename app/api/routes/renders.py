@@ -6,6 +6,7 @@ from typing import Union
 from uuid import UUID
 
 from fastapi import APIRouter, Query, status
+from fastapi.responses import Response
 from sqlalchemy import func, select
 
 from app.api.dependencies import (
@@ -21,15 +22,189 @@ from app.schemas.render import (
     ScreenshotRequest,
     SizeInfo,
 )
+from app.services.cache_service import cache_service
 from app.services.rate_limit_service import rate_limit_service
 from app.services.render_service import render_service
 from app.services.storage_service import storage_service
+from app.utils.logger import get_logger
+
+logger = get_logger(__name__)
 from app.utils.exceptions import NotFoundError, ValidationError
 from app.utils.helpers import utc_now
 from app.utils.validators import validate_url
 from app.workers.render_tasks import process_pdf, process_screenshot
 
 router = APIRouter()
+
+
+# =============================================================================
+# FAST ENDPOINT - Returns image directly (like ScreenshotOne)
+# =============================================================================
+
+@router.get(
+    "/take",
+    summary="Take screenshot (direct image response)",
+    description="Capture a screenshot and return the image directly. Fastest option.",
+    responses={
+        200: {
+            "content": {
+                "image/png": {},
+                "image/jpeg": {},
+                "image/webp": {},
+            },
+            "description": "Screenshot image",
+        }
+    },
+)
+async def take_screenshot(
+    current_user: RateLimitedUser,
+    url: str = Query(..., description="URL to capture"),
+    format: str = Query("jpeg", description="Output format (png, jpeg, webp)"),
+    width: int = Query(1920, ge=320, le=3840, description="Viewport width"),
+    height: int = Query(1080, ge=240, le=2160, description="Viewport height"),
+    quality: int = Query(80, ge=1, le=100, description="Image quality (jpeg/webp)"),
+    full_page: bool = Query(False, description="Capture full page"),
+    delay: int = Query(0, ge=0, le=10000, description="Delay before capture (ms)"),
+    block_ads: bool = Query(True, description="Block ads"),
+    block_trackers: bool = Query(True, description="Block trackers"),
+    block_cookie_banners: bool = Query(True, description="Block cookie banners"),
+) -> Response:
+    """
+    Take a screenshot and return the image directly.
+    
+    **This is the fastest endpoint** - no S3 upload, no JSON response.
+    Just pure image data returned directly.
+    
+    **Cache-enabled:** Same URL + options returns cached image instantly.
+    
+    **Example:**
+    ```
+    GET /api/v1/renders/take?url=https://stripe.com&format=jpeg&quality=80
+    ```
+    
+    Returns: Binary image data with appropriate Content-Type header.
+    """
+    import time
+    start_time = time.perf_counter()
+    
+    # Validate URL
+    is_valid, error_message = validate_url(url, require_https=False)
+    if not is_valid:
+        raise ValidationError(error_message or "Invalid URL")
+    
+    # Build options
+    options = {
+        "width": width,
+        "height": height,
+        "format": format,
+        "quality": quality,
+        "full_page": full_page,
+        "delay": delay,
+        "device_scale_factor": 1.0,  # Fast mode
+        "block_ads": block_ads,
+        "block_trackers": block_trackers,
+        "block_cookie_banners": block_cookie_banners,
+    }
+    
+    # =========================================================================
+    # CACHE CHECK - Return instantly if cached
+    # =========================================================================
+    try:
+        cached = await cache_service.get_screenshot_cache(url, options)
+        if cached:
+            image_bytes, metadata = cached
+            elapsed = time.perf_counter() - start_time
+            logger.info(
+                "Screenshot served from cache",
+                url=url[:50],
+                elapsed=f"{elapsed:.3f}s",
+                size=len(image_bytes),
+            )
+            
+            # Determine content type
+            content_types = {
+                "png": "image/png",
+                "jpeg": "image/jpeg",
+                "webp": "image/webp",
+            }
+            content_type = content_types.get(format, "image/png")
+            
+            return Response(
+                content=image_bytes,
+                media_type=content_type,
+                headers={
+                    "Cache-Control": "public, max-age=3600",
+                    "X-Cache": "HIT",
+                    "X-Render-Time": f"{elapsed:.3f}s",
+                },
+            )
+    except Exception as e:
+        logger.warning("Cache check failed", error=str(e))
+    
+    # =========================================================================
+    # RENDER - Capture new screenshot
+    # =========================================================================
+    image_bytes, metadata = await render_service.capture_screenshot(
+        url=url,
+        options=options,
+        user_plan=current_user.plan_features,
+    )
+    
+    # Apply watermark for free tier
+    if current_user.plan_features.get("watermark", True):
+        image_bytes = render_service.inject_watermark(
+            image_bytes,
+            format=format,
+        )
+    
+    # =========================================================================
+    # CACHE SET - Store for future requests
+    # =========================================================================
+    try:
+        await cache_service.set_screenshot_cache(
+            url=url,
+            options=options,
+            image_bytes=image_bytes,
+            metadata=metadata,
+            ttl=3600,  # 1 hour cache
+        )
+    except Exception as e:
+        logger.warning("Cache set failed", error=str(e))
+    
+    # Increment usage
+    await rate_limit_service.increment_usage(current_user.user_id)
+    
+    elapsed = time.perf_counter() - start_time
+    logger.info(
+        "Screenshot rendered",
+        url=url[:50],
+        elapsed=f"{elapsed:.3f}s",
+        size=len(image_bytes),
+    )
+    
+    # Determine content type
+    content_types = {
+        "png": "image/png",
+        "jpeg": "image/jpeg",
+        "jpg": "image/jpeg",
+        "webp": "image/webp",
+    }
+    content_type = content_types.get(format, "image/png")
+    
+    # Return image directly
+    return Response(
+        content=image_bytes,
+        media_type=content_type,
+        headers={
+            "Content-Length": str(len(image_bytes)),
+            "Cache-Control": "public, max-age=3600",
+            "X-Cache": "MISS",
+            "X-Render-Time": f"{elapsed:.3f}s",
+            "X-Processing-Time-Ms": str(metadata.get("processing_time_ms", 0)),
+            "X-Image-Width": str(metadata.get("width", 0)),
+            "X-Image-Height": str(metadata.get("height", 0)),
+        },
+    )
 
 
 @router.post(
@@ -141,12 +316,70 @@ async def create_screenshot(
         )
 
     # Sync mode - process immediately
+    import time
+    start_time = time.perf_counter()
+    
     try:
         render_job.status = "processing"
         render_job.started_at = utc_now()
         await db.commit()
 
-        # Capture screenshot
+        # =====================================================================
+        # CACHE CHECK - Return cached result if available
+        # =====================================================================
+        cache_options = {
+            "width": options["width"],
+            "height": options["height"],
+            "format": options["format"],
+            "quality": options["quality"],
+            "full_page": options["full_page"],
+            "device_scale_factor": options["device_scale_factor"],
+        }
+        
+        try:
+            cached_result = await cache_service.get_render_cache(request.url, cache_options)
+            if cached_result:
+                elapsed = time.perf_counter() - start_time
+                logger.info(
+                    "Screenshot served from S3 cache",
+                    url=request.url[:50],
+                    elapsed=f"{elapsed:.3f}s",
+                )
+                
+                # Update job with cached data
+                render_job.status = "completed"
+                render_job.completed_at = utc_now()
+                render_job.s3_key = cached_result["s3_key"]
+                render_job.s3_url = cached_result["s3_url"]
+                render_job.file_size_bytes = cached_result["file_size"]
+                render_job.processing_time_ms = int(elapsed * 1000)
+                render_job.result = cached_result.get("metadata", {})
+                await db.commit()
+                
+                return RenderJobResponse(
+                    job_id=render_job.id,
+                    type="screenshot",
+                    status="completed",
+                    url=cached_result["s3_url"],
+                    format=options.get("format", "png"),
+                    size=SizeInfo(
+                        width=cached_result.get("metadata", {}).get("width", options["width"]),
+                        height=cached_result.get("metadata", {}).get("height", options["height"]),
+                    ),
+                    file_size=cached_result["file_size"],
+                    processing_time_ms=int(elapsed * 1000),
+                    cached=True,
+                    created_at=render_job.created_at,
+                    started_at=render_job.started_at,
+                    completed_at=render_job.completed_at,
+                    expires_at=render_job.expires_at,
+                )
+        except Exception as e:
+            logger.warning("Cache check failed", error=str(e))
+
+        # =====================================================================
+        # RENDER - Capture new screenshot
+        # =====================================================================
         image_bytes, metadata = await render_service.capture_screenshot(
             url=request.url,
             options=options,
@@ -168,10 +401,26 @@ async def create_screenshot(
             file_type=options.get("format", "png"),
         )
 
-        # Generate presigned URL
-        download_url = await storage_service.generate_download_url(
-            upload_result["s3_key"]
-        )
+        # Use direct S3 URL (files are public-read)
+        download_url = upload_result["s3_url"]
+
+        # =====================================================================
+        # CACHE SET - Store for future requests
+        # =====================================================================
+        try:
+            await cache_service.set_render_cache(
+                url=request.url,
+                options=cache_options,
+                data={
+                    "s3_key": upload_result["s3_key"],
+                    "s3_url": upload_result["s3_url"],
+                    "file_size": upload_result["file_size"],
+                    "metadata": metadata,
+                },
+                ttl=3600,  # 1 hour cache
+            )
+        except Exception as e:
+            logger.warning("Cache set failed", error=str(e))
 
         # Update job
         render_job.status = "completed"
@@ -186,6 +435,14 @@ async def create_screenshot(
 
         # Increment usage
         await rate_limit_service.increment_usage(current_user.user_id)
+        
+        elapsed = time.perf_counter() - start_time
+        logger.info(
+            "Screenshot endpoint completed",
+            url=request.url[:50],
+            elapsed=f"{elapsed:.3f}s",
+            size=upload_result["file_size"],
+        )
 
         return RenderJobResponse(
             job_id=render_job.id,

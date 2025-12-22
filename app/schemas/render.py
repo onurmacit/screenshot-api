@@ -28,17 +28,17 @@ class ScreenshotRequest(BaseModel):
     height: int = Field(default=1080, ge=240, le=2160, description="Viewport height")
     full_page: bool = Field(default=False, description="Capture full page")
     device_scale_factor: float = Field(
-        default=2.0, ge=1.0, le=3.0, description="Device pixel ratio for HD quality (1.0-3.0)"
+        default=1.0, ge=1.0, le=3.0, description="Device pixel ratio (1.0=fast, 2.0=HD)"
     )
 
-    # Image options
-    format: str = Field(default="png", description="Output format (png, jpeg, webp)")
-    quality: int = Field(default=90, ge=1, le=100, description="Image quality (for jpeg)")
+    # Image options - JPEG default for speed (smaller files = faster S3 upload)
+    format: str = Field(default="jpeg", description="Output format (png, jpeg, webp)")
+    quality: int = Field(default=80, ge=1, le=100, description="Image quality (for jpeg/webp)")
 
     # Timing options
     delay: int = Field(default=0, ge=0, le=10000, description="Delay in ms before capture")
     wait_until: str = Field(
-        default="networkidle",
+        default="domcontentloaded",
         description="Wait condition (load, domcontentloaded, networkidle)",
     )
 

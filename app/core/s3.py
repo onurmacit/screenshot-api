@@ -140,6 +140,7 @@ class S3Manager:
             extra_args: dict[str, Any] = {
                 "ContentType": content_type,
                 "CacheControl": "public, max-age=31536000",
+                "ACL": "public-read",  # Make file publicly accessible
             }
 
             if metadata:

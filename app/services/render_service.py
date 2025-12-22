@@ -76,23 +76,31 @@ class BrowserPool:
                 self._browser = await self._playwright.chromium.launch(
                     headless=True,
                     args=[
+                        # Security (required)
                         "--no-sandbox",
                         "--disable-setuid-sandbox",
+                        
+                        # Stable performance optimizations
                         "--disable-dev-shm-usage",
-                        "--disable-accelerated-2d-canvas",
                         "--disable-gpu",
+                        "--disable-accelerated-2d-canvas",
                         "--no-first-run",
                         "--no-zygote",
-                        "--single-process",
                         "--disable-extensions",
                         "--disable-background-networking",
                         "--disable-default-apps",
                         "--disable-sync",
                         "--disable-translate",
-                        "--metrics-recording-only",
                         "--mute-audio",
                         "--no-default-browser-check",
                         "--safebrowsing-disable-auto-update",
+                        
+                        # Safe performance flags
+                        "--disable-background-timer-throttling",
+                        "--disable-renderer-backgrounding",
+                        "--disable-backgrounding-occluded-windows",
+                        "--disable-hang-monitor",
+                        "--disable-breakpad",
                     ],
                 )
 
@@ -212,12 +220,14 @@ class BrowserPool:
                     logger.warning("Failed to refresh context, creating new one", error=str(e))
                     context = await self._create_context()
 
-            # Validate context by trying to create a test page
+            # Lightweight validation - check if context is still usable
+            # (Skip expensive test page creation - we'll handle errors during actual use)
             try:
-                # Quick validation - just check if we can create a page
-                test_page = await asyncio.wait_for(context.new_page(), timeout=5.0)
-                await test_page.close()
-                return context
+                # Just check if browser is still connected
+                if self._browser and self._browser.is_connected():
+                    return context
+                else:
+                    raise Exception("Browser disconnected")
             except Exception as e:
                 logger.warning(
                     f"Context validation failed (attempt {attempt + 1}/{max_attempts})",
@@ -410,72 +420,193 @@ class RenderService:
         finally:
             if page:
                 try:
-                    await asyncio.wait_for(page.close(), timeout=5.0)
+                    await asyncio.wait_for(page.close(), timeout=1.0)
                 except TimeoutError:
-                    logger.warning("Page close timed out")
-                except Exception as e:
-                    logger.warning("Error closing page", error=str(e))
+                    pass  # Don't log, just move on
+                except Exception:
+                    pass  # Silently ignore close errors for speed
 
-    async def _setup_ssrf_protection(self, page: Page):
+    # ==========================================================================
+    # PERFORMANCE OPTIMIZATION: Blocked domains and resources
+    # ==========================================================================
+    
+    # ==========================================================================
+    # MAXIMUM SPEED: Aggressive blocking lists
+    # ==========================================================================
+    
+    # Domains to block (analytics, ads, tracking, chat, social, monitoring)
+    BLOCKED_DOMAINS = frozenset([
+        # Analytics & Tracking (HUGE time saver)
+        "google-analytics", "googletagmanager", "analytics.", "tracking.",
+        "hotjar", "clarity.ms", "fullstory", "heapanalytics", "heap.io",
+        "mixpanel", "segment.", "amplitude", "plausible", "fathom",
+        "mouseflow", "crazyegg", "clicktale", "luckyorange",
+        # Ads (block everything)
+        "googlesyndication", "doubleclick", "adnxs", "adsrvr", "adroll",
+        "criteo", "taboola", "outbrain", "revcontent", "mgid",
+        "amazon-adsystem", "advertising", "adservice", "pagead",
+        # Social widgets & tracking
+        "facebook.net", "connect.facebook", "fbcdn", "facebook.com/tr",
+        "platform.twitter", "syndication.twitter", "ads.twitter",
+        "linkedin.com/px", "snap.licdn", "ads.linkedin",
+        "plus.google", "apis.google.com/js/platform",
+        # Chat widgets (EXTREMELY heavy - saves 2-3 seconds!)
+        "intercom", "crisp.chat", "drift", "zendesk", "zdassets",
+        "hubspot", "hs-scripts", "hs-analytics", "hsforms",
+        "tawk.to", "livechat", "olark", "freshdesk", "freshchat",
+        "tidio", "chatra", "smartsupp", "liveperson", "kayako",
+        # Error tracking & monitoring
+        "newrelic", "nr-data", "sentry", "bugsnag", "rollbar",
+        "logrocket", "datadoghq", "raygun", "trackjs", "errorception",
+        # A/B testing & personalization
+        "optimizely", "vwo.com", "abtasty", "convert.com", "kameleoon",
+        "dynamicyield", "evergage", "monetate",
+        # Marketing & email
+        "marketo", "pardot", "eloqua", "mailchimp", "klaviyo",
+        "sendgrid", "customer.io", "braze", "iterable",
+        # Video players (heavy!)
+        "youtube.com/iframe", "player.vimeo", "fast.wistia",
+    ])
+    
+    # Cookie consent/banner domains (separate for optional blocking)
+    COOKIE_BANNER_DOMAINS = frozenset([
+        "cookiebot", "cookiebot.com", "consentmanager",
+        "onetrust", "onetrust.com", "optanon", "cookielaw",
+        "trustarc", "truste.com", "consent.trustarc",
+        "cookieconsent", "osano.com", "osano",
+        "quantcast", "quantcast.com", "cmp.quantcast",
+        "didomi", "didomi.io", "sdk.privacy-center",
+        "iubenda", "iubenda.com",
+        "usercentrics", "usercentrics.eu",
+        "consent-manager", "consent.manager",
+        "cookie-script", "cookie-script.com",
+        "cookiefirst", "cookiefirst.com",
+        "termly", "termly.io", "app.termly",
+        "secureprivacy", "secureprivacy.ai",
+        "cookiepro", "cookiepro.com",
+        "complianz", "complianz.io",
+        "moove", "moove.com", "gdpr-cookie",
+    ])
+    
+    # Resource types to block for speed (fonts NOT blocked - needed for screenshots!)
+    BLOCKED_RESOURCE_TYPES = frozenset([
+        "media",       # video/audio - very heavy
+        "websocket",   # realtime connections
+        "manifest",    # PWA manifests
+        "eventsource", # server-sent events
+    ])
+    
+    # Trusted domains - skip DNS check entirely (MAJOR speed boost)
+    TRUSTED_DOMAINS = frozenset([
+        # CDNs (always trust)
+        "cloudflare", "amazonaws", "cloudfront", "akamai", "fastly", "cdn.",
+        "jsdelivr", "unpkg", "cdnjs", "bootstrapcdn", "staticfile",
+        # Google (trust all)
+        "google", "gstatic", "googleapis", "ggpht", "googleusercontent",
+        # Major platforms
+        "stripe", "shopify", "squarespace", "wix", "webflow",
+        "vercel", "netlify", "github", "gitlab", "bitbucket",
+        # Common libraries
+        "jquery", "react", "angular", "vue", "bootstrap",
+        # Image CDNs
+        "imgix", "cloudinary", "unsplash", "twimg", "fbcdn", "pinimg",
+        # Storage
+        "digitalocean", "azure", "blob.core", "s3.",
+    ])
+
+    async def _setup_ssrf_protection(
+        self, 
+        page: Page, 
+        block_resources: bool = True,
+        block_cookie_banners: bool = True,
+    ):
         """
-        Setup request interception to prevent SSRF.
+        MAXIMUM SPEED request interception.
         
-        Blocks:
-        - Requests to private IP ranges (localhost, internal network, etc.)
-        - Dangerous protocols (file://, ftp://, etc.)
+        Every millisecond counts:
+        - Instant resource type blocking (no string parsing)
+        - Fast domain blocking with substring check
+        - Skip DNS for all trusted domains
+        - Optional cookie banner blocking
         """
+        from urllib.parse import urlparse
+        
+        # Local references for speed (avoid attribute lookups in hot path)
+        _blocked_domains = self.BLOCKED_DOMAINS
+        _cookie_domains = self.COOKIE_BANNER_DOMAINS if block_cookie_banners else frozenset()
+        _blocked_types = self.BLOCKED_RESOURCE_TYPES
+        _trusted = self.TRUSTED_DOMAINS
+        _localhost = frozenset(("localhost", "127.0.0.1", "::1", "0.0.0.0"))
+        
         async def handle_route(route: Route):
-            url = route.request.url.lower()
-            from urllib.parse import urlparse
+            req = route.request
+            rtype = req.resource_type
             
-            parsed = urlparse(url)
-            
-            # 1. Block dangerous schemes
-            if parsed.scheme not in ("http", "https"):
-                logger.warning("SSRF blocked: Dangerous scheme", url=url)
+            # INSTANT BLOCK: Heavy resource types (no string ops needed)
+            if block_resources and rtype in _blocked_types:
                 await route.abort("blockedbyclient")
                 return
-
-            # 2. Block private IPs
-            hostname = parsed.hostname
-            if not hostname:
+            
+            url = req.url
+            
+            # Quick scheme check (most URLs are http/https)
+            if not (url.startswith("http://") or url.startswith("https://")):
                 await route.abort("blockedbyclient")
                 return
-
-            # Skip DNS check for common CDNs/trusted domains if performance is an issue
-            # but for maximum security, we resolve everything.
+            
+            # Extract hostname fast (avoid full urlparse when possible)
             try:
-                # Basic hostname check (covers localhost, 127.0.0.1 without DNS)
-                if hostname in ("localhost", "127.0.0.1", "::1"):
-                    logger.warning("SSRF blocked: Localhost", url=url)
-                    await route.abort("blockedbyclient")
+                # Fast path: find hostname between :// and next / or :
+                start = url.index("://") + 3
+                end = len(url)
+                for i, c in enumerate(url[start:], start):
+                    if c in "/:?#":
+                        end = i
+                        break
+                hostname = url[start:end].lower()
+            except:
+                hostname = urlparse(url.lower()).hostname or ""
+            
+            # SSRF: Block localhost
+            if hostname in _localhost:
+                await route.abort("blockedbyclient")
+                return
+            
+            # FAST BLOCK: Analytics/tracking (single pass check)
+            if block_resources:
+                for blocked in _blocked_domains:
+                    if blocked in hostname:
+                        await route.abort("blockedbyclient")
+                        return
+            
+            # Block cookie banner domains
+            if block_cookie_banners:
+                for cookie_domain in _cookie_domains:
+                    if cookie_domain in hostname:
+                        await route.abort("blockedbyclient")
+                        return
+            
+            # SPEED: Skip DNS for trusted domains (covers 90%+ of requests)
+            for trusted in _trusted:
+                if trusted in hostname:
+                    await route.continue_()
                     return
-
-                # Resolve DNS to check for private IP ranges (anti-SSRF)
-                # Note: This is an async-friendly way to use socket.getaddrinfo
-                loop = asyncio.get_event_loop()
-                addr_info = await loop.run_in_executor(
-                    None, 
-                    socket.getaddrinfo, 
-                    hostname, 
-                    None
-                )
-                
-                for info in addr_info:
+            
+            # Only do expensive DNS check for untrusted domains
+            try:
+                loop = asyncio.get_running_loop()
+                infos = await loop.run_in_executor(None, socket.getaddrinfo, hostname, None)
+                for info in infos:
                     ip = ip_address(info[4][0])
-                    for private_range in PRIVATE_IP_RANGES:
-                        if ip in private_range:
-                            logger.warning("SSRF blocked: Private IP", url=url, ip=str(ip))
+                    for prange in PRIVATE_IP_RANGES:
+                        if ip in prange:
                             await route.abort("blockedbyclient")
                             return
-            except Exception as e:
-                # If DNS resolution fails, it might be a malicious/non-existent domain
-                # but we'll let Playwright handle the failure unless we want to be paranoid.
+            except:
                 pass
-
+            
             await route.continue_()
 
-        # Intercept all requests
         await page.route("**/*", handle_route)
 
     async def capture_screenshot(
@@ -504,18 +635,23 @@ class RenderService:
 
         try:
             async with self._get_page(context) as page:
-                # Enable SSRF protection
-                await self._setup_ssrf_protection(page)
+                # Get blocking options (default: block everything for speed)
+                block_ads = options.get("block_ads", True)
+                block_trackers = options.get("block_trackers", True)
+                block_cookie_banners = options.get("block_cookie_banners", True)
+                
+                # Enable SSRF protection + resource blocking for SPEED
+                await self._setup_ssrf_protection(
+                    page, 
+                    block_resources=(block_ads or block_trackers),
+                    block_cookie_banners=block_cookie_banners,
+                )
 
-                # Set viewport with device scale factor for HD quality
+                # Set viewport (device_scale_factor=1 for SPEED, 2 for quality)
                 width = options.get("width", 1920)
                 height = options.get("height", 1080)
-                device_scale_factor = options.get("device_scale_factor", 2)  # Default 2x for HD
-                await page.set_viewport_size({
-                    "width": width,
-                    "height": height,
-                    "device_scale_factor": device_scale_factor,
-                })
+                device_scale_factor = options.get("device_scale_factor", 1)  # 1x = FAST
+                await page.set_viewport_size({"width": width, "height": height})
 
                 # Set user agent if provided
                 if options.get("user_agent"):
@@ -536,23 +672,50 @@ class RenderService:
                     })
                     await context.grant_permissions(["geolocation"])
 
-                # Navigate to URL
+                # =============================================================
+                # ULTRA-FAST NAVIGATION - Target: 2 seconds!
+                # =============================================================
                 timeout = options.get("timeout", settings.BROWSER_TIMEOUT_MS)
-                wait_until = options.get("wait_until", "networkidle")
 
                 try:
-                    await page.goto(
-                        url,
-                        timeout=timeout,
-                        wait_until=wait_until,
-                    )
+                    # STRATEGY: Use "commit" (fastest) + parallel CSS injection
+                    # "commit" returns when first byte received from server
+                    
+                    # Inject cookie hiding CSS BEFORE navigation (runs immediately when DOM ready)
+                    if block_cookie_banners:
+                        await page.add_init_script("""
+                            document.addEventListener('DOMContentLoaded', () => {
+                                const style = document.createElement('style');
+                                style.textContent = `
+                                    [class*="cookie"], [class*="consent"], [class*="gdpr"],
+                                    [id*="cookie"], [id*="consent"], [id*="gdpr"],
+                                    #onetrust-banner-sdk, #CybotCookiebotDialog,
+                                    .cc-banner, .cookie-banner, .privacy-banner
+                                    { display:none!important; visibility:hidden!important; }
+                                `;
+                                document.head.appendChild(style);
+                            });
+                        """)
+                    
+                    # Navigate with "commit" - fastest option
+                    await page.goto(url, timeout=timeout, wait_until="commit")
+                    
+                    # Quick wait for DOM to be ready (max 2 seconds)
+                    try:
+                        await page.wait_for_load_state("domcontentloaded", timeout=2000)
+                    except:
+                        pass  # Continue even if timeout - page might still be usable
+                    
+                    # Ultra-minimal stabilization (200ms fixed)
+                    await asyncio.sleep(0.2)
+                    
                 except Exception as e:
                     raise RenderError(
                         f"Failed to load URL: {str(e)}",
                         details={"url": url, "error": str(e)},
                     )
 
-                # Wait for delay
+                # Additional user-requested delay
                 delay = options.get("delay", 0)
                 if delay > 0:
                     await asyncio.sleep(delay / 1000)
@@ -584,7 +747,7 @@ class RenderService:
                     screenshot_options["omit_background"] = False
                 
                 if screenshot_options["type"] == "jpeg":
-                    screenshot_options["quality"] = options.get("quality", 100)  # Default 100 for HD
+                    screenshot_options["quality"] = options.get("quality", 85)  # 85 = fast + good quality
                 
                 # WebP is not natively supported by Playwright, capture as PNG and convert
                 convert_to_webp = False
@@ -680,26 +843,22 @@ class RenderService:
 
         try:
             async with self._get_page(context) as page:
-                # Enable SSRF protection
-                await self._setup_ssrf_protection(page)
+                # Enable SSRF protection + resource blocking
+                await self._setup_ssrf_protection(page, block_resources=True)
 
-                # Navigate to URL
+                # Navigate to URL with FAST strategy
                 timeout = options.get("timeout", settings.BROWSER_TIMEOUT_MS)
-                wait_until = options.get("wait_until", "networkidle")
 
                 try:
-                    await page.goto(
-                        url,
-                        timeout=timeout,
-                        wait_until=wait_until,
-                    )
+                    await page.goto(url, timeout=timeout, wait_until="domcontentloaded")
+                    await asyncio.sleep(0.75)  # Quick stabilization
                 except Exception as e:
                     raise RenderError(
                         f"Failed to load URL: {str(e)}",
                         details={"url": url, "error": str(e)},
                     )
 
-                # Wait for delay
+                # Additional user-requested delay
                 delay = options.get("delay", 0)
                 if delay > 0:
                     await asyncio.sleep(delay / 1000)

@@ -347,6 +347,103 @@ class CacheService:
         return await self.set(cache_key, data, ttl or self.TTL_RENDER)
 
     # =========================================================================
+    # Screenshot Image Cache (Binary)
+    # =========================================================================
+    
+    PREFIX_SCREENSHOT = "screenshot"
+    TTL_SCREENSHOT = 3600  # 1 hour default
+    
+    def _screenshot_cache_key(self, url: str, options: dict) -> str:
+        """Generate cache key for screenshot image."""
+        # Only include relevant options for cache key
+        cache_options = {
+            "width": options.get("width", 1920),
+            "height": options.get("height", 1080),
+            "format": options.get("format", "jpeg"),
+            "quality": options.get("quality", 80),
+            "full_page": options.get("full_page", False),
+            "device_scale_factor": options.get("device_scale_factor", 1),
+        }
+        options_str = json.dumps(cache_options, sort_keys=True)
+        combined = f"{url}:{options_str}"
+        hash_value = hashlib.sha256(combined.encode()).hexdigest()[:24]
+        return f"{self.PREFIX_SCREENSHOT}:{hash_value}"
+    
+    async def get_screenshot_cache(
+        self,
+        url: str,
+        options: dict,
+    ) -> tuple[bytes, dict] | None:
+        """
+        Get cached screenshot image.
+
+        Args:
+            url: Target URL
+            options: Screenshot options
+
+        Returns:
+            Tuple of (image_bytes, metadata) or None
+        """
+        cache_key = self._screenshot_cache_key(url, options)
+        
+        async with redis_context("cache") as redis:
+            # Get both image and metadata
+            image_key = f"{cache_key}:img"
+            meta_key = f"{cache_key}:meta"
+            
+            image_bytes = await redis.get(image_key)
+            if not image_bytes:
+                return None
+            
+            meta_str = await redis.get(meta_key)
+            metadata = json.loads(meta_str) if meta_str else {}
+            
+            logger.info("Screenshot cache hit", url=url[:50])
+            return image_bytes, metadata
+    
+    async def set_screenshot_cache(
+        self,
+        url: str,
+        options: dict,
+        image_bytes: bytes,
+        metadata: dict,
+        ttl: int | None = None,
+    ) -> bool:
+        """
+        Cache screenshot image.
+
+        Args:
+            url: Target URL
+            options: Screenshot options
+            image_bytes: Screenshot image bytes
+            metadata: Screenshot metadata
+            ttl: Cache TTL (optional)
+
+        Returns:
+            True if cached
+        """
+        cache_key = self._screenshot_cache_key(url, options)
+        ttl = ttl or self.TTL_SCREENSHOT
+        
+        async with redis_context("cache") as redis:
+            image_key = f"{cache_key}:img"
+            meta_key = f"{cache_key}:meta"
+            
+            # Use pipeline for atomic operations
+            pipe = redis.pipeline()
+            pipe.setex(image_key, ttl, image_bytes)
+            pipe.setex(meta_key, ttl, json.dumps(metadata, default=str))
+            await pipe.execute()
+            
+            logger.info(
+                "Screenshot cached", 
+                url=url[:50], 
+                size=len(image_bytes),
+                ttl=ttl,
+            )
+            return True
+
+    # =========================================================================
     # Session Cache
     # =========================================================================
 

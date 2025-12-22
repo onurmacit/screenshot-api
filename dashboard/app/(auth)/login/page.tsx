@@ -41,7 +41,10 @@ export default function LoginPage() {
         setError("");
         try {
             const response = await authApi.login(data.username, data.password);
+            // Store token in localStorage
             localStorage.setItem("token", response.access_token);
+            // Also store in cookie for middleware auth check
+            document.cookie = `token=${response.access_token}; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=Lax`;
             router.push("/dashboard");
         } catch (err: any) {
             console.error(err);

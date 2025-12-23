@@ -82,7 +82,9 @@ class Settings(BaseSettings):
     REDIS_URL: str = "redis://localhost:6379/0"
     REDIS_CACHE_DB: int = 1
     REDIS_RATE_LIMIT_DB: int = 2
-    REDIS_MAX_CONNECTIONS: int = 100
+    # Reduced from 100 to 20 - we don't need that many connections
+    # Each connection = potential commands, lower = fewer idle pings
+    REDIS_MAX_CONNECTIONS: int = 20
 
     # ==========================================================================
     # Celery

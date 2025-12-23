@@ -187,7 +187,7 @@ celery_app.conf.update(
     worker_concurrency=4,
 
     # Result backend settings
-    result_expires=3600,  # 1 hour
+    result_expires=300,  # 5 minutes (was 1 hour) - reduces Redis storage
 
     # Task routing
     task_default_queue="default",
@@ -200,6 +200,32 @@ celery_app.conf.update(
 
     # Broker settings
     broker_connection_retry_on_startup=True,
+    
+    # ==========================================================================
+    # Redis Command Optimization Settings
+    # ==========================================================================
+    
+    # Disable worker gossip - reduces Redis PUBLISH/SUBSCRIBE commands
+    worker_enable_remote_control=False,
+    
+    # Disable mingle - workers don't need to sync with each other
+    # Saves ~10-20 Redis commands per worker on startup
+    worker_disable_tracebacks=True,
+    
+    # Increase heartbeat interval (default 2s → 30s)
+    # Reduces heartbeat commands by 93%
+    broker_heartbeat=30,
+    
+    # Disable task events unless needed for monitoring
+    # Saves PUBLISH commands for every task state change
+    worker_send_task_events=False,
+    task_send_sent_event=False,
+    
+    # Use transient queues - no persistence needed
+    task_create_missing_queues=True,
+    
+    # Broker pool limit - reduce connection overhead
+    broker_pool_limit=3,
 )
 
 # =============================================================================

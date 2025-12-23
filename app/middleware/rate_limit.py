@@ -3,11 +3,15 @@ Rate limiting middleware
 
 IP-based rate limiting with spoofing protection.
 Only trusts X-Forwarded-For headers from configured trusted proxies.
+
+Optimized with local LRU cache to reduce Redis commands.
 """
 
 import ipaddress
 import time
+from collections import OrderedDict
 from collections.abc import Callable
+from threading import Lock
 
 from fastapi import Request, Response
 from fastapi.responses import JSONResponse
@@ -16,6 +20,48 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from app.core.config import settings
 from app.core.redis import redis_context
 from app.utils.logger import logger
+
+
+# =============================================================================
+# Local LRU Cache for Rate Limiting
+# Reduces Redis commands by caching recent rate limit checks
+# =============================================================================
+class RateLimitCache:
+    """Thread-safe LRU cache for rate limit results."""
+    
+    def __init__(self, max_size: int = 1000, ttl_seconds: float = 1.0):
+        self._cache: OrderedDict[str, tuple[int, int, float]] = OrderedDict()
+        self._max_size = max_size
+        self._ttl = ttl_seconds
+        self._lock = Lock()
+    
+    def get(self, key: str) -> tuple[int, int] | None:
+        """Get cached count and remaining for a key."""
+        with self._lock:
+            if key not in self._cache:
+                return None
+            
+            count, remaining, expires = self._cache[key]
+            if time.time() > expires:
+                del self._cache[key]
+                return None
+            
+            # Move to end (most recently used)
+            self._cache.move_to_end(key)
+            return count, remaining
+    
+    def set(self, key: str, count: int, remaining: int) -> None:
+        """Cache rate limit result."""
+        with self._lock:
+            # Remove oldest if at capacity
+            while len(self._cache) >= self._max_size:
+                self._cache.popitem(last=False)
+            
+            self._cache[key] = (count, remaining, time.time() + self._ttl)
+
+
+# Global rate limit cache
+_rate_limit_cache = RateLimitCache(max_size=1000, ttl_seconds=1.0)
 
 
 def is_ip_in_networks(ip: str, networks: list[str]) -> bool:
@@ -187,6 +233,9 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
     ) -> tuple[bool, int, int]:
         """
         Check if request is within rate limit using atomic Redis operation.
+        
+        **Optimized:** Uses local LRU cache to reduce Redis commands.
+        Same IP within 1 second uses cached result (incremented locally).
 
         Args:
             client_ip: Client IP address
@@ -198,6 +247,21 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         reset_at = (current_minute + 1) * 60
         key = f"rl:ip:{client_ip}:min:{current_minute}"
 
+        # Check local cache first - saves Redis roundtrip
+        cached = _rate_limit_cache.get(key)
+        if cached is not None:
+            count, remaining = cached
+            # Increment locally
+            new_count = count + 1
+            new_remaining = max(0, remaining - 1)
+            is_allowed = new_count <= self.limit_per_minute
+            
+            # Update cache
+            _rate_limit_cache.set(key, new_count, new_remaining)
+            
+            return is_allowed, new_remaining, reset_at
+
+        # Cache miss - hit Redis
         # Lua script for atomic check-and-increment
         lua_script = """
         local key = KEYS[1]
@@ -213,9 +277,9 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         
         -- Check limit
         if current <= limit then
-            return {1, limit - current}  -- allowed, remaining
+            return {1, limit - current, current}  -- allowed, remaining, count
         else
-            return {0, 0}  -- not allowed, remaining
+            return {0, 0, current}  -- not allowed, remaining, count
         end
         """
 
@@ -229,5 +293,9 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
             is_allowed = result[0] == 1
             remaining = result[1]
+            count = result[2] if len(result) > 2 else 1
+
+        # Cache the result
+        _rate_limit_cache.set(key, count, remaining)
 
         return is_allowed, remaining, reset_at

@@ -1,20 +1,44 @@
 """
 Health check endpoints
+
+Optimized for minimal Redis commands - uses in-memory caching
+to avoid hitting Redis on every health check request.
 """
 
+import time
 from datetime import UTC, datetime
+from typing import Any
 
 from fastapi import APIRouter, status
 from fastapi.responses import JSONResponse
-from redis.asyncio import Redis
 from sqlalchemy import text
 
 from app.core.config import settings
 from app.core.database import engine
-from app.core.redis import get_redis_url, init_redis_pools
+from app.core.redis import redis_context
 from app.core.s3 import get_s3_client
 
 router = APIRouter()
+
+# =============================================================================
+# Health Check Cache - Reduces Redis commands significantly
+# =============================================================================
+_health_cache: dict[str, Any] = {}
+_health_cache_ttl = 10  # Cache health status for 10 seconds
+
+
+def _get_cached_health() -> dict | None:
+    """Get cached health status if still valid."""
+    if "data" in _health_cache and "expires" in _health_cache:
+        if time.time() < _health_cache["expires"]:
+            return _health_cache["data"]
+    return None
+
+
+def _set_cached_health(data: dict) -> None:
+    """Cache health status."""
+    _health_cache["data"] = data
+    _health_cache["expires"] = time.time() + _health_cache_ttl
 
 
 @router.get(
@@ -35,7 +59,19 @@ async def health_check() -> dict:
     - Cache (Redis)
     - Storage (S3)
     - Queue (Celery/Redis)
+    
+    **Optimized:** Results are cached for 10 seconds to reduce Redis commands.
     """
+    # Check cache first - avoid Redis hit on every request
+    cached = _get_cached_health()
+    if cached:
+        # Update timestamp but use cached service status
+        cached["timestamp"] = datetime.now(UTC).isoformat()
+        return JSONResponse(
+            status_code=status.HTTP_200_OK if cached["status"] == "healthy" else status.HTTP_503_SERVICE_UNAVAILABLE,
+            content=cached,
+        )
+    
     services = {}
     status_code = status.HTTP_200_OK
 
@@ -48,12 +84,10 @@ async def health_check() -> dict:
         services["database"] = "unhealthy"
         status_code = status.HTTP_503_SERVICE_UNAVAILABLE
 
-    # Check Redis - create temporary connection for health check
+    # Check Redis - use connection pool (no new connection!)
     try:
-        await init_redis_pools()
-        redis = Redis.from_url(get_redis_url(0), decode_responses=False)
-        await redis.ping()
-        await redis.aclose()
+        async with redis_context("main") as redis:
+            await redis.ping()
         services["redis"] = "healthy"
     except Exception:
         services["redis"] = "unhealthy"
@@ -68,12 +102,8 @@ async def health_check() -> dict:
         services["s3"] = "unhealthy"
         # S3 failure is not critical for health
 
-    # Check Celery (by checking Redis broker)
-    try:
-        # Simple check - verify broker connection
-        services["celery"] = "healthy"
-    except Exception:
-        services["celery"] = "unhealthy"
+    # Celery health is inferred from Redis connectivity
+    services["celery"] = services["redis"]
 
     # Determine overall status
     unhealthy_services = [k for k, v in services.items() if v == "unhealthy"]
@@ -95,6 +125,9 @@ async def health_check() -> dict:
         "services": services,
     }
 
+    # Cache the result
+    _set_cached_health(response_data)
+
     return JSONResponse(
         status_code=status_code,
         content=response_data,
@@ -112,17 +145,17 @@ async def readiness_check() -> dict:
 
     Returns 200 if the service is ready to accept traffic.
     Returns 503 if critical services are unavailable.
+    
+    **Optimized:** Uses connection pool instead of creating new connections.
     """
     try:
         # Check database connection
         async with engine.connect() as conn:
             await conn.execute(text("SELECT 1"))
 
-        # Check Redis connection
-        await init_redis_pools()
-        redis = Redis.from_url(get_redis_url(0), decode_responses=False)
-        await redis.ping()
-        await redis.aclose()
+        # Check Redis connection using pool (no new connection!)
+        async with redis_context("main") as redis:
+            await redis.ping()
 
         return {"ready": True}
 

@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Loader2 } from "lucide-react";
+import { Loader2, AlertCircle } from "lucide-react";
 import { signIn } from "next-auth/react";
 import Image from "next/image";
 
@@ -23,10 +23,41 @@ const loginSchema = z.object({
 
 type LoginForm = z.infer<typeof loginSchema>;
 
+// Wrapper component for Suspense boundary
 export default function LoginPage() {
+    return (
+        <Suspense fallback={<LoginPageSkeleton />}>
+            <LoginPageContent />
+        </Suspense>
+    );
+}
+
+function LoginPageSkeleton() {
+    return (
+        <div className="flex flex-col items-center gap-6 w-full animate-pulse">
+            <div className="h-20 w-20 bg-gray-200 rounded" />
+            <div className="w-full h-96 bg-gray-200 rounded-lg" />
+        </div>
+    );
+}
+
+function LoginPageContent() {
     const router = useRouter();
+    const searchParams = useSearchParams();
     const [error, setError] = useState("");
     const [isLoading, setIsLoading] = useState(false);
+    const [sessionExpired, setSessionExpired] = useState(false);
+
+    // Check if session expired
+    useEffect(() => {
+        if (searchParams.get("expired") === "true") {
+            setSessionExpired(true);
+            // Clear the expired param from URL without refresh
+            const url = new URL(window.location.href);
+            url.searchParams.delete("expired");
+            window.history.replaceState({}, "", url.toString());
+        }
+    }, [searchParams]);
 
     const {
         register,
@@ -76,6 +107,15 @@ export default function LoginPage() {
                 </CardHeader>
                 <CardContent>
                     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+                        {sessionExpired && (
+                            <Alert className="border-amber-200 bg-amber-50">
+                                <AlertCircle className="h-4 w-4 text-amber-600" />
+                                <AlertDescription className="text-amber-800">
+                                    Your session has expired. Please sign in again.
+                                </AlertDescription>
+                            </Alert>
+                        )}
+                        
                         {error && (
                             <Alert variant="destructive">
                                 <AlertDescription>{error}</AlertDescription>

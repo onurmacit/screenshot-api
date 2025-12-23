@@ -8,6 +8,32 @@ const protectedRoutes = ["/dashboard"];
 // Routes that should redirect to dashboard if already authenticated
 const authRoutes = ["/login", "/register"];
 
+/**
+ * Check if a JWT token is expired
+ * @param token - JWT token string
+ * @returns true if token is expired or invalid
+ */
+function isTokenExpired(token: string): boolean {
+  try {
+    // JWT format: header.payload.signature
+    const parts = token.split('.');
+    if (parts.length !== 3) return true;
+    
+    // Decode base64url payload
+    const payload = JSON.parse(
+      Buffer.from(parts[1].replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString()
+    );
+    
+    const exp = payload.exp;
+    if (!exp) return false; // No expiration = never expires
+    
+    // Check if expired (with 10 second buffer)
+    return Date.now() >= (exp * 1000) - 10000;
+  } catch {
+    return true; // If we can't parse, consider it expired
+  }
+}
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   
@@ -20,8 +46,11 @@ export async function middleware(request: NextRequest) {
   // Also check for our custom JWT token in cookies
   const customToken = request.cookies.get("token")?.value;
   
-  // User is authenticated if either token exists
-  const isAuthenticated = !!token || !!customToken;
+  // Check if custom token is expired
+  const isCustomTokenValid = customToken && !isTokenExpired(customToken);
+  
+  // User is authenticated if either token exists AND is valid
+  const isAuthenticated = !!token || isCustomTokenValid;
   
   // Root path - redirect based on auth status
   if (pathname === "/") {
@@ -42,8 +71,20 @@ export async function middleware(request: NextRequest) {
   if (isProtectedRoute && !isAuthenticated) {
     const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set("callbackUrl", pathname);
+    
+    // Check if there was a token but it expired
+    if (customToken && !isCustomTokenValid) {
+      loginUrl.searchParams.set("expired", "true");
+    }
+    
     const response = NextResponse.redirect(loginUrl);
     response.headers.set("Cache-Control", "no-store, no-cache, must-revalidate");
+    
+    // Clear the expired token cookie
+    if (customToken && !isCustomTokenValid) {
+      response.cookies.delete("token");
+    }
+    
     return response;
   }
   

@@ -9,6 +9,7 @@ export const api = axios.create({
     },
 });
 
+// Request interceptor - add auth token
 api.interceptors.request.use((config) => {
     if (typeof window !== "undefined") {
         const token = localStorage.getItem("token");
@@ -18,6 +19,47 @@ api.interceptors.request.use((config) => {
     }
     return config;
 });
+
+// Response interceptor - handle 401 errors (token expired/invalid)
+api.interceptors.response.use(
+    (response) => response,
+    (error) => {
+        if (typeof window !== "undefined" && error.response?.status === 401) {
+            // Token expired or invalid - clear auth and redirect to login
+            localStorage.removeItem("token");
+            document.cookie = "token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+            
+            // Only redirect if not already on login page
+            if (!window.location.pathname.includes("/login")) {
+                window.location.href = "/login?expired=true";
+            }
+        }
+        return Promise.reject(error);
+    }
+);
+
+// Helper function to check if JWT token is expired
+export function isTokenExpired(token: string): boolean {
+    try {
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        const exp = payload.exp;
+        if (!exp) return false;
+        // Add 10 second buffer to account for clock skew
+        return Date.now() >= (exp * 1000) - 10000;
+    } catch {
+        return true; // If we can't parse the token, consider it expired
+    }
+}
+
+// Helper function to get token expiration time in ms
+export function getTokenExpirationTime(token: string): number | null {
+    try {
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        return payload.exp ? payload.exp * 1000 : null;
+    } catch {
+        return null;
+    }
+}
 
 // Types
 export interface User {

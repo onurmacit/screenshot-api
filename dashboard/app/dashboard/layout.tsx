@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useSession, signOut } from "next-auth/react";
 import Image from "next/image";
+import { isTokenExpired, getTokenExpirationTime } from "@/services/api";
 
 const sidebarItems = [
     { icon: LayoutDashboard, label: "Overview", href: "/dashboard" },
@@ -24,6 +25,9 @@ const sidebarItems = [
     { icon: CreditCard, label: "Subscription", href: "/dashboard/subscription" },
     // { icon: Settings, label: "Settings", href: "/dashboard/settings" },
 ];
+
+// Token check interval (every 30 seconds)
+const TOKEN_CHECK_INTERVAL = 30 * 1000;
 
 export default function DashboardLayout({
     children,
@@ -34,6 +38,36 @@ export default function DashboardLayout({
     const pathname = usePathname();
     const [isMounted, setIsMounted] = useState(false);
     const { data: session, status } = useSession();
+
+    // Logout function
+    const handleLogout = useCallback(async (expired: boolean = false) => {
+        // Clear localStorage
+        localStorage.removeItem("token");
+        // Clear cookie
+        document.cookie = "token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+        // Sign out from NextAuth
+        await signOut({ callbackUrl: expired ? "/login?expired=true" : "/login" });
+    }, []);
+
+    // Check token validity
+    const checkTokenValidity = useCallback(() => {
+        const token = localStorage.getItem("token");
+        
+        if (!token) {
+            // No token - redirect to login
+            router.push("/login");
+            return false;
+        }
+        
+        if (isTokenExpired(token)) {
+            // Token expired - logout and redirect
+            console.log("Token expired, logging out...");
+            handleLogout(true);
+            return false;
+        }
+        
+        return true;
+    }, [router, handleLogout]);
 
     useEffect(() => {
         setIsMounted(true);
@@ -48,19 +82,45 @@ export default function DashboardLayout({
             localStorage.setItem("token", session.accessToken);
         }
 
+        // Initial token check
         if (!token && status === "unauthenticated") {
             router.push("/login");
+            return;
         }
-    }, [router, status, session]);
 
-    const handleLogout = async () => {
-        // Clear localStorage
-        localStorage.removeItem("token");
-        // Clear cookie
-        document.cookie = "token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
-        // Sign out from NextAuth
-        await signOut({ callbackUrl: "/login" });
-    };
+        // Check if token is already expired
+        if (token && isTokenExpired(token)) {
+            handleLogout(true);
+            return;
+        }
+
+        // Set up periodic token validity check
+        const intervalId = setInterval(() => {
+            checkTokenValidity();
+        }, TOKEN_CHECK_INTERVAL);
+
+        // Set up a timer to logout exactly when token expires
+        if (token) {
+            const expTime = getTokenExpirationTime(token);
+            if (expTime) {
+                const timeUntilExpiry = expTime - Date.now();
+                if (timeUntilExpiry > 0 && timeUntilExpiry < 24 * 60 * 60 * 1000) {
+                    // Only set timeout if expiry is within 24 hours
+                    const timeoutId = setTimeout(() => {
+                        console.log("Token expired (timeout), logging out...");
+                        handleLogout(true);
+                    }, timeUntilExpiry);
+                    
+                    return () => {
+                        clearInterval(intervalId);
+                        clearTimeout(timeoutId);
+                    };
+                }
+            }
+        }
+
+        return () => clearInterval(intervalId);
+    }, [router, status, session, checkTokenValidity, handleLogout]);
 
     if (!isMounted) return null;
 
@@ -97,7 +157,7 @@ export default function DashboardLayout({
                 </nav>
 
                 <div className="p-4 border-t border-gray-100">
-                    <Button variant="ghost" className="w-full justify-start gap-2 text-red-600 hover:bg-red-50 hover:text-red-700" onClick={handleLogout}>
+                    <Button variant="ghost" className="w-full justify-start gap-2 text-red-600 hover:bg-red-50 hover:text-red-700" onClick={() => handleLogout(false)}>
                         <LogOut className="h-4 w-4" />
                         Logout
                     </Button>

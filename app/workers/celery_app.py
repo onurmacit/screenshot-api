@@ -187,7 +187,7 @@ celery_app.conf.update(
     worker_concurrency=4,
 
     # Result backend settings
-    result_expires=300,  # 5 minutes (was 1 hour) - reduces Redis storage
+    result_expires=120,  # 2 minutes - reduces Redis storage and commands
 
     # Task routing
     task_default_queue="default",
@@ -214,7 +214,7 @@ celery_app.conf.update(
     
     # Increase heartbeat interval (default 2s → 30s)
     # Reduces heartbeat commands by 93%
-    broker_heartbeat=30,
+    broker_heartbeat=60,  # 60s heartbeat reduces commands by 50%
     
     # Disable task events unless needed for monitoring
     # Saves PUBLISH commands for every task state change

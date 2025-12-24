@@ -61,7 +61,7 @@ class RateLimitCache:
 
 
 # Global rate limit cache
-_rate_limit_cache = RateLimitCache(max_size=1000, ttl_seconds=1.0)
+_rate_limit_cache = RateLimitCache(max_size=1000, ttl_seconds=5.0)
 
 
 def is_ip_in_networks(ip: str, networks: list[str]) -> bool:

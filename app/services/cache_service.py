@@ -31,8 +31,8 @@ class CacheService:
     PREFIX_PLAN = "plan"
 
     # Default TTLs (in seconds)
-    TTL_API_KEY = 300  # 5 minutes
-    TTL_USER_PLAN = 3600  # 1 hour
+    TTL_API_KEY = 900  # 15 minutes
+    TTL_USER_PLAN = 21600  # 6 hours
     TTL_RENDER = 3600  # 1 hour (or user-specified)
     TTL_SESSION = 86400  # 24 hours
     TTL_PLAN = 86400  # 24 hours

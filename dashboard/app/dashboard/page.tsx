@@ -15,8 +15,8 @@ export default function DashboardPage() {
                 </p>
             </div>
 
-            <div className="grid gap-4 md:grid-cols-3">
-                <Card>
+            <div className="grid gap-4 md:grid-cols-3 items-stretch">
+                <Card className="flex flex-col h-full">
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2">
                             <Zap className="h-5 w-5 text-yellow-500" />
@@ -24,19 +24,21 @@ export default function DashboardPage() {
                         </CardTitle>
                         <CardDescription>Test the API instantly</CardDescription>
                     </CardHeader>
-                    <CardContent>
+                    <CardContent className="flex flex-col flex-grow">
                         <p className="mb-4 text-sm text-muted-foreground">
                             Use the Playground to generate screenshots and get code snippets.
                         </p>
-                        <Link href="/dashboard/playground">
-                            <Button className="w-full">
-                                Go to Playground <ArrowRight className="ml-2 h-4 w-4" />
-                            </Button>
-                        </Link>
+                        <div className="mt-auto">
+                            <Link href="/dashboard/playground">
+                                <Button className="w-full">
+                                    Go to Playground <ArrowRight className="ml-2 h-4 w-4" />
+                                </Button>
+                            </Link>
+                        </div>
                     </CardContent>
                 </Card>
 
-                <Card>
+                <Card className="flex flex-col h-full">
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2">
                             <Key className="h-5 w-5 text-blue-500" />
@@ -44,19 +46,21 @@ export default function DashboardPage() {
                         </CardTitle>
                         <CardDescription>Manage authentication</CardDescription>
                     </CardHeader>
-                    <CardContent>
+                    <CardContent className="flex flex-col flex-grow">
                         <p className="mb-4 text-sm text-muted-foreground">
                             Create and revoke API keys for your applications.
                         </p>
-                        <Link href="/dashboard/api-keys">
-                            <Button variant="outline" className="w-full">
-                                Manage Keys
-                            </Button>
-                        </Link>
+                        <div className="mt-auto">
+                            <Link href="/dashboard/api-keys">
+                                <Button variant="outline" className="w-full">
+                                    Manage Keys
+                                </Button>
+                            </Link>
+                        </div>
                     </CardContent>
                 </Card>
 
-                <Card>
+                <Card className="flex flex-col h-full">
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2">
                             <CreditCard className="h-5 w-5 text-green-500" />
@@ -64,15 +68,17 @@ export default function DashboardPage() {
                         </CardTitle>
                         <CardDescription>Track your consumption</CardDescription>
                     </CardHeader>
-                    <CardContent>
+                    <CardContent className="flex flex-col flex-grow">
                         <p className="mb-4 text-sm text-muted-foreground">
                             View your request history and plan limits.
                         </p>
-                        <Link href="/dashboard/subscription">
-                            <Button variant="outline" className="w-full">
-                                View Usage
-                            </Button>
-                        </Link>
+                        <div className="mt-auto">
+                            <Link href="/dashboard/subscription">
+                                <Button variant="outline" className="w-full">
+                                    View Usage
+                                </Button>
+                            </Link>
+                        </div>
                     </CardContent>
                 </Card>
             </div>

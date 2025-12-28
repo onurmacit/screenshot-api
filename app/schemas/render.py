@@ -148,9 +148,9 @@ class PDFRequest(BaseModel):
     @classmethod
     def validate_format(cls, v: str) -> str:
         """Validate PDF format."""
-        allowed = {"a4", "letter", "legal", "tabloid"}
+        allowed = {"a0", "a1", "a2", "a3", "a4", "a5", "a6", "letter", "legal", "tabloid"}
         if v.lower() not in allowed:
-            raise ValueError(f"Format must be one of: {', '.join(allowed)}")
+            raise ValueError(f"Format must be one of: {', '.join(sorted(allowed))}")
         return v.upper()
 
     model_config = {"populate_by_name": True}

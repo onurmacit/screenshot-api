@@ -51,6 +51,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Close Redis pools
     await close_redis_pools()
 
+    # Close Browser Pool
+    from app.services.render_service import browser_pool
+    if browser_pool.is_initialized:
+        await browser_pool.close()
+
     logger.info("Application shutdown complete")
 
 

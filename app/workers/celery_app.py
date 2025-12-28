@@ -182,9 +182,10 @@ celery_app.conf.update(
     task_soft_time_limit=settings.CELERY_TASK_SOFT_TIME_LIMIT,
 
     # Worker settings
-    worker_prefetch_multiplier=1,
+    # worker_prefetch_multiplier=1,  # Overridden below
     worker_max_tasks_per_child=100,
     worker_concurrency=4,
+    worker_prefetch_multiplier=4,  # Fetch 4 tasks at a time to reduce round trips
 
     # Result backend settings
     result_expires=120,  # 2 minutes - reduces Redis storage and commands
@@ -205,8 +206,15 @@ celery_app.conf.update(
     # Redis Command Optimization Settings
     # ==========================================================================
     
+    # Polling interval - CRITICAL for reducing command count
+    # Default is often 1s. increasing to 10s reduces idle polling by 90%
+    broker_transport_options={
+        "polling_interval": 10,  # Check for new tasks every 10 seconds
+        "visibility_timeout": 3600,  # 1 hour visibility
+    },
+    
     # Disable worker gossip - reduces Redis PUBLISH/SUBSCRIBE commands
-    worker_enable_remote_control=False,
+    worker_enable_remote_control=True,
     
     # Disable mingle - workers don't need to sync with each other
     # Saves ~10-20 Redis commands per worker on startup
@@ -214,7 +222,7 @@ celery_app.conf.update(
     
     # Increase heartbeat interval (default 2s → 30s)
     # Reduces heartbeat commands by 93%
-    broker_heartbeat=60,  # 60s heartbeat reduces commands by 50%
+    broker_heartbeat=120,  # 120s heartbeat reduces commands significantly
     
     # Disable task events unless needed for monitoring
     # Saves PUBLISH commands for every task state change
@@ -225,7 +233,7 @@ celery_app.conf.update(
     task_create_missing_queues=True,
     
     # Broker pool limit - reduce connection overhead
-    broker_pool_limit=3,
+    broker_pool_limit=1,
 )
 
 # =============================================================================

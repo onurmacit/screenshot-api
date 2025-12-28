@@ -81,6 +81,7 @@ class BrowserPool:
                         "--disable-setuid-sandbox",
                         
                         # Stable performance optimizations
+                        "--single-process",
                         "--disable-dev-shm-usage",
                         "--disable-gpu",
                         "--disable-accelerated-2d-canvas",

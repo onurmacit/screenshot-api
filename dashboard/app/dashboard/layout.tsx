@@ -52,20 +52,20 @@ export default function DashboardLayout({
     // Check token validity
     const checkTokenValidity = useCallback(() => {
         const token = localStorage.getItem("token");
-        
+
         if (!token) {
             // No token - redirect to login
             router.push("/login");
             return false;
         }
-        
+
         if (isTokenExpired(token)) {
             // Token expired - logout and redirect
             console.log("Token expired, logging out...");
             handleLogout(true);
             return false;
         }
-        
+
         return true;
     }, [router, handleLogout]);
 
@@ -110,7 +110,7 @@ export default function DashboardLayout({
                         console.log("Token expired (timeout), logging out...");
                         handleLogout(true);
                     }, timeUntilExpiry);
-                    
+
                     return () => {
                         clearInterval(intervalId);
                         clearTimeout(timeoutId);
@@ -122,7 +122,31 @@ export default function DashboardLayout({
         return () => clearInterval(intervalId);
     }, [router, status, session, checkTokenValidity, handleLogout]);
 
-    if (!isMounted) return null;
+    // Show loading state while checking authentication
+    // This prevents the dashboard from flashing before redirect
+    if (!isMounted || status === "loading") {
+        return (
+            <div className="flex h-screen items-center justify-center bg-gray-50">
+                <div className="flex flex-col items-center gap-4">
+                    <div className="h-8 w-8 animate-spin rounded-full border-4 border-gray-200 border-t-blue-600" />
+                    <p className="text-sm text-muted-foreground">Loading...</p>
+                </div>
+            </div>
+        );
+    }
+
+    // If not authenticated and no token, don't render dashboard
+    const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+    if (status === "unauthenticated" && !token) {
+        return (
+            <div className="flex h-screen items-center justify-center bg-gray-50">
+                <div className="flex flex-col items-center gap-4">
+                    <div className="h-8 w-8 animate-spin rounded-full border-4 border-gray-200 border-t-blue-600" />
+                    <p className="text-sm text-muted-foreground">Redirecting to login...</p>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="flex h-screen bg-gray-50">

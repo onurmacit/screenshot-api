@@ -124,7 +124,7 @@ class Settings(BaseSettings):
     # ==========================================================================
     # Playwright / Browser
     # ==========================================================================
-    BROWSER_POOL_SIZE: int = 10
+    BROWSER_POOL_SIZE: int = 2
     BROWSER_TIMEOUT_MS: int = 30000
     BROWSER_MAX_RENDERS_PER_CONTEXT: int = 100
 

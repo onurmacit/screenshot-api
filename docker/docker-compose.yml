@@ -18,14 +18,15 @@ services:
       - APP_ENV=development
       - DEBUG=true
       - DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/screenshot_api
-      - REDIS_URL=redis://redis:6379/0
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/1
+      - REDIS_URL=${REDIS_URL}
+      - CELERY_BROKER_URL=${CELERY_BROKER_URL}
+      - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND}
       - AWS_S3_ENDPOINT_URL=http://minio:9000
       - AWS_S3_PUBLIC_URL=http://localhost:9000
       - AWS_ACCESS_KEY_ID=minioadmin
       - AWS_SECRET_ACCESS_KEY=minioadmin
       - AWS_S3_BUCKET=screenshot-api-renders
+      - PORT=8000
     volumes:
       - ../app:/app/app:ro
     depends_on:
@@ -50,9 +51,9 @@ services:
       - APP_ENV=development
       - DEBUG=true
       - DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/screenshot_api
-      - REDIS_URL=redis://redis:6379/0
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/1
+      - REDIS_URL=${REDIS_URL}
+      - CELERY_BROKER_URL=${CELERY_BROKER_URL}
+      - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND}
       - AWS_S3_ENDPOINT_URL=http://minio:9000
       - AWS_S3_PUBLIC_URL=http://localhost:9000
       - AWS_ACCESS_KEY_ID=minioadmin
@@ -82,9 +83,9 @@ services:
       - APP_ENV=development
       - DEBUG=true
       - DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/screenshot_api
-      - REDIS_URL=redis://redis:6379/0
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/1
+      - REDIS_URL=${REDIS_URL}
+      - CELERY_BROKER_URL=${CELERY_BROKER_URL}
+      - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND}
       - AWS_S3_ENDPOINT_URL=http://minio:9000
       - AWS_S3_PUBLIC_URL=http://localhost:9000
       - AWS_ACCESS_KEY_ID=minioadmin
@@ -114,9 +115,9 @@ services:
       - APP_ENV=development
       - DEBUG=true
       - DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/screenshot_api
-      - REDIS_URL=redis://redis:6379/0
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/1
+      - REDIS_URL=${REDIS_URL}
+      - CELERY_BROKER_URL=${CELERY_BROKER_URL}
+      - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND}
       - AWS_S3_ENDPOINT_URL=http://minio:9000
       - AWS_S3_PUBLIC_URL=http://localhost:9000
       - AWS_ACCESS_KEY_ID=minioadmin
@@ -146,9 +147,9 @@ services:
       - APP_ENV=development
       - DEBUG=true
       - DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/screenshot_api
-      - REDIS_URL=redis://redis:6379/0
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/1
+      - REDIS_URL=${REDIS_URL}
+      - CELERY_BROKER_URL=${CELERY_BROKER_URL}
+      - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND}
     volumes:
       - ../app:/app/app:ro
     depends_on:
@@ -169,8 +170,10 @@ services:
     ports:
       - "5555:5555"
     environment:
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/1
+      - CELERY_BROKER_URL=${CELERY_BROKER_URL}
+      - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND}
+    volumes:
+      - ../app:/app/app:ro
     depends_on:
       - redis
     networks:
@@ -184,7 +187,7 @@ services:
     image: postgres:15-alpine
     container_name: screenshot-postgres
     ports:
-      - "5433:5432"  # External port 5433 to avoid conflict with local PostgreSQL
+      - "5433:5432" # External port 5433 to avoid conflict with local PostgreSQL
     environment:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
@@ -192,7 +195,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -212,7 +215,7 @@ services:
     volumes:
       - redis_data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: [ "CMD", "redis-cli", "ping" ]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -236,7 +239,7 @@ services:
     volumes:
       - minio_data:/data
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      test: [ "CMD", "curl", "-f", "http://localhost:9000/minio/health/live" ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -254,13 +257,7 @@ services:
       minio:
         condition: service_healthy
     entrypoint: >
-      /bin/sh -c "
-      mc alias set myminio http://minio:9000 minioadmin minioadmin;
-      mc mb myminio/screenshot-api-renders --ignore-existing;
-      mc anonymous set public myminio/screenshot-api-renders;
-      echo 'Bucket created successfully';
-      exit 0;
-      "
+      /bin/sh -c " mc alias set myminio http://minio:9000 minioadmin minioadmin; mc mb myminio/screenshot-api-renders --ignore-existing; mc anonymous set public myminio/screenshot-api-renders; echo 'Bucket created successfully'; exit 0; "
     networks:
       - screenshot-network
 
@@ -278,4 +275,5 @@ volumes:
   postgres_data:
   redis_data:
   minio_data:
+
 

@@ -54,7 +54,7 @@ engine = create_async_engine(
     max_overflow=settings.DATABASE_MAX_OVERFLOW,
     pool_timeout=settings.DATABASE_POOL_TIMEOUT,
     pool_pre_ping=True,
-    connect_args=connect_args if connect_args else None,
+    connect_args=connect_args,
 )
 
 # Create session factory

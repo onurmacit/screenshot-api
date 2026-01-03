@@ -18,7 +18,7 @@ const handler = NextAuth({
         async signIn({ user, account, profile }) {
             if (account && (account.provider === "google" || account.provider === "github")) {
                 try {
-                    const backendUrl = "http://127.0.0.1:8000";
+                    const backendUrl = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
                     const response = await axios.post(`${backendUrl}/api/v1/auth/social-login`, {
                         provider: account.provider,
                         token: account.id_token || account.access_token,

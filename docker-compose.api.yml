@@ -1,0 +1,59 @@
+# =============================================================================
+# Screenshot API - API Droplet Deployment
+# =============================================================================
+# Deploy to: API droplet (138.197.103.137)
+# Usage: docker compose -f docker-compose.api.yml up -d
+
+services:
+  # ===========================================================================
+  # API Service (FastAPI + Uvicorn)
+  # ===========================================================================
+  api:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.api
+    container_name: screenshot-api
+    ports:
+      - "127.0.0.1:8000:8080"
+    environment:
+      - APP_ENV=production
+      - DEBUG=false
+      - LOG_LEVEL=INFO
+      - PORT=8080
+    env_file:
+      - .env
+    restart: unless-stopped
+    mem_limit: 1500m
+    memswap_limit: 3g
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ===========================================================================
+  # Nginx Reverse Proxy (HTTPS with Let's Encrypt)
+  # ===========================================================================
+  nginx:
+    image: nginx:alpine
+    container_name: screenshot-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./docker/nginx.ssl.conf:/etc/nginx/nginx.conf:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+    depends_on:
+      - api
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"

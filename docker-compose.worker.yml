@@ -1,0 +1,89 @@
+# =============================================================================
+# Screenshot API - Worker Droplet Deployment
+# =============================================================================
+# Deploy to: Worker droplet (167.71.85.169)
+# Usage: docker compose -f docker-compose.worker.yml up -d
+
+services:
+  # ===========================================================================
+  # Celery Worker (Default + Low Priority + Billing Queues)
+  # ===========================================================================
+  worker:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.worker
+    container_name: screenshot-worker
+    command: celery -A app.workers.celery_app worker --loglevel=info -Q default,low_priority,billing,webhooks,cleanup -c 2 -n worker-default@%h
+    environment:
+      - APP_ENV=production
+      - DEBUG=false
+      - LOG_LEVEL=INFO
+    env_file:
+      - .env
+    restart: unless-stopped
+    mem_limit: 1800m
+    memswap_limit: 4g
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f 'celery' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ===========================================================================
+  # Celery Worker (High Priority Queue - Pro & Business)
+  # ===========================================================================
+  worker-high:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.worker
+    container_name: screenshot-worker-high
+    command: celery -A app.workers.celery_app worker --loglevel=info -Q high_priority -c 2 -n worker-high@%h
+    environment:
+      - APP_ENV=production
+      - DEBUG=false
+      - LOG_LEVEL=INFO
+    env_file:
+      - .env
+    restart: unless-stopped
+    mem_limit: 1800m
+    memswap_limit: 4g
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f 'celery' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ===========================================================================
+  # Celery Beat (Scheduler) - Only one instance needed
+  # ===========================================================================
+  beat:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.worker
+    container_name: screenshot-beat
+    command: celery -A app.workers.celery_app beat --loglevel=info
+    environment:
+      - APP_ENV=production
+      - DEBUG=false
+      - LOG_LEVEL=INFO
+    env_file:
+      - .env
+    restart: unless-stopped
+    mem_limit: 256m
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"

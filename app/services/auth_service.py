@@ -520,26 +520,49 @@ class AuthService:
         user: User,
         ip_address: str | None = None,
         device_info: str | None = None,
+        max_retries: int = 3,
     ) -> str:
-        """Create and store refresh token."""
-        token = create_refresh_token(subject=str(user.id))
-        token_hash = hash_string(token)
+        """Create and store refresh token with retry logic for hash collisions."""
+        from sqlalchemy.exc import IntegrityError
+        
+        for attempt in range(max_retries):
+            token = create_refresh_token(subject=str(user.id))
+            token_hash = hash_string(token)
 
-        expires_at = utc_now() + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
+            expires_at = utc_now() + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
 
-        refresh_token = RefreshToken(
-            user_id=user.id,
-            token_hash=token_hash,
-            ip_address=ip_address,
-            device_info=device_info,
-            expires_at=expires_at,
-            is_revoked=False,
-        )
+            refresh_token = RefreshToken(
+                user_id=user.id,
+                token_hash=token_hash,
+                ip_address=ip_address,
+                device_info=device_info,
+                expires_at=expires_at,
+                is_revoked=False,
+            )
 
-        self.db.add(refresh_token)
-        await self.db.commit()
+            try:
+                self.db.add(refresh_token)
+                await self.db.commit()
+                return token
+            except IntegrityError as e:
+                await self.db.rollback()
+                if attempt < max_retries - 1:
+                    logger.warning(
+                        "Refresh token hash collision, retrying",
+                        attempt=attempt + 1,
+                        user_id=str(user.id),
+                    )
+                    continue
+                else:
+                    logger.error(
+                        "Failed to create refresh token after retries",
+                        user_id=str(user.id),
+                        error=str(e),
+                    )
+                    raise
 
-        return token
+        # This should never be reached, but for type safety
+        raise RuntimeError("Failed to create refresh token")
 
     async def get_user_by_id(self, user_id: UUID) -> User | None:
         """Get user by ID."""

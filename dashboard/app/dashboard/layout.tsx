@@ -10,13 +10,16 @@ import {
     Key,
     Settings,
     LogOut,
-    AppWindow
+    AppWindow,
+    Shield
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useSession, signOut } from "next-auth/react";
 import Image from "next/image";
 import { isTokenExpired, getTokenExpirationTime } from "@/services/api";
+
+const ADMIN_EMAILS = ["onurmaciit@gmail.com"];
 
 const sidebarItems = [
     { icon: LayoutDashboard, label: "Overview", href: "/dashboard" },
@@ -178,6 +181,22 @@ export default function DashboardLayout({
                             </Button>
                         </Link>
                     ))}
+
+                    {/* Admin Link - Only for admins */}
+                    {session?.user?.email && ADMIN_EMAILS.includes(session.user.email) && (
+                        <Link href="/dashboard/admin">
+                            <Button
+                                variant={pathname.startsWith("/dashboard/admin") ? "secondary" : "ghost"}
+                                className={cn(
+                                    "w-full justify-start gap-2",
+                                    pathname.startsWith("/dashboard/admin") && "bg-red-50 text-red-700 hover:bg-red-100"
+                                )}
+                            >
+                                <Shield className="h-4 w-4" />
+                                Admin
+                            </Button>
+                        </Link>
+                    )}
                 </nav>
 
                 <div className="p-4 border-t border-gray-100">

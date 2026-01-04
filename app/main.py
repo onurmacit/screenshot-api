@@ -174,6 +174,14 @@ app.include_router(
     tags=["Webhooks"],
 )
 
+# Admin routes (protected by admin email check)
+from app.api.routes import admin
+app.include_router(
+    admin.router,
+    prefix="/api/v1/admin",
+    tags=["Admin"],
+)
+
 app.include_router(
     billing.router,
     prefix="/api/v1/billing",

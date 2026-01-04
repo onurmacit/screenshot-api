@@ -190,7 +190,7 @@ async def list_users(
             id=user.id,
             email=user.email,
             full_name=user.full_name,
-            plan_name=user.plan_name,
+            plan_name=user.plan.name if user.plan else "free",
             is_active=user.is_active,
             created_at=user.created_at.isoformat(),
             api_keys_count=api_keys_count,

@@ -28,6 +28,12 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         call_next: Callable,
     ) -> Response:
         """Process request and add security headers to response."""
+        # Skip security headers for CORS preflight requests
+        # to allow CORSMiddleware to handle them properly
+        if request.method == "OPTIONS":
+            response = await call_next(request)
+            return response
+            
         response = await call_next(request)
 
         # 1. Prevent Clickjacking

@@ -271,10 +271,12 @@ class S3Manager:
 
     def _get_object_url(self, key: str) -> str:
         """Get the base URL for an S3 object."""
-        # Use public URL if available, otherwise fall back to endpoint URL
-        base_url = settings.AWS_S3_PUBLIC_URL or settings.AWS_S3_ENDPOINT_URL
-        if base_url:
-            return f"{base_url}/{self.bucket}/{key}"
+        # Public URL (CDN) already includes bucket in subdomain, so don't add it again
+        if settings.AWS_S3_PUBLIC_URL:
+            return f"{settings.AWS_S3_PUBLIC_URL}/{key}"
+        # Endpoint URL needs bucket in path
+        if settings.AWS_S3_ENDPOINT_URL:
+            return f"{settings.AWS_S3_ENDPOINT_URL}/{self.bucket}/{key}"
         return f"https://{self.bucket}.s3.{settings.AWS_REGION}.amazonaws.com/{key}"
 
 

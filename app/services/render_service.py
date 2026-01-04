@@ -615,6 +615,7 @@ class RenderService:
         url: str,
         options: dict[str, Any],
         user_plan: dict | None = None,
+        _retry_count: int = 0,
     ) -> tuple[bytes, dict[str, Any]]:
         """
         Capture a screenshot of a URL.
@@ -623,6 +624,7 @@ class RenderService:
             url: Target URL
             options: Screenshot options
             user_plan: User's plan features
+            _retry_count: Internal retry counter (do not set manually)
 
         Returns:
             Tuple of (image_bytes, metadata)
@@ -630,7 +632,26 @@ class RenderService:
         Raises:
             RenderError: If screenshot capture fails
         """
-        context = await self.pool.acquire_context()
+        MAX_RETRIES = 2
+        context = None
+        
+        try:
+            context = await self.pool.acquire_context()
+        except Exception as e:
+            # Browser pool acquisition failed - try to reinitialize and retry
+            if _retry_count < MAX_RETRIES:
+                logger.warning(
+                    "Browser pool acquisition failed, reinitializing and retrying",
+                    error=str(e),
+                    retry=_retry_count + 1,
+                )
+                try:
+                    await self.pool._reinitialize_pool()
+                except Exception:
+                    pass
+                return await self.capture_screenshot(url, options, user_plan, _retry_count + 1)
+            raise RenderError(f"Failed to acquire browser context: {str(e)}")
+        
         start_time = datetime.now(UTC)
         screenshot_bytes: bytes | None = None
 
@@ -810,13 +831,41 @@ class RenderService:
         except RenderError:
             raise
         except Exception as e:
-            logger.exception("Screenshot capture failed", url=url, error=str(e))
+            error_str = str(e)
+            # Check for browser disconnection errors - retry if possible
+            is_browser_error = any(x in error_str.lower() for x in [
+                "targetclosed", "target closed", "browser has been closed",
+                "context has been closed", "page has been closed",
+                "connection closed", "browser disconnected"
+            ])
+            
+            if is_browser_error and _retry_count < MAX_RETRIES:
+                logger.warning(
+                    "Browser disconnected during render, reinitializing and retrying",
+                    error=error_str[:100],
+                    retry=_retry_count + 1,
+                )
+                # Release context before retry
+                if context:
+                    try:
+                        await self.pool.release_context(context)
+                    except Exception:
+                        pass
+                # Reinitialize pool and retry
+                try:
+                    await self.pool._reinitialize_pool()
+                except Exception:
+                    pass
+                return await self.capture_screenshot(url, options, user_plan, _retry_count + 1)
+            
+            logger.exception("Screenshot capture failed", url=url, error=error_str)
             raise RenderError(
-                f"Screenshot capture failed: {str(e)}",
+                f"Screenshot capture failed: {error_str}",
                 details={"url": url},
             )
         finally:
-            await self.pool.release_context(context)
+            if context:
+                await self.pool.release_context(context)
 
     async def generate_pdf(
         self,

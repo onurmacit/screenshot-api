@@ -156,27 +156,27 @@ export default function ScreenshotPlaygroundPage() {
                 <CodeSnippet code={generateCurl()} title="cURL Command" />
             </div>
 
-            {/* Preview Panel - Always Show Monitor Frame */}
-            <div className="flex-1 flex flex-col items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200 rounded-2xl p-6 min-h-[500px]">
+            {/* Preview Panel - Full Width Monitor */}
+            <div className="flex-1 flex flex-col min-h-[500px]">
                 {/* Monitor Frame - Always Visible */}
-                <div className="w-full max-w-4xl">
+                <div className="flex-1 flex flex-col">
                     {/* Monitor Screen */}
-                    <div className="bg-gray-900 rounded-t-2xl p-2 shadow-2xl">
+                    <div className="bg-gray-900 rounded-2xl p-2 shadow-2xl flex-1 flex flex-col">
                         {/* Browser Chrome */}
-                        <div className="bg-gray-800 rounded-t-lg px-4 py-2.5 flex items-center gap-3">
+                        <div className="bg-gray-800 rounded-xl px-4 py-2.5 flex items-center gap-3">
                             <div className="flex gap-2">
-                                <div className="w-3 h-3 rounded-full bg-red-500 hover:bg-red-400 transition-colors"></div>
-                                <div className="w-3 h-3 rounded-full bg-yellow-500 hover:bg-yellow-400 transition-colors"></div>
-                                <div className="w-3 h-3 rounded-full bg-green-500 hover:bg-green-400 transition-colors"></div>
+                                <div className="w-3 h-3 rounded-full bg-red-500 hover:bg-red-400 transition-colors cursor-pointer"></div>
+                                <div className="w-3 h-3 rounded-full bg-yellow-500 hover:bg-yellow-400 transition-colors cursor-pointer"></div>
+                                <div className="w-3 h-3 rounded-full bg-green-500 hover:bg-green-400 transition-colors cursor-pointer"></div>
                             </div>
                             <div className="flex-1 mx-4">
-                                <div className="bg-gray-700 rounded-md px-4 py-1.5 text-sm text-gray-300 truncate">
+                                <div className="bg-gray-700 rounded-lg px-4 py-1.5 text-sm text-gray-300 truncate">
                                     {url}
                                 </div>
                             </div>
                         </div>
                         {/* Screenshot Content Area */}
-                        <div className="bg-white rounded-b-lg overflow-hidden min-h-[350px] flex items-center justify-center">
+                        <div className="bg-white rounded-xl mt-2 overflow-hidden flex-1 flex items-center justify-center min-h-[400px]">
                             {isLoading ? (
                                 <div className="text-center text-gray-400 py-16">
                                     <Loader2 className="h-10 w-10 mx-auto mb-3 animate-spin text-blue-500" />
@@ -195,7 +195,7 @@ export default function ScreenshotPlaygroundPage() {
                                 <img
                                     src={result}
                                     alt="Screenshot Preview"
-                                    className="w-full h-auto object-contain max-h-[55vh]"
+                                    className="w-full h-full object-contain"
                                 />
                             ) : (
                                 <div className="text-center text-gray-400 py-16">
@@ -208,16 +208,16 @@ export default function ScreenshotPlaygroundPage() {
                     </div>
                     {/* Monitor Stand */}
                     <div className="flex justify-center">
-                        <div className="w-16 h-5 bg-gradient-to-b from-gray-300 to-gray-400"></div>
+                        <div className="w-16 h-5 bg-gradient-to-b from-gray-700 to-gray-800 rounded-b-sm"></div>
                     </div>
                     <div className="flex justify-center">
-                        <div className="w-28 h-2 bg-gradient-to-b from-gray-400 to-gray-500 rounded-b-lg shadow-md"></div>
+                        <div className="w-28 h-2 bg-gradient-to-b from-gray-600 to-gray-700 rounded-b-lg shadow-md"></div>
                     </div>
                 </div>
 
                 {/* Download Button - Outside Frame, Bottom Right */}
                 {result && (
-                    <div className="w-full max-w-4xl mt-6 flex justify-end">
+                    <div className="mt-4 flex justify-end">
                         <button
                             onClick={() => {
                                 const link = document.createElement('a');

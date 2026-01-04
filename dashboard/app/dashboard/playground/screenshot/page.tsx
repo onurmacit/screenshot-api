@@ -10,7 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Separator } from "@/components/ui/separator";
 import { Loader2, Camera } from "lucide-react";
 import { api } from "@/services/api";
-import { PlaygroundHeader, CodeSnippet, PreviewPanel, DownloadButton } from "@/components/playground";
+import { PlaygroundHeader, CodeSnippet, DownloadButton } from "@/components/playground";
 
 export default function ScreenshotPlaygroundPage() {
     const [url, setUrl] = useState("https://stripe.com");
@@ -156,24 +156,67 @@ export default function ScreenshotPlaygroundPage() {
                 <CodeSnippet code={generateCurl()} title="cURL Command" />
             </div>
 
-            {/* Preview Panel */}
-            <PreviewPanel
-                isLoading={isLoading}
-                error={error}
-                emptyState={
+            {/* Preview Panel - Monitor Style */}
+            <div className="flex-1 flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200 rounded-2xl p-8 min-h-[500px]">
+                {isLoading ? (
+                    <div className="text-center text-gray-400">
+                        <Loader2 className="h-12 w-12 mx-auto mb-4 animate-spin" />
+                        <p>Rendering screenshot...</p>
+                    </div>
+                ) : error ? (
+                    <div className="text-center text-red-500 max-w-md">
+                        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                            <p className="font-medium">Error</p>
+                            <p className="text-sm mt-1">{error}</p>
+                        </div>
+                    </div>
+                ) : result ? (
+                    <div className="flex flex-col items-center gap-4 w-full max-w-4xl">
+                        {/* Monitor Frame */}
+                        <div className="w-full">
+                            {/* Monitor Screen */}
+                            <div className="bg-gray-900 rounded-t-2xl p-2 shadow-2xl">
+                                {/* Browser Chrome */}
+                                <div className="bg-gray-800 rounded-t-lg px-3 py-2 flex items-center gap-2">
+                                    <div className="flex gap-1.5">
+                                        <div className="w-3 h-3 rounded-full bg-red-500"></div>
+                                        <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
+                                        <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                                    </div>
+                                    <div className="flex-1 mx-4">
+                                        <div className="bg-gray-700 rounded-md px-3 py-1 text-xs text-gray-400 truncate max-w-md">
+                                            {url}
+                                        </div>
+                                    </div>
+                                </div>
+                                {/* Screenshot */}
+                                <div className="bg-white rounded-b-lg overflow-hidden">
+                                    <img
+                                        src={result}
+                                        alt="Screenshot Preview"
+                                        className="w-full h-auto object-contain max-h-[60vh]"
+                                    />
+                                </div>
+                            </div>
+                            {/* Monitor Stand */}
+                            <div className="flex justify-center">
+                                <div className="w-20 h-6 bg-gradient-to-b from-gray-300 to-gray-400 rounded-b-sm"></div>
+                            </div>
+                            <div className="flex justify-center">
+                                <div className="w-32 h-2 bg-gradient-to-b from-gray-400 to-gray-500 rounded-b-lg"></div>
+                            </div>
+                        </div>
+
+                        {/* Download Button - Below Monitor */}
+                        <DownloadButton url={result} label="Download Screenshot" />
+                    </div>
+                ) : (
                     <div className="text-center text-gray-400">
                         <Camera className="h-12 w-12 mx-auto mb-4 opacity-50" />
                         <p>Click "Render Screenshot" to preview</p>
                     </div>
-                }
-            >
-                {result && (
-                    <>
-                        <img src={result} alt="Screenshot Preview" className="max-w-full max-h-full shadow-lg rounded-lg" />
-                        <DownloadButton url={result} label="Download Screenshot" />
-                    </>
                 )}
-            </PreviewPanel>
+            </div>
         </div>
     );
 }

@@ -10,7 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Separator } from "@/components/ui/separator";
 import { Loader2, Camera } from "lucide-react";
 import { api } from "@/services/api";
-import { PlaygroundHeader, CodeSnippet, DownloadButton } from "@/components/playground";
+import { PlaygroundHeader, CodeSnippet } from "@/components/playground";
 
 export default function ScreenshotPlaygroundPage() {
     const [url, setUrl] = useState("https://stripe.com");
@@ -156,64 +156,83 @@ export default function ScreenshotPlaygroundPage() {
                 <CodeSnippet code={generateCurl()} title="cURL Command" />
             </div>
 
-            {/* Preview Panel - Monitor Style */}
-            <div className="flex-1 flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200 rounded-2xl p-8 min-h-[500px]">
-                {isLoading ? (
-                    <div className="text-center text-gray-400">
-                        <Loader2 className="h-12 w-12 mx-auto mb-4 animate-spin" />
-                        <p>Rendering screenshot...</p>
-                    </div>
-                ) : error ? (
-                    <div className="text-center text-red-500 max-w-md">
-                        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                            <p className="font-medium">Error</p>
-                            <p className="text-sm mt-1">{error}</p>
-                        </div>
-                    </div>
-                ) : result ? (
-                    <div className="flex flex-col items-center gap-4 w-full max-w-4xl">
-                        {/* Monitor Frame */}
-                        <div className="w-full">
-                            {/* Monitor Screen */}
-                            <div className="bg-gray-900 rounded-t-2xl p-2 shadow-2xl">
-                                {/* Browser Chrome */}
-                                <div className="bg-gray-800 rounded-t-lg px-3 py-2 flex items-center gap-2">
-                                    <div className="flex gap-1.5">
-                                        <div className="w-3 h-3 rounded-full bg-red-500"></div>
-                                        <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
-                                        <div className="w-3 h-3 rounded-full bg-green-500"></div>
-                                    </div>
-                                    <div className="flex-1 mx-4">
-                                        <div className="bg-gray-700 rounded-md px-3 py-1 text-xs text-gray-400 truncate max-w-md">
-                                            {url}
-                                        </div>
-                                    </div>
-                                </div>
-                                {/* Screenshot */}
-                                <div className="bg-white rounded-b-lg overflow-hidden">
-                                    <img
-                                        src={result}
-                                        alt="Screenshot Preview"
-                                        className="w-full h-auto object-contain max-h-[60vh]"
-                                    />
+            {/* Preview Panel - Always Show Monitor Frame */}
+            <div className="flex-1 flex flex-col items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200 rounded-2xl p-6 min-h-[500px]">
+                {/* Monitor Frame - Always Visible */}
+                <div className="w-full max-w-4xl">
+                    {/* Monitor Screen */}
+                    <div className="bg-gray-900 rounded-t-2xl p-2 shadow-2xl">
+                        {/* Browser Chrome */}
+                        <div className="bg-gray-800 rounded-t-lg px-4 py-2.5 flex items-center gap-3">
+                            <div className="flex gap-2">
+                                <div className="w-3 h-3 rounded-full bg-red-500 hover:bg-red-400 transition-colors"></div>
+                                <div className="w-3 h-3 rounded-full bg-yellow-500 hover:bg-yellow-400 transition-colors"></div>
+                                <div className="w-3 h-3 rounded-full bg-green-500 hover:bg-green-400 transition-colors"></div>
+                            </div>
+                            <div className="flex-1 mx-4">
+                                <div className="bg-gray-700 rounded-md px-4 py-1.5 text-sm text-gray-300 truncate">
+                                    {url}
                                 </div>
                             </div>
-                            {/* Monitor Stand */}
-                            <div className="flex justify-center">
-                                <div className="w-20 h-6 bg-gradient-to-b from-gray-300 to-gray-400 rounded-b-sm"></div>
-                            </div>
-                            <div className="flex justify-center">
-                                <div className="w-32 h-2 bg-gradient-to-b from-gray-400 to-gray-500 rounded-b-lg"></div>
-                            </div>
                         </div>
+                        {/* Screenshot Content Area */}
+                        <div className="bg-white rounded-b-lg overflow-hidden min-h-[350px] flex items-center justify-center">
+                            {isLoading ? (
+                                <div className="text-center text-gray-400 py-16">
+                                    <Loader2 className="h-10 w-10 mx-auto mb-3 animate-spin text-blue-500" />
+                                    <p className="text-sm font-medium">Rendering screenshot...</p>
+                                    <p className="text-xs mt-1 text-gray-300">This may take a few seconds</p>
+                                </div>
+                            ) : error ? (
+                                <div className="text-center max-w-sm py-12 px-4">
+                                    <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-3">
+                                        <span className="text-red-500 text-xl">!</span>
+                                    </div>
+                                    <p className="font-medium text-gray-800 mb-1">Rendering Failed</p>
+                                    <p className="text-sm text-gray-500">{error}</p>
+                                </div>
+                            ) : result ? (
+                                <img
+                                    src={result}
+                                    alt="Screenshot Preview"
+                                    className="w-full h-auto object-contain max-h-[55vh]"
+                                />
+                            ) : (
+                                <div className="text-center text-gray-400 py-16">
+                                    <Camera className="h-10 w-10 mx-auto mb-3 opacity-40" />
+                                    <p className="text-sm font-medium">No screenshot yet</p>
+                                    <p className="text-xs mt-1 text-gray-300">Click "Render Screenshot" to generate</p>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                    {/* Monitor Stand */}
+                    <div className="flex justify-center">
+                        <div className="w-16 h-5 bg-gradient-to-b from-gray-300 to-gray-400"></div>
+                    </div>
+                    <div className="flex justify-center">
+                        <div className="w-28 h-2 bg-gradient-to-b from-gray-400 to-gray-500 rounded-b-lg shadow-md"></div>
+                    </div>
+                </div>
 
-                        {/* Download Button - Below Monitor */}
-                        <DownloadButton url={result} label="Download Screenshot" />
-                    </div>
-                ) : (
-                    <div className="text-center text-gray-400">
-                        <Camera className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                        <p>Click "Render Screenshot" to preview</p>
+                {/* Download Button - Outside Frame, Bottom Right */}
+                {result && (
+                    <div className="w-full max-w-4xl mt-6 flex justify-end">
+                        <button
+                            onClick={() => {
+                                const link = document.createElement('a');
+                                link.href = result;
+                                link.download = `screenshot-${Date.now()}.${format}`;
+                                link.target = '_blank';
+                                link.click();
+                            }}
+                            className="inline-flex items-center gap-2 px-5 py-2.5 bg-gray-900 hover:bg-gray-800 text-white rounded-lg font-medium text-sm transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5"
+                        >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                            </svg>
+                            Download {format.toUpperCase()}
+                        </button>
                     </div>
                 )}
             </div>

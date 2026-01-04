@@ -13,7 +13,7 @@ from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
 
-from app.api.dependencies import CurrentUser, DBSession
+from app.api.dependencies import CurrentUser, DBSession, JWTUser
 from app.core.config import settings
 from app.models import APIKey, RenderJob, User
 from app.utils.logger import get_logger
@@ -27,7 +27,7 @@ router = APIRouter()
 # Admin Check Dependency
 # =============================================================================
 
-async def require_admin(current_user: CurrentUser) -> User:
+async def require_admin(current_user: JWTUser) -> CurrentUser:
     """Verify the current user is an admin."""
     if current_user.email not in settings.ADMIN_EMAILS:
         raise HTTPException(
@@ -37,7 +37,7 @@ async def require_admin(current_user: CurrentUser) -> User:
     return current_user
 
 
-AdminUser = Annotated[User, Depends(require_admin)]
+AdminUser = Annotated[CurrentUser, Depends(require_admin)]
 
 
 # =============================================================================

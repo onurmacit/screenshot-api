@@ -32,7 +32,7 @@ export default function AdminJobsPage() {
         const fetchJobs = async () => {
             setLoading(true);
             try {
-                const response = await api.get(`/admin/jobs?page=${page}&per_page=50`);
+                const response = await api.get(`/api/v1/admin/jobs?page=${page}&per_page=50`);
                 setData(response.data);
             } catch (err) {
                 console.error("Failed to load jobs", err);
@@ -98,8 +98,8 @@ export default function AdminJobsPage() {
                                     <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">{formatBytes(job.file_size_bytes)}</td>
                                     <td className="px-4 py-3 whitespace-nowrap">
                                         <span className={`px-2 py-1 text-xs font-medium rounded-full ${job.status === "completed" ? "bg-green-100 text-green-800" :
-                                                job.status === "failed" ? "bg-red-100 text-red-800" :
-                                                    "bg-yellow-100 text-yellow-800"
+                                            job.status === "failed" ? "bg-red-100 text-red-800" :
+                                                "bg-yellow-100 text-yellow-800"
                                             }`}>
                                             {job.status}
                                         </span>

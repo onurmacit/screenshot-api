@@ -32,7 +32,7 @@ export default function AdminAPIKeysPage() {
         const fetchKeys = async () => {
             setLoading(true);
             try {
-                const response = await api.get(`/admin/api-keys?page=${page}&per_page=20`);
+                const response = await api.get(`/api/v1/admin/api-keys?page=${page}&per_page=20`);
                 setData(response.data);
             } catch (err) {
                 console.error("Failed to load API keys", err);

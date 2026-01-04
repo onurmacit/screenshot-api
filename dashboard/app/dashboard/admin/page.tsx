@@ -20,7 +20,7 @@ export default function AdminOverviewPage() {
     useEffect(() => {
         const fetchStats = async () => {
             try {
-                const response = await api.get("/admin/stats");
+                const response = await api.get("/api/v1/admin/stats");
                 setStats(response.data);
             } catch (err: any) {
                 setError(err.response?.data?.detail || "Failed to load stats");

@@ -31,7 +31,7 @@ export default function AdminUsersPage() {
         const fetchUsers = async () => {
             setLoading(true);
             try {
-                const response = await api.get(`/admin/users?page=${page}&per_page=20`);
+                const response = await api.get(`/api/v1/admin/users?page=${page}&per_page=20`);
                 setData(response.data);
             } catch (err) {
                 console.error("Failed to load users", err);

@@ -474,6 +474,71 @@ class RateLimitService:
         logger.info("Rate limits reset", user_id=str(user_id))
         return True
 
+    # =========================================================================
+    # DEMO RATE LIMITING - IP-based for public demo endpoint
+    # =========================================================================
+
+    async def check_demo_rate_limit(self, client_ip: str) -> bool:
+        """
+        Check if IP has exceeded demo rate limit.
+
+        Args:
+            client_ip: Client IP address
+
+        Returns:
+            True if rate limited (should block), False if allowed
+        """
+        demo_limit = 5  # 5 requests per minute
+        window_size = 60  # 1 minute
+
+        async with redis_context("rate_limit") as redis:
+            key = f"rl:demo:ip:{client_ip}"
+            current_time = int(time.time())
+            window_start = current_time - window_size
+
+            # Remove expired entries
+            await redis.zremrangebyscore(key, 0, window_start)
+
+            # Get current count
+            count = await redis.zcard(key)
+
+            if count >= demo_limit:
+                logger.warning(
+                    "Demo rate limit exceeded",
+                    ip=client_ip,
+                    count=count,
+                    limit=demo_limit,
+                )
+                return True  # Rate limited
+
+            return False  # Allowed
+
+    async def increment_demo_usage(self, client_ip: str) -> int:
+        """
+        Increment demo usage counter for an IP.
+
+        Args:
+            client_ip: Client IP address
+
+        Returns:
+            New counter value
+        """
+        async with redis_context("rate_limit") as redis:
+            key = f"rl:demo:ip:{client_ip}"
+            current_time = int(time.time())
+
+            # Add request to sorted set
+            await redis.zadd(key, {f"{current_time}:{id(current_time)}": current_time})
+
+            # Set expiry
+            await redis.expire(key, 120)  # 2 minute expiry
+
+            count = await redis.zcard(key)
+
+        logger.debug("Demo usage incremented", ip=client_ip, count=count)
+        return count
+
 
 # Global rate limit service instance
 rate_limit_service = RateLimitService()
+

@@ -5,7 +5,7 @@ Screenshot and PDF rendering endpoints
 from typing import Union
 from uuid import UUID
 
-from fastapi import APIRouter, Query, status
+from fastapi import APIRouter, HTTPException, Query, Request, status
 from fastapi.responses import Response
 from sqlalchemy import func, select
 
@@ -35,6 +35,186 @@ from app.utils.validators import validate_url
 from app.workers.render_tasks import process_pdf, process_screenshot
 
 router = APIRouter()
+
+
+# =============================================================================
+# PUBLIC DEMO ENDPOINT - No authentication required, IP rate-limited
+# =============================================================================
+
+@router.get(
+    "/demo",
+    summary="Demo screenshot (public, rate-limited)",
+    description="Public demo endpoint for testing. No API key required. Limited to 5 requests per minute per IP.",
+    responses={
+        200: {
+            "content": {
+                "image/png": {},
+                "image/jpeg": {},
+                "image/webp": {},
+            },
+            "description": "Screenshot image",
+        },
+        429: {
+            "description": "Rate limit exceeded (5 req/min per IP)",
+        },
+    },
+    tags=["demo"],
+)
+async def demo_screenshot(
+    request: Request,
+    url: str = Query(..., description="URL to capture", max_length=500),
+    format: str = Query("jpeg", description="Output format (jpeg, png, webp)"),
+    width: int = Query(1280, ge=320, le=1920, description="Viewport width (max 1920 for demo)"),
+    height: int = Query(800, ge=240, le=1080, description="Viewport height (max 1080 for demo)"),
+) -> Response:
+    """
+    Public demo endpoint for the landing page.
+    
+    **No API key required** - perfect for trying out the service.
+    
+    **Rate limits:**
+    - 5 requests per minute per IP
+    - Maximum viewport: 1920x1080
+    - Always includes watermark
+    
+    **Example:**
+    ```
+    GET /api/v1/renders/demo?url=https://stripe.com
+    ```
+    """
+    import time
+    start_time = time.perf_counter()
+    
+    # Get client IP for rate limiting
+    client_ip = request.client.host if request.client else "unknown"
+    forwarded_for = request.headers.get("X-Forwarded-For")
+    if forwarded_for:
+        client_ip = forwarded_for.split(",")[0].strip()
+    
+    # Check IP-based rate limit (5 per minute)
+    is_limited = await rate_limit_service.check_demo_rate_limit(client_ip)
+    if is_limited:
+        raise HTTPException(
+            status_code=429,
+            detail={
+                "error": "rate_limit_exceeded",
+                "message": "Demo rate limit exceeded. Maximum 5 requests per minute.",
+                "retry_after": 60,
+            },
+            headers={"Retry-After": "60"},
+        )
+    
+    # Validate URL
+    is_valid, error_message = validate_url(url, require_https=False)
+    if not is_valid:
+        raise ValidationError(error_message or "Invalid URL")
+    
+    # Clamp dimensions for demo
+    width = min(width, 1920)
+    height = min(height, 1080)
+    
+    # Build options (limited for demo)
+    options = {
+        "width": width,
+        "height": height,
+        "format": format if format in ("jpeg", "png", "webp") else "jpeg",
+        "quality": 80,
+        "full_page": False,
+        "delay": 0,
+        "device_scale_factor": 1.0,
+        "block_ads": True,
+        "block_trackers": True,
+        "block_cookie_banners": True,
+    }
+    
+    # Check cache first
+    try:
+        cached = await cache_service.get_screenshot_cache(url, options)
+        if cached:
+            image_bytes, metadata = cached
+            elapsed = time.perf_counter() - start_time
+            logger.info(
+                "Demo screenshot served from cache",
+                url=url[:50],
+                ip=client_ip,
+                elapsed=f"{elapsed:.3f}s",
+            )
+            
+            content_types = {
+                "png": "image/png",
+                "jpeg": "image/jpeg",
+                "webp": "image/webp",
+            }
+            content_type = content_types.get(format, "image/jpeg")
+            
+            return Response(
+                content=image_bytes,
+                media_type=content_type,
+                headers={
+                    "Cache-Control": "public, max-age=3600",
+                    "X-Cache": "HIT",
+                    "X-Render-Time": f"{elapsed:.3f}s",
+                    "X-Demo": "true",
+                },
+            )
+    except Exception as e:
+        logger.warning("Demo cache check failed", error=str(e))
+    
+    # Render new screenshot
+    image_bytes, metadata = await render_service.capture_screenshot(
+        url=url,
+        options=options,
+        user_plan={"watermark": True},  # Always apply watermark for demo
+    )
+    
+    # Always apply watermark for demo
+    image_bytes = render_service.inject_watermark(
+        image_bytes,
+        format=format,
+    )
+    
+    # Cache the result
+    try:
+        await cache_service.set_screenshot_cache(
+            url=url,
+            options=options,
+            image_bytes=image_bytes,
+            metadata=metadata,
+            ttl=3600,
+        )
+    except Exception as e:
+        logger.warning("Demo cache set failed", error=str(e))
+    
+    # Increment demo usage counter
+    await rate_limit_service.increment_demo_usage(client_ip)
+    
+    elapsed = time.perf_counter() - start_time
+    logger.info(
+        "Demo screenshot rendered",
+        url=url[:50],
+        ip=client_ip,
+        elapsed=f"{elapsed:.3f}s",
+        size=len(image_bytes),
+    )
+    
+    content_types = {
+        "png": "image/png",
+        "jpeg": "image/jpeg",
+        "webp": "image/webp",
+    }
+    content_type = content_types.get(format, "image/jpeg")
+    
+    return Response(
+        content=image_bytes,
+        media_type=content_type,
+        headers={
+            "Content-Length": str(len(image_bytes)),
+            "Cache-Control": "public, max-age=3600",
+            "X-Cache": "MISS",
+            "X-Render-Time": f"{elapsed:.3f}s",
+            "X-Demo": "true",
+        },
+    )
 
 
 # =============================================================================

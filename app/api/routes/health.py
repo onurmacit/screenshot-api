@@ -197,3 +197,19 @@ async def version_info() -> dict:
         "version": settings.APP_VERSION,
         "environment": settings.APP_ENV,
     }
+
+
+@router.get(
+    "/sentry-debug",
+    summary="Sentry debug",
+    description="Trigger a test error for Sentry.",
+    include_in_schema=False,
+)
+async def sentry_debug() -> dict:
+    """
+    Trigger a test error for Sentry integration verification.
+    
+    This endpoint intentionally raises a ZeroDivisionError.
+    """
+    division_by_zero = 1 / 0
+    return {"message": "This will never be returned"}

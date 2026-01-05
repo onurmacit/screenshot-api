@@ -5,10 +5,13 @@ FastAPI Application Entry Point
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
+import sentry_sdk
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, RedirectResponse, Response
 from prometheus_fastapi_instrumentator import Instrumentator
+from sentry_sdk.integrations.fastapi import FastApiIntegration
+from sentry_sdk.integrations.starlette import StarletteIntegration
 
 from app.api.routes import auth, billing, health, renders, usage, webhooks
 from app.core.config import settings
@@ -19,6 +22,22 @@ from app.middleware.rate_limit import RateLimitMiddleware
 from app.middleware.security import SecurityHeadersMiddleware
 from app.utils.exceptions import APIError
 from app.utils.logger import configure_logging, logger
+
+# Initialize Sentry for error tracking
+if settings.SENTRY_DSN:
+    sentry_sdk.init(
+        dsn=settings.SENTRY_DSN,
+        environment=settings.APP_ENV,
+        release=f"screenshot-api@{settings.APP_VERSION}",
+        traces_sample_rate=0.1,  # 10% of transactions for performance monitoring
+        profiles_sample_rate=0.1,  # 10% of transactions for profiling
+        integrations=[
+            StarletteIntegration(transaction_style="endpoint"),
+            FastApiIntegration(transaction_style="endpoint"),
+        ],
+        send_default_pii=False,  # Don't send user PII
+    )
+    logger.info("Sentry initialized", dsn=settings.SENTRY_DSN[:30] + "...")
 
 
 @asynccontextmanager

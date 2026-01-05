@@ -69,4 +69,4 @@ opentelemetry-sdk==1.22.0
 opentelemetry-instrumentation-fastapi==0.43b0
 
 # Sentry (Error Tracking)
-sentry-sdk[fastapi]==1.39.2
+sentry-sdk[fastapi]==2.47.0

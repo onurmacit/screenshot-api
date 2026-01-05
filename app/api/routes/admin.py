@@ -68,14 +68,13 @@ class AdminUserResponse(BaseModel):
 
 class AdminAPIKeyResponse(BaseModel):
     id: UUID
-    name: str
+    name: str | None
     key_prefix: str
     user_email: str
     user_id: UUID
     is_active: bool
     created_at: str
     last_used_at: str | None
-    request_count: int
 
     class Config:
         from_attributes = True
@@ -241,7 +240,6 @@ async def list_api_keys(
             is_active=key.is_active,
             created_at=key.created_at.isoformat(),
             last_used_at=key.last_used_at.isoformat() if key.last_used_at else None,
-            request_count=key.request_count,
         )
         for key in keys
     ]

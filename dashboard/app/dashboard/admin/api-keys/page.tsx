@@ -5,14 +5,13 @@ import { api } from "@/services/api";
 
 interface APIKey {
     id: string;
-    name: string;
+    name: string | null;
     key_prefix: string;
     user_email: string;
     user_id: string;
     is_active: boolean;
     created_at: string;
     last_used_at: string | null;
-    request_count: number;
 }
 
 interface PaginatedResponse {
@@ -64,7 +63,6 @@ export default function AdminAPIKeysPage() {
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Key</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Owner</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Requests</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Last Used</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                         </tr>
@@ -72,12 +70,11 @@ export default function AdminAPIKeysPage() {
                     <tbody className="bg-white divide-y divide-gray-200">
                         {data?.items.map((key) => (
                             <tr key={key.id} className="hover:bg-gray-50">
-                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{key.name}</td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{key.name || "Unnamed"}</td>
                                 <td className="px-6 py-4 whitespace-nowrap">
                                     <code className="px-2 py-1 bg-gray-100 rounded text-sm">sk_live_{key.key_prefix}...</code>
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{key.user_email}</td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{key.request_count}</td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                     {key.last_used_at ? new Date(key.last_used_at).toLocaleString() : "Never"}
                                 </td>

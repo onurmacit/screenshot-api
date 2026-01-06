@@ -11,6 +11,15 @@ import structlog
 from app.core.config import settings
 
 
+def add_request_id(logger: str, method_name: str, event_dict: dict) -> dict:
+    """Add request ID to log entries."""
+    from app.middleware.request_id import get_request_id
+    request_id = get_request_id()
+    if request_id:
+        event_dict["request_id"] = request_id
+    return event_dict
+
+
 def configure_logging() -> None:
     """Configure structured logging for the application."""
 
@@ -20,6 +29,7 @@ def configure_logging() -> None:
     # Configure structlog processors
     shared_processors: list[Any] = [
         structlog.contextvars.merge_contextvars,
+        add_request_id,  # Add request ID to all logs
         structlog.stdlib.add_log_level,
         structlog.stdlib.add_logger_name,
         structlog.stdlib.PositionalArgumentsFormatter(),

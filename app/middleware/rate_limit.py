@@ -96,18 +96,46 @@ def is_ip_in_networks(ip: str, networks: list[str]) -> bool:
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
     """
-    IP-based rate limiting middleware.
+    IP-based rate limiting middleware with endpoint-specific limits.
 
     This middleware applies basic IP-based rate limiting before authentication.
     User-based rate limiting is applied in the API dependencies after auth.
     
     Security: Only trusts X-Forwarded-For from configured TRUSTED_PROXIES.
+    
+    Endpoint-specific limits:
+    - Render endpoints (/renders/): Lower limit (resource intensive)
+    - Auth endpoints (/auth/): Medium limit (prevent brute force)
+    - Other endpoints: Higher limit (lightweight operations)
     """
+    
+    # Endpoint-specific rate limits (per minute per IP)
+    RATE_LIMITS = {
+        "render": 30,    # Screenshot/PDF renders - resource intensive
+        "auth": 20,      # Login/register - prevent brute force
+        "admin": 60,     # Admin operations
+        "default": 100,  # Other lightweight endpoints
+    }
 
     def __init__(self, app):
         super().__init__(app)
-        self.limit_per_minute = settings.IP_RATE_LIMIT_PER_MINUTE
+        self.default_limit = settings.IP_RATE_LIMIT_PER_MINUTE
         self.trusted_proxies = settings.TRUSTED_PROXIES
+    
+    def _get_endpoint_type(self, path: str) -> str:
+        """Determine endpoint type based on URL path."""
+        path_lower = path.lower()
+        if "/renders/" in path_lower or "/render/" in path_lower:
+            return "render"
+        elif "/auth/" in path_lower:
+            return "auth"
+        elif "/admin/" in path_lower:
+            return "admin"
+        return "default"
+    
+    def _get_rate_limit(self, endpoint_type: str) -> int:
+        """Get rate limit for endpoint type."""
+        return self.RATE_LIMITS.get(endpoint_type, self.default_limit)
 
     async def dispatch(
         self,
@@ -126,10 +154,16 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
         # Get client IP (with spoofing protection)
         client_ip = self._get_client_ip(request)
+        
+        # Get endpoint-specific rate limit
+        endpoint_type = self._get_endpoint_type(request.url.path)
+        limit_per_minute = self._get_rate_limit(endpoint_type)
 
         # Check rate limit
         try:
-            is_allowed, remaining, reset_at = await self._check_rate_limit(client_ip)
+            is_allowed, remaining, reset_at = await self._check_rate_limit(
+                client_ip, endpoint_type, limit_per_minute
+            )
 
             if not is_allowed:
                 retry_after = max(1, reset_at - int(time.time()))
@@ -146,12 +180,12 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                             "message": "Too many requests. Please slow down.",
                             "details": {
                                 "retry_after": retry_after,
-                                "limit": self.limit_per_minute,
+                                "limit": limit_per_minute,
                             },
                         }
                     },
                     headers={
-                        "X-RateLimit-Limit": str(self.limit_per_minute),
+                        "X-RateLimit-Limit": str(limit_per_minute),
                         "X-RateLimit-Remaining": "0",
                         "X-RateLimit-Reset": str(reset_at),
                         "Retry-After": str(retry_after),
@@ -162,7 +196,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             response = await call_next(request)
 
             # Add rate limit headers
-            response.headers["X-RateLimit-Limit"] = str(self.limit_per_minute)
+            response.headers["X-RateLimit-Limit"] = str(limit_per_minute)
             response.headers["X-RateLimit-Remaining"] = str(remaining)
             response.headers["X-RateLimit-Reset"] = str(reset_at)
 
@@ -230,6 +264,8 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
     async def _check_rate_limit(
         self,
         client_ip: str,
+        endpoint_type: str = "default",
+        limit_per_minute: int = 100,
     ) -> tuple[bool, int, int]:
         """
         Check if request is within rate limit using atomic Redis operation.
@@ -239,13 +275,16 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
         Args:
             client_ip: Client IP address
+            endpoint_type: Type of endpoint (render, auth, admin, default)
+            limit_per_minute: Rate limit for this endpoint type
 
         Returns:
             Tuple of (is_allowed, remaining, reset_timestamp)
         """
         current_minute = int(time.time() // 60)
         reset_at = (current_minute + 1) * 60
-        key = f"rl:ip:{client_ip}:min:{current_minute}"
+        # Include endpoint type in key for separate limits per endpoint type
+        key = f"rl:ip:{client_ip}:{endpoint_type}:min:{current_minute}"
 
         # Check local cache first - saves Redis roundtrip
         cached = _rate_limit_cache.get(key)
@@ -254,7 +293,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             # Increment locally
             new_count = count + 1
             new_remaining = max(0, remaining - 1)
-            is_allowed = new_count <= self.limit_per_minute
+            is_allowed = new_count <= limit_per_minute
             
             # Update cache
             _rate_limit_cache.set(key, new_count, new_remaining)

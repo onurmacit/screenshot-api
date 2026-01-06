@@ -78,16 +78,73 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     logger.info("Application shutdown complete")
 
+# OpenAPI Tags for better documentation organization
+openapi_tags = [
+    {
+        "name": "renders",
+        "description": "Screenshot and PDF rendering endpoints. Generate images from any URL.",
+    },
+    {
+        "name": "auth",
+        "description": "Authentication and API key management.",
+    },
+    {
+        "name": "usage",
+        "description": "Usage statistics and quota monitoring.",
+    },
+    {
+        "name": "billing",
+        "description": "Subscription and payment management.",
+    },
+    {
+        "name": "health",
+        "description": "Health checks and service status.",
+    },
+    {
+        "name": "admin",
+        "description": "Admin-only endpoints for system management.",
+    },
+]
 
 # Create FastAPI application
 app = FastAPI(
     title=settings.APP_NAME,
-    description="Production-grade Screenshot and PDF rendering API",
+    description="""
+## ScreenshotBeam API
+
+Production-grade Screenshot and PDF rendering API with:
+
+- 🚀 **Fast rendering** - Sub-second screenshots with global CDN caching
+- 🔒 **Secure** - Full SSRF protection, rate limiting, and authentication
+- 📊 **Scalable** - Built to handle millions of requests
+- 🎨 **Flexible** - Multiple formats, viewports, and customization options
+
+### Authentication
+
+All API requests require Bearer token authentication:
+
+```
+Authorization: Bearer YOUR_API_KEY
+```
+
+Get your API key from the [Dashboard](https://dashboard.screenshotbeam.com).
+""",
     version=settings.APP_VERSION,
     docs_url="/docs",
     redoc_url="/redoc",
     openapi_url="/openapi.json",
     lifespan=lifespan,
+    openapi_tags=openapi_tags,
+    contact={
+        "name": "ScreenshotBeam Support",
+        "url": "https://screenshotbeam.com",
+        "email": "support@screenshotbeam.com",
+    },
+    license_info={
+        "name": "Commercial",
+        "url": "https://screenshotbeam.com/terms",
+    },
+    terms_of_service="https://screenshotbeam.com/terms",
 )
 
 # =============================================================================

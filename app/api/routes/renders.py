@@ -86,10 +86,11 @@ async def demo_screenshot(
     start_time = time.perf_counter()
     
     # Get client IP for rate limiting
-    client_ip = request.client.host if request.client else "unknown"
-    forwarded_for = request.headers.get("X-Forwarded-For")
-    if forwarded_for:
-        client_ip = forwarded_for.split(",")[0].strip()
+    # Use X-Real-IP (set by nginx, trusted) instead of X-Forwarded-For (can be spoofed)
+    client_ip = request.headers.get("X-Real-IP")
+    if not client_ip:
+        # Fallback to direct connection (local dev or misconfigured proxy)
+        client_ip = request.client.host if request.client else "unknown"
     
     # Check IP-based rate limit (5 per minute)
     is_limited = await rate_limit_service.check_demo_rate_limit(client_ip)

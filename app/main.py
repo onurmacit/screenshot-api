@@ -130,9 +130,9 @@ Authorization: Bearer YOUR_API_KEY
 Get your API key from the [Dashboard](https://dashboard.screenshotbeam.com).
 """,
     version=settings.APP_VERSION,
-    docs_url="/docs",
-    redoc_url="/redoc",
-    openapi_url="/openapi.json",
+    docs_url=None,  # Disabled - custom docs on frontend
+    redoc_url=None,  # Disabled - custom docs on frontend
+    openapi_url="/openapi.json",  # Keep for frontend to consume
     lifespan=lifespan,
     openapi_tags=openapi_tags,
     contact={

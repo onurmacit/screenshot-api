@@ -174,3 +174,6 @@ secrets/
 # Local data persistence
 data/
 
+
+# Production environment (contains secrets)
+.env.production

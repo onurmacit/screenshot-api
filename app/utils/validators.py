@@ -78,6 +78,35 @@ def is_valid_url(
     Returns:
         True if URL is valid, False otherwise
     """
+    # Cloud metadata endpoints - SSRF targets
+    BLOCKED_HOSTNAMES = {
+        # AWS metadata
+        "169.254.169.254",
+        "metadata.google.internal",
+        "metadata.gke-metadata-server.svc.cluster.local",
+        # Azure metadata
+        "169.254.169.254",
+        # DigitalOcean metadata  
+        "169.254.169.254",
+        # Kubernetes
+        "kubernetes.default.svc",
+        "kubernetes.default",
+        # Other dangerous
+        "0.0.0.0",
+        "0",
+        "[::0]",
+        "[::]",
+    }
+    
+    # Dangerous hostname patterns
+    DANGEROUS_PATTERNS = [
+        "metadata",
+        "internal",
+        ".local",
+        ".internal",
+        ".svc",
+    ]
+    
     try:
         parsed = urlparse(url)
 
@@ -92,12 +121,23 @@ def is_valid_url(
         hostname = parsed.hostname
         if not hostname:
             return False
+        
+        hostname_lower = hostname.lower()
+
+        # Block known dangerous hostnames (cloud metadata, etc.)
+        if hostname_lower in BLOCKED_HOSTNAMES:
+            return False
+        
+        # Block dangerous patterns (metadata, internal, etc.)
+        for pattern in DANGEROUS_PATTERNS:
+            if pattern in hostname_lower:
+                return False
 
         # Check for localhost
         if not allow_localhost:
-            if hostname.lower() in ("localhost", "127.0.0.1", "::1"):
+            if hostname_lower in ("localhost", "127.0.0.1", "::1"):
                 return False
-            if hostname.lower().endswith(".localhost"):
+            if hostname_lower.endswith(".localhost"):
                 return False
 
         # Check for private IPs

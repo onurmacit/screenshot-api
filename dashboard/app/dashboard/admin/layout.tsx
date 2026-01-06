@@ -4,7 +4,7 @@ import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Users, Key, Image, BarChart3 } from "lucide-react";
+import { Users, Key, Image, BarChart3, Activity } from "lucide-react";
 
 const ADMIN_EMAILS = ["onurmaciit@gmail.com"];
 
@@ -41,6 +41,7 @@ export default function AdminLayout({
         { href: "/dashboard/admin/users", label: "Users", icon: Users },
         { href: "/dashboard/admin/api-keys", label: "API Keys", icon: Key },
         { href: "/dashboard/admin/jobs", label: "Jobs", icon: Image },
+        { href: "/dashboard/admin/demo-activity", label: "Demo Activity", icon: Activity },
     ];
 
     return (

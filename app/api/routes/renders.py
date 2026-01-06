@@ -188,6 +188,17 @@ async def demo_screenshot(
     # Increment demo usage counter
     await rate_limit_service.increment_demo_usage(client_ip)
     
+    # Log demo capture for analytics/admin dashboard
+    try:
+        await cache_service.log_demo_capture(
+            ip=client_ip,
+            url=url,
+            render_time_ms=elapsed * 1000,
+            metadata=metadata
+        )
+    except Exception as e:
+        logger.warning("Failed to log demo capture", error=str(e))
+    
     elapsed = time.perf_counter() - start_time
     logger.info(
         "Demo screenshot rendered",

@@ -549,6 +549,157 @@ class CacheService:
         cache_key = self._plan_cache_key(plan_name)
         return await self.delete(cache_key)
 
+    # =========================================================================
+    # Demo Activity Tracking
+    # =========================================================================
+
+    PREFIX_DEMO_CAPTURE = "demo:capture"
+    PREFIX_DEMO_STATS = "demo:stats"
+
+    async def log_demo_capture(
+        self,
+        ip: str,
+        url: str,
+        render_time_ms: float,
+        metadata: dict,
+    ) -> bool:
+        """
+        Log a demo capture event.
+
+        Args:
+            ip: Client IP address
+            url: Captured URL
+            render_time_ms: Render time in milliseconds
+            metadata: Capture metadata
+
+        Returns:
+            True if logged successfully
+        """
+        import time
+        
+        timestamp = int(time.time())
+        
+        capture_data = {
+            "ip": ip,
+            "url": url,
+            "timestamp": timestamp,
+            "render_time_ms": int(render_time_ms),
+            "width": metadata.get("width"),
+            "height": metadata.get("height"),
+            "format": metadata.get("format"),
+        }
+
+        async with redis_context("cache") as redis:
+            pipe = redis.pipeline()
+            
+            # Store in sorted set with timestamp as score (for recent captures)
+            capture_key = f"{self.PREFIX_DEMO_CAPTURE}:recent"
+            pipe.zadd(capture_key, {json.dumps(capture_data): timestamp})
+            
+            # Keep only last 100 captures
+            pipe.zremrangebyrank(capture_key, 0, -101)
+            
+            # Set expiry to 7 days
+            pipe.expire(capture_key, 604800)
+            
+            # Increment daily counter
+            from datetime import datetime
+            today = datetime.utcnow().strftime("%Y%m%d")
+            daily_key = f"{self.PREFIX_DEMO_STATS}:daily:{today}"
+            pipe.incr(daily_key)
+            pipe.expire(daily_key, 604800)  # Keep for 7 days
+            
+            # Increment weekly counter
+            week = datetime.utcnow().strftime("%Y-W%U")
+            weekly_key = f"{self.PREFIX_DEMO_STATS}:weekly:{week}"
+            pipe.incr(weekly_key)
+            pipe.expire(weekly_key, 2592000)  # Keep for 30 days
+            
+            # Increment all-time counter
+            all_time_key = f"{self.PREFIX_DEMO_STATS}:total"
+            pipe.incr(all_time_key)
+            
+            # Track URL popularity (top URLs)
+            url_key = f"{self.PREFIX_DEMO_STATS}:urls"
+            pipe.zincrby(url_key, 1, url)
+            pipe.expire(url_key, 2592000)  # Keep for 30 days
+            
+            await pipe.execute()
+            
+            logger.info(
+                "Demo capture logged",
+                ip=ip,
+                url=url[:50],
+                render_time_ms=int(render_time_ms),
+            )
+            return True
+
+    async def get_demo_stats(self) -> dict:
+        """
+        Get demo activity statistics.
+
+        Returns:
+            Dict with demo usage stats
+        """
+        from datetime import datetime
+        
+        today = datetime.utcnow().strftime("%Y%m%d")
+        week = datetime.utcnow().strftime("%Y-W%U")
+        
+        async with redis_context("cache") as redis:
+            pipe = redis.pipeline()
+            
+            # Get counters
+            pipe.get(f"{self.PREFIX_DEMO_STATS}:daily:{today}")
+            pipe.get(f"{self.PREFIX_DEMO_STATS}:weekly:{week}")
+            pipe.get(f"{self.PREFIX_DEMO_STATS}:total")
+            
+            # Get top URLs (top 10)
+            pipe.zrevrange(
+                f"{self.PREFIX_DEMO_STATS}:urls",
+                0, 9,
+                withscores=True
+            )
+            
+            results = await pipe.execute()
+            
+            return {
+                "total_today": int(results[0]) if results[0] else 0,
+                "total_week": int(results[1]) if results[1] else 0,
+                "total_all_time": int(results[2]) if results[2] else 0,
+                "top_urls": [
+                    {"url": url.decode() if isinstance(url, bytes) else url, "count": int(score)}
+                    for url, score in (results[3] or [])
+                ],
+            }
+
+    async def get_recent_demo_captures(self, limit: int = 20) -> list[dict]:
+        """
+        Get recent demo captures.
+
+        Args:
+            limit: Maximum number of captures to return
+
+        Returns:
+            List of recent captures
+        """
+        async with redis_context("cache") as redis:
+            # Get recent captures from sorted set (newest first)
+            captures = await redis.zrevrange(
+                f"{self.PREFIX_DEMO_CAPTURE}:recent",
+                0, limit - 1
+            )
+            
+            result = []
+            for capture_json in captures:
+                try:
+                    data = json.loads(capture_json)
+                    result.append(data)
+                except json.JSONDecodeError:
+                    continue
+            
+            return result
+
 
 # Import asyncio for the get_or_set method
 import asyncio

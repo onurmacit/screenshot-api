@@ -23,6 +23,7 @@ services:
     env_file:
       - .env
     restart: unless-stopped
+    stop_grace_period: 30s  # Allow in-flight requests to complete before force stop
     mem_limit: 1500m
     memswap_limit: 3g
     healthcheck:
@@ -52,6 +53,7 @@ services:
     depends_on:
       - api
     restart: unless-stopped
+    stop_grace_period: 10s  # Quick shutdown for nginx
     logging:
       driver: "json-file"
       options:

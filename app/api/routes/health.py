@@ -5,6 +5,7 @@ Optimized for minimal Redis commands - uses in-memory caching
 to avoid hitting Redis on every health check request.
 """
 
+import os
 import time
 from datetime import UTC, datetime
 from typing import Any
@@ -21,10 +22,50 @@ from app.core.s3 import get_s3_client
 router = APIRouter()
 
 # =============================================================================
-# Health Check Cache - Reduces Redis commands significantly
+# Startup Time and Health Cache
 # =============================================================================
+_startup_time = time.time()  # Track when service started
 _health_cache: dict[str, Any] = {}
 _health_cache_ttl = 10  # Cache health status for 10 seconds
+
+
+def _get_uptime_seconds() -> float:
+    """Get service uptime in seconds."""
+    return time.time() - _startup_time
+
+
+def _format_uptime(seconds: float) -> str:
+    """Format uptime as human-readable string."""
+    days, remainder = divmod(int(seconds), 86400)
+    hours, remainder = divmod(remainder, 3600)
+    minutes, secs = divmod(remainder, 60)
+    
+    if days > 0:
+        return f"{days}d {hours}h {minutes}m"
+    elif hours > 0:
+        return f"{hours}h {minutes}m {secs}s"
+    elif minutes > 0:
+        return f"{minutes}m {secs}s"
+    else:
+        return f"{secs}s"
+
+
+def _get_memory_usage() -> dict:
+    """Get memory usage statistics."""
+    try:
+        import psutil
+        process = psutil.Process(os.getpid())
+        memory_info = process.memory_info()
+        return {
+            "rss_mb": round(memory_info.rss / 1024 / 1024, 2),
+            "vms_mb": round(memory_info.vms / 1024 / 1024, 2),
+            "percent": round(process.memory_percent(), 2),
+        }
+    except ImportError:
+        # psutil not installed
+        return {"error": "psutil not available"}
+    except Exception:
+        return {"error": "failed to get memory info"}
 
 
 def _get_cached_health() -> dict | None:
@@ -117,11 +158,19 @@ async def health_check() -> dict:
     else:
         overall_status = "degraded"
 
+    # Get uptime
+    uptime_seconds = _get_uptime_seconds()
+    
     response_data = {
         "status": overall_status,
         "version": settings.APP_VERSION,
         "environment": settings.APP_ENV,
         "timestamp": datetime.now(UTC).isoformat(),
+        "uptime": {
+            "seconds": round(uptime_seconds, 2),
+            "human": _format_uptime(uptime_seconds),
+        },
+        "memory": _get_memory_usage(),
         "services": services,
     }
 

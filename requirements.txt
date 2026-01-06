@@ -70,3 +70,4 @@ opentelemetry-instrumentation-fastapi==0.43b0
 
 # Sentry (Error Tracking)
 sentry-sdk[fastapi]==1.39.2
+psutil==5.9.8

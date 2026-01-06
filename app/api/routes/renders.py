@@ -119,7 +119,7 @@ async def demo_screenshot(
         "height": height,
         "format": format if format in ("jpeg", "png", "webp") else "jpeg",
         "quality": 80,
-        "full_page": False,
+        "full_page": False,  # Demo limited to viewport
         "delay": 0,
         "device_scale_factor": 1.0,
         "block_ads": True,
@@ -127,40 +127,8 @@ async def demo_screenshot(
         "block_cookie_banners": True,
     }
     
-    # Check cache first
-    try:
-        cached = await cache_service.get_screenshot_cache(url, options)
-        if cached:
-            image_bytes, metadata = cached
-            elapsed = time.perf_counter() - start_time
-            logger.info(
-                "Demo screenshot served from cache",
-                url=url[:50],
-                ip=client_ip,
-                elapsed=f"{elapsed:.3f}s",
-            )
-            
-            content_types = {
-                "png": "image/png",
-                "jpeg": "image/jpeg",
-                "webp": "image/webp",
-            }
-            content_type = content_types.get(format, "image/jpeg")
-            
-            return Response(
-                content=image_bytes,
-                media_type=content_type,
-                headers={
-                    "Cache-Control": "public, max-age=3600",
-                    "X-Cache": "HIT",
-                    "X-Render-Time": f"{elapsed:.3f}s",
-                    "X-Demo": "true",
-                },
-            )
-    except Exception as e:
-        logger.warning("Demo cache check failed", error=str(e))
-    
-    # Render new screenshot
+    # DEMO: No cache - always fresh render to show real performance
+    # Render screenshot
     image_bytes, metadata = await render_service.capture_screenshot(
         url=url,
         options=options,
@@ -172,18 +140,6 @@ async def demo_screenshot(
         image_bytes,
         format=format,
     )
-    
-    # Cache the result
-    try:
-        await cache_service.set_screenshot_cache(
-            url=url,
-            options=options,
-            image_bytes=image_bytes,
-            metadata=metadata,
-            ttl=3600,
-        )
-    except Exception as e:
-        logger.warning("Demo cache set failed", error=str(e))
     
     # Increment demo usage counter
     await rate_limit_service.increment_demo_usage(client_ip)
@@ -222,8 +178,8 @@ async def demo_screenshot(
         media_type=content_type,
         headers={
             "Content-Length": str(len(image_bytes)),
-            "Cache-Control": "public, max-age=3600",
-            "X-Cache": "MISS",
+            "Cache-Control": "no-cache",  # Demo: no cache
+            "X-Cache": "BYPASS",  # Demo bypasses cache
             "X-Render-Time": f"{elapsed:.3f}s",
             "X-Demo": "true",
         },

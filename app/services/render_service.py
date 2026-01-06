@@ -632,6 +632,32 @@ class RenderService:
         Raises:
             RenderError: If screenshot capture fails
         """
+        # Overall timeout for entire operation (45 seconds max)
+        # This prevents hanging renders from exhausting the browser pool
+        OVERALL_TIMEOUT_SECONDS = 45
+        
+        try:
+            async with asyncio.timeout(OVERALL_TIMEOUT_SECONDS):
+                return await self._capture_screenshot_impl(url, options, user_plan, _retry_count)
+        except asyncio.TimeoutError:
+            logger.error(
+                "Screenshot capture timed out",
+                url=url[:50],
+                timeout=OVERALL_TIMEOUT_SECONDS,
+            )
+            raise RenderError(
+                f"Screenshot capture timed out after {OVERALL_TIMEOUT_SECONDS} seconds",
+                details={"url": url, "timeout": OVERALL_TIMEOUT_SECONDS},
+            )
+    
+    async def _capture_screenshot_impl(
+        self,
+        url: str,
+        options: dict[str, Any],
+        user_plan: dict | None = None,
+        _retry_count: int = 0,
+    ) -> tuple[bytes, dict[str, Any]]:
+        """Internal implementation of capture_screenshot."""
         MAX_RETRIES = 2
         context = None
         
@@ -649,7 +675,7 @@ class RenderService:
                     await self.pool._reinitialize_pool()
                 except Exception:
                     pass
-                return await self.capture_screenshot(url, options, user_plan, _retry_count + 1)
+                return await self._capture_screenshot_impl(url, options, user_plan, _retry_count + 1)
             raise RenderError(f"Failed to acquire browser context: {str(e)}")
         
         start_time = datetime.now(UTC)
@@ -856,7 +882,7 @@ class RenderService:
                     await self.pool._reinitialize_pool()
                 except Exception:
                     pass
-                return await self.capture_screenshot(url, options, user_plan, _retry_count + 1)
+                return await self._capture_screenshot_impl(url, options, user_plan, _retry_count + 1)
             
             logger.exception("Screenshot capture failed", url=url, error=error_str)
             raise RenderError(
@@ -887,6 +913,30 @@ class RenderService:
         Raises:
             RenderError: If PDF generation fails
         """
+        # Overall timeout for PDF generation (60 seconds max - PDFs take longer)
+        OVERALL_TIMEOUT_SECONDS = 60
+        
+        try:
+            async with asyncio.timeout(OVERALL_TIMEOUT_SECONDS):
+                return await self._generate_pdf_impl(url, options, user_plan)
+        except asyncio.TimeoutError:
+            logger.error(
+                "PDF generation timed out",
+                url=url[:50],
+                timeout=OVERALL_TIMEOUT_SECONDS,
+            )
+            raise RenderError(
+                f"PDF generation timed out after {OVERALL_TIMEOUT_SECONDS} seconds",
+                details={"url": url, "timeout": OVERALL_TIMEOUT_SECONDS},
+            )
+    
+    async def _generate_pdf_impl(
+        self,
+        url: str,
+        options: dict[str, Any],
+        user_plan: dict | None = None,
+    ) -> tuple[bytes, dict[str, Any]]:
+        """Internal implementation of generate_pdf."""
         context = await self.pool.acquire_context()
         start_time = datetime.now(UTC)
         pdf_bytes: bytes | None = None

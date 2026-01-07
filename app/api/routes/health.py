@@ -161,6 +161,14 @@ async def health_check() -> dict:
     # Get uptime
     uptime_seconds = _get_uptime_seconds()
     
+    # Get database pool stats
+    from app.core.database import get_pool_stats
+    pool_stats = {}
+    try:
+        pool_stats = get_pool_stats()
+    except Exception:
+        pool_stats = {"error": "failed to get pool stats"}
+    
     response_data = {
         "status": overall_status,
         "version": settings.APP_VERSION,
@@ -171,6 +179,7 @@ async def health_check() -> dict:
             "human": _format_uptime(uptime_seconds),
         },
         "memory": _get_memory_usage(),
+        "db_pool": pool_stats,
         "services": services,
     }
 

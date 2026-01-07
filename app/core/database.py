@@ -176,3 +176,30 @@ async def init_db() -> None:
 async def close_db() -> None:
     """Close database connections."""
     await engine.dispose()
+
+
+def get_pool_stats() -> dict:
+    """
+    Get database connection pool statistics.
+    
+    Returns:
+        Dict with pool stats:
+        - pool_size: Configured pool size
+        - checked_in: Available connections
+        - checked_out: Active connections  
+        - overflow: Overflow connections in use
+        - invalidated: Invalid connections
+    """
+    pool = engine.pool
+    return {
+        "pool_size": pool.size(),
+        "checked_in": pool.checkedin(),
+        "checked_out": pool.checkedout(),
+        "overflow": pool.overflow(),
+        "max_overflow": settings.DATABASE_MAX_OVERFLOW,
+        "total_connections": pool.checkedin() + pool.checkedout(),
+        "utilization_percent": round(
+            (pool.checkedout() / (pool.size() + settings.DATABASE_MAX_OVERFLOW)) * 100, 2
+        ) if pool.size() > 0 else 0,
+    }
+

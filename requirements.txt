@@ -3,10 +3,10 @@
 # =============================================================================
 
 # FastAPI & Server
-fastapi==0.109.0
+fastapi==0.115.0
 uvicorn[standard]==0.27.0
-python-multipart==0.0.6
-starlette==0.35.1
+python-multipart==0.0.20
+# Note: starlette version managed by FastAPI
 
 # Database
 sqlalchemy[asyncio]==2.0.36
@@ -24,7 +24,7 @@ flower==2.0.1
 # Authentication & Security
 pyjwt==2.8.0
 bcrypt==4.2.0
-python-jose[cryptography]==3.3.0
+python-jose[cryptography]==3.4.0
 
 # Validation & Settings
 pydantic==2.5.3
@@ -47,12 +47,12 @@ pillow>=10.2.0
 
 # HTTP Client
 httpx==0.26.0
-aiohttp==3.9.1
+aiohttp==3.11.14
 
 # Utilities
 python-dateutil==2.8.2
 pytz==2024.1
-orjson==3.9.12
+orjson==3.10.0
 tenacity==8.2.3
 
 # Logging & Monitoring
@@ -69,5 +69,5 @@ opentelemetry-sdk==1.22.0
 opentelemetry-instrumentation-fastapi==0.43b0
 
 # Sentry (Error Tracking)
-sentry-sdk[fastapi]==1.39.2
+sentry-sdk[fastapi]==2.20.0
 psutil==5.9.8

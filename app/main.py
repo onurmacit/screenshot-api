@@ -173,6 +173,17 @@ if settings.RATE_LIMIT_ENABLED:
 # Error handler middleware
 app.middleware("http")(error_handler_middleware)
 
+
+# API Version header middleware
+@app.middleware("http")
+async def add_api_version_header(request: Request, call_next):
+    """Add X-API-Version header to all API responses."""
+    response = await call_next(request)
+    if request.url.path.startswith("/api/"):
+        response.headers["X-API-Version"] = "v1"
+    return response
+
+
 # Prometheus metrics
 if settings.is_production:
     Instrumentator().instrument(app).expose(app, endpoint="/metrics")

@@ -319,10 +319,26 @@ async def root(request: Request) -> Response:
         {
             "name": settings.APP_NAME,
             "version": settings.APP_VERSION,
-            "docs": "/docs",
+            "docs": "https://screenshotbeam.com/docs",
             "health": "/api/v1/health",
         }
     )
+
+
+@app.get("/robots.txt", include_in_schema=False)
+async def robots_txt() -> Response:
+    """
+    Robots.txt to prevent search engines from crawling the API.
+    """
+    from fastapi.responses import PlainTextResponse
+    
+    robots_content = """User-agent: *
+Disallow: /
+
+# ScreenshotBeam API - No crawling needed
+# Documentation: https://screenshotbeam.com/docs
+"""
+    return PlainTextResponse(content=robots_content, media_type="text/plain")
 
 
 # =============================================================================

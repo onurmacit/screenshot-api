@@ -10,7 +10,7 @@ import time
 from datetime import UTC, datetime
 from typing import Any
 
-from fastapi import APIRouter, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
 
@@ -93,24 +93,23 @@ def _set_cached_health(data: dict) -> None:
 )
 async def health_check() -> dict:
     """
-    Comprehensive health check endpoint.
+    Public health check endpoint.
 
-    Returns status of all critical services:
-    - Database (PostgreSQL)
-    - Cache (Redis)
-    - Storage (S3)
-    - Queue (Celery/Redis)
+    Returns basic status of service (no sensitive details).
+    For detailed metrics, use /health/stats (admin-only).
     
     **Optimized:** Results are cached for 10 seconds to reduce Redis commands.
     """
     # Check cache first - avoid Redis hit on every request
     cached = _get_cached_health()
     if cached:
-        # Update timestamp but use cached service status
-        cached["timestamp"] = datetime.now(UTC).isoformat()
+        # Return only public fields from cache
         return JSONResponse(
             status_code=status.HTTP_200_OK if cached["status"] == "healthy" else status.HTTP_503_SERVICE_UNAVAILABLE,
-            content=cached,
+            content={
+                "status": cached["status"],
+                "timestamp": datetime.now(UTC).isoformat(),
+            },
         )
     
     services = {}
@@ -158,10 +157,9 @@ async def health_check() -> dict:
     else:
         overall_status = "degraded"
 
-    # Get uptime
+    # Get uptime and pool stats for internal cache (used by /stats endpoint)
     uptime_seconds = _get_uptime_seconds()
     
-    # Get database pool stats
     from app.core.database import get_pool_stats
     pool_stats = {}
     try:
@@ -169,7 +167,8 @@ async def health_check() -> dict:
     except Exception:
         pool_stats = {"error": "failed to get pool stats"}
     
-    response_data = {
+    # Full response for cache (used by /stats endpoint)
+    full_response_data = {
         "status": overall_status,
         "version": settings.APP_VERSION,
         "environment": settings.APP_ENV,
@@ -183,13 +182,84 @@ async def health_check() -> dict:
         "services": services,
     }
 
-    # Cache the result
-    _set_cached_health(response_data)
+    # Cache the full result (for /stats endpoint)
+    _set_cached_health(full_response_data)
 
+    # Return only public info
     return JSONResponse(
         status_code=status_code,
-        content=response_data,
+        content={
+            "status": overall_status,
+            "timestamp": datetime.now(UTC).isoformat(),
+        },
     )
+
+
+@router.get(
+    "/stats",
+    summary="Detailed health stats (Admin only)",
+    description="Returns detailed system metrics including memory, db pool, and service status. Requires admin secret.",
+)
+async def health_stats(
+    x_admin_key: str | None = None,  # Query param fallback
+) -> dict:
+    """
+    Admin-only detailed health stats endpoint.
+    
+    Returns:
+    - All service health statuses
+    - Memory usage (RSS, VMS, percent)
+    - Database connection pool stats
+    - Uptime information
+    - Version and environment info
+    
+    **Authentication:** Requires X-Admin-Key header with admin secret.
+    """
+    from fastapi import Header
+    from app.core.config import settings as app_settings
+    
+    # For now, use SECRET_KEY as admin key (you can create a separate ADMIN_SECRET later)
+    # In production, you should use a dedicated admin secret
+    admin_secret = app_settings.SECRET_KEY
+    
+    # Get admin key from header
+    if not x_admin_key or x_admin_key != admin_secret:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or missing X-Admin-Key header",
+        )
+    
+    # Get cached health data (has all the details)
+    cached = _get_cached_health()
+    if cached:
+        return JSONResponse(status_code=status.HTTP_200_OK, content=cached)
+    
+    # If no cache, trigger a fresh health check
+    # This ensures stats are always available
+    from app.core.database import get_pool_stats
+    
+    uptime_seconds = _get_uptime_seconds()
+    pool_stats = {}
+    try:
+        pool_stats = get_pool_stats()
+    except Exception:
+        pool_stats = {"error": "failed to get pool stats"}
+    
+    response_data = {
+        "status": "unknown",
+        "version": settings.APP_VERSION,
+        "environment": settings.APP_ENV,
+        "timestamp": datetime.now(UTC).isoformat(),
+        "uptime": {
+            "seconds": round(uptime_seconds, 2),
+            "human": _format_uptime(uptime_seconds),
+        },
+        "memory": _get_memory_usage(),
+        "db_pool": pool_stats,
+        "services": {"note": "Call /health first to get service status"},
+    }
+    
+    return JSONResponse(status_code=status.HTTP_200_OK, content=response_data)
 
 
 @router.get(

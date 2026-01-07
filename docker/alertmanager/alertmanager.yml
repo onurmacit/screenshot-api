@@ -1,13 +1,13 @@
 # Alertmanager Configuration
-# Email notifications for alerts
+# Mailgun SMTP for email notifications (port 2525 - not blocked by DigitalOcean)
 
 global:
   resolve_timeout: 5m
-  # SMTP Configuration - Gmail
-  smtp_smarthost: 'smtp.gmail.com:587'
-  smtp_from: 'onurmaciit@gmail.com'
-  smtp_auth_username: 'onurmaciit@gmail.com'
-  smtp_auth_password: 'ahgqbucrwhdoztzp'
+  # Mailgun SMTP Configuration
+  smtp_smarthost: 'smtp.mailgun.org:2525'
+  smtp_from: 'alerts@sandbox3eb7ceeede09465b9a90dcefaf03ec83.mailgun.org'
+  smtp_auth_username: 'alerts@sandbox3eb7ceeede09465b9a90dcefaf03ec83.mailgun.org'
+  smtp_auth_password: '10199e85f0f63a34455677c24ad47226-f6d80573-049661c4'
   smtp_require_tls: true
 
 route:
@@ -36,20 +36,17 @@ receivers:
       - to: 'onurmaciit@gmail.com'
         send_resolved: true
         headers:
-          subject: '{{ template "email.default.subject" . }}'
+          subject: '[ScreenshotBeam] {{ .Status | toUpper }}: {{ .CommonLabels.alertname }}'
 
-# Custom email templates
 templates: []
 
 inhibit_rules:
-  # If API is down, don't also send high latency alerts
   - source_match:
       alertname: 'APIDown'
     target_match:
       alertname: 'HighLatency'
     equal: ['instance']
   
-  # If API is down, don't also send high error rate alerts  
   - source_match:
       alertname: 'APIDown'
     target_match:

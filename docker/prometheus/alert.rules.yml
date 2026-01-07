@@ -1,0 +1,71 @@
+# Alert Rules for ScreenshotBeam API
+
+groups:
+  - name: api_alerts
+    rules:
+      # API Down
+      - alert: APIDown
+        expr: up{job="api"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "API is down"
+          description: "ScreenshotBeam API has been unreachable for more than 1 minute."
+
+      # High Memory Usage (> 80% of 1.5GB limit = 1.2GB)
+      - alert: HighMemoryUsage
+        expr: process_resident_memory_bytes{job="api"} > 1200000000
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage detected"
+          description: "API memory usage is above 1.2GB (80% of limit)."
+
+      # High Error Rate (5xx errors > 5% of total requests)
+      - alert: HighErrorRate
+        expr: |
+          sum(rate(http_requests_total{job="api",status=~"5.."}[5m]))
+          /
+          sum(rate(http_requests_total{job="api"}[5m]))
+          > 0.05
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High error rate detected"
+          description: "More than 5% of requests are returning 5xx errors."
+
+      # High Latency (p99 > 5 seconds)
+      - alert: HighLatency
+        expr: |
+          histogram_quantile(0.99,
+            sum(rate(http_request_duration_seconds_bucket{job="api"}[5m])) by (le)
+          ) > 5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High latency detected"
+          description: "API p99 latency is above 5 seconds."
+
+      # High Request Rate (possible DDoS or traffic spike)
+      - alert: HighRequestRate
+        expr: sum(rate(http_requests_total{job="api"}[1m])) > 100
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High request rate"
+          description: "API is receiving more than 100 requests per second."
+
+      # Service Unhealthy (based on health endpoint)
+      - alert: ServiceUnhealthy
+        expr: probe_success{job="api-health"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Health check failing"
+          description: "API health endpoint is returning unhealthy status."

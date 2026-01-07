@@ -1,0 +1,48 @@
+# Alertmanager Configuration
+# Sends alerts to Discord webhook
+
+global:
+  resolve_timeout: 5m
+
+route:
+  group_by: ['alertname', 'severity']
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+  receiver: 'discord-notifications'
+  
+  routes:
+    # Critical alerts - immediate notification
+    - match:
+        severity: critical
+      receiver: 'discord-notifications'
+      repeat_interval: 1h
+    
+    # Warning alerts - less frequent
+    - match:
+        severity: warning
+      receiver: 'discord-notifications'
+      repeat_interval: 4h
+
+receivers:
+  - name: 'discord-notifications'
+    webhook_configs:
+      # TODO: Replace with your Discord webhook URL
+      # Create at: Discord Server → Settings → Integrations → Webhooks
+      - url: 'YOUR_DISCORD_WEBHOOK_URL_HERE'
+        send_resolved: true
+
+inhibit_rules:
+  # If API is down, don't also send high latency alerts
+  - source_match:
+      alertname: 'APIDown'
+    target_match:
+      alertname: 'HighLatency'
+    equal: ['instance']
+  
+  # If API is down, don't also send high error rate alerts  
+  - source_match:
+      alertname: 'APIDown'
+    target_match:
+      alertname: 'HighErrorRate'
+    equal: ['instance']

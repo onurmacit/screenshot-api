@@ -1,36 +1,45 @@
 # Alertmanager Configuration
-# Sends alerts to Discord webhook
+# Email notifications for alerts
 
 global:
   resolve_timeout: 5m
+  # SMTP Configuration - Gmail
+  smtp_smarthost: 'smtp.gmail.com:587'
+  smtp_from: 'onurmaciit@gmail.com'
+  smtp_auth_username: 'onurmaciit@gmail.com'
+  smtp_auth_password: 'ahgqbucrwhdoztzp'
+  smtp_require_tls: true
 
 route:
   group_by: ['alertname', 'severity']
   group_wait: 30s
   group_interval: 5m
   repeat_interval: 4h
-  receiver: 'discord-notifications'
+  receiver: 'email-notifications'
   
   routes:
     # Critical alerts - immediate notification
     - match:
         severity: critical
-      receiver: 'discord-notifications'
+      receiver: 'email-notifications'
       repeat_interval: 1h
     
     # Warning alerts - less frequent
     - match:
         severity: warning
-      receiver: 'discord-notifications'
+      receiver: 'email-notifications'
       repeat_interval: 4h
 
 receivers:
-  - name: 'discord-notifications'
-    webhook_configs:
-      # TODO: Replace with your Discord webhook URL
-      # Create at: Discord Server → Settings → Integrations → Webhooks
-      - url: 'YOUR_DISCORD_WEBHOOK_URL_HERE'
+  - name: 'email-notifications'
+    email_configs:
+      - to: 'onurmaciit@gmail.com'
         send_resolved: true
+        headers:
+          subject: '{{ template "email.default.subject" . }}'
+
+# Custom email templates
+templates: []
 
 inhibit_rules:
   # If API is down, don't also send high latency alerts

@@ -10,7 +10,7 @@ import time
 from datetime import UTC, datetime
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
 
@@ -201,7 +201,7 @@ async def health_check() -> dict:
     description="Returns detailed system metrics including memory, db pool, and service status. Requires admin secret.",
 )
 async def health_stats(
-    x_admin_key: str | None = None,  # Query param fallback
+    request: Request,
 ) -> dict:
     """
     Admin-only detailed health stats endpoint.
@@ -215,14 +215,14 @@ async def health_stats(
     
     **Authentication:** Requires X-Admin-Key header with admin secret.
     """
-    from fastapi import Header
     from app.core.config import settings as app_settings
     
-    # For now, use SECRET_KEY as admin key (you can create a separate ADMIN_SECRET later)
-    # In production, you should use a dedicated admin secret
+    # For now, use SECRET_KEY as admin key
     admin_secret = app_settings.SECRET_KEY
     
     # Get admin key from header
+    x_admin_key = request.headers.get("x-admin-key")
+    
     if not x_admin_key or x_admin_key != admin_secret:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

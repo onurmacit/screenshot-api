@@ -4,16 +4,23 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Loader2, Camera } from "lucide-react";
 import { api } from "@/services/api";
 import { PlaygroundHeader, CodeSnippet } from "@/components/playground";
 
 export default function ScreenshotPlaygroundPage() {
+    // Source type and content
+    const [sourceType, setSourceType] = useState<"url" | "html" | "markdown">("url");
     const [url, setUrl] = useState("https://stripe.com");
+    const [htmlContent, setHtmlContent] = useState("<h1>Hello World</h1>\n<p>This is a test page rendered from HTML.</p>");
+    const [markdownContent, setMarkdownContent] = useState("# Hello World\n\nThis is a **test page** rendered from Markdown.");
+
     const [apiKey, setApiKey] = useState("");
     const [isLoading, setIsLoading] = useState(false);
     const [result, setResult] = useState<string | null>(null);
@@ -24,6 +31,7 @@ export default function ScreenshotPlaygroundPage() {
     const [width, setWidth] = useState(1920);
     const [height, setHeight] = useState(1080);
     const [fullPage, setFullPage] = useState(false);
+    const [selector, setSelector] = useState("");
     const [blockAds, setBlockAds] = useState(false);
     const [darkMode, setDarkMode] = useState(false);
 
@@ -33,18 +41,47 @@ export default function ScreenshotPlaygroundPage() {
             return;
         }
 
+        // Validate source content
+        if (sourceType === "url" && !url.trim()) {
+            setError("Please enter a URL");
+            return;
+        }
+        if (sourceType === "html" && !htmlContent.trim()) {
+            setError("Please enter HTML content");
+            return;
+        }
+        if (sourceType === "markdown" && !markdownContent.trim()) {
+            setError("Please enter Markdown content");
+            return;
+        }
+
         setIsLoading(true);
         setError(null);
         setResult(null);
 
         try {
-            const response = await api.post("/api/v1/renders/screenshot", {
-                url,
+            // Build request body based on source type
+            const requestBody: Record<string, unknown> = {
                 format,
                 width,
                 height,
                 full_page: fullPage,
-            }, {
+            };
+
+            if (sourceType === "url") {
+                requestBody.url = url;
+            } else if (sourceType === "html") {
+                requestBody.html = htmlContent;
+            } else if (sourceType === "markdown") {
+                requestBody.markdown = markdownContent;
+            }
+
+            // Add selector if provided
+            if (selector.trim()) {
+                requestBody.selector = selector.trim();
+            }
+
+            const response = await api.post("/api/v1/renders/screenshot", requestBody, {
                 headers: {
                     "X-API-Key": apiKey
                 }
@@ -66,15 +103,23 @@ export default function ScreenshotPlaygroundPage() {
     };
 
     const generateCurl = () => {
+        const sourceField = sourceType === "url"
+            ? `"url": "${url}"`
+            : sourceType === "html"
+                ? `"html": "${htmlContent.replace(/"/g, '\\"').replace(/\n/g, '\\n')}"`
+                : `"markdown": "${markdownContent.replace(/"/g, '\\"').replace(/\n/g, '\\n')}"`;
+
+        const selectorField = selector.trim() ? `,\n    "selector": "${selector}"` : "";
+
         return `curl -X POST ${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/v1/renders/screenshot \\
   -H "X-API-Key: ${apiKey || "YOUR_API_KEY"}" \\
   -H "Content-Type: application/json" \\
   -d '{
-    "url": "${url}",
+    ${sourceField},
     "width": ${width},
     "height": ${height},
     "format": "${format}",
-    "full_page": ${fullPage}
+    "full_page": ${fullPage}${selectorField}
   }'`;
     };
 
@@ -91,12 +136,72 @@ export default function ScreenshotPlaygroundPage() {
                         <CardDescription>Configure screenshot parameters</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                        <PlaygroundHeader
-                            apiKey={apiKey}
-                            onApiKeyChange={setApiKey}
-                            url={url}
-                            onUrlChange={setUrl}
-                        />
+                        {/* API Key */}
+                        <div className="space-y-2">
+                            <Label>API Key</Label>
+                            <Input
+                                type="password"
+                                placeholder="Enter your API Key"
+                                value={apiKey}
+                                onChange={(e) => setApiKey(e.target.value)}
+                            />
+                        </div>
+
+                        {/* Source Type Tabs */}
+                        <div className="space-y-2">
+                            <Label>Source</Label>
+                            <Tabs value={sourceType} onValueChange={(v) => setSourceType(v as "url" | "html" | "markdown")} className="w-full">
+                                <TabsList className="grid w-full grid-cols-3">
+                                    <TabsTrigger value="url">URL</TabsTrigger>
+                                    <TabsTrigger value="html">HTML</TabsTrigger>
+                                    <TabsTrigger value="markdown">Markdown</TabsTrigger>
+                                </TabsList>
+                            </Tabs>
+                        </div>
+
+                        {/* Conditional Input Based on Source Type */}
+                        {sourceType === "url" && (
+                            <div className="space-y-2">
+                                <Label>URL</Label>
+                                <Input
+                                    placeholder="https://example.com"
+                                    value={url}
+                                    onChange={(e) => setUrl(e.target.value)}
+                                />
+                            </div>
+                        )}
+                        {sourceType === "html" && (
+                            <div className="space-y-2">
+                                <Label>HTML Content</Label>
+                                <Textarea
+                                    placeholder="<h1>Hello World</h1>"
+                                    value={htmlContent}
+                                    onChange={(e) => setHtmlContent(e.target.value)}
+                                    rows={4}
+                                />
+                            </div>
+                        )}
+                        {sourceType === "markdown" && (
+                            <div className="space-y-2">
+                                <Label>Markdown Content</Label>
+                                <Textarea
+                                    placeholder="# Hello World"
+                                    value={markdownContent}
+                                    onChange={(e) => setMarkdownContent(e.target.value)}
+                                    rows={4}
+                                />
+                            </div>
+                        )}
+
+                        {/* Selector (optional) */}
+                        <div className="space-y-2">
+                            <Label>Element Selector <span className="text-muted-foreground text-xs">(optional)</span></Label>
+                            <Input
+                                placeholder=".hero, #main"
+                                value={selector}
+                                onChange={(e) => setSelector(e.target.value)}
+                            />
+                        </div>
 
                         <Separator />
 

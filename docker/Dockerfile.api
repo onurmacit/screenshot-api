@@ -1,14 +1,36 @@
 # =============================================================================
-# Screenshot API - API Service Dockerfile
+# Screenshot API - Multi-stage Dockerfile
 # =============================================================================
-# Using Playwright base image for Chromium support
+# Stage 1: Builder - Install dependencies in a wheels cache
+# Stage 2: Runtime - Minimal production image
+# =============================================================================
 
-FROM mcr.microsoft.com/playwright/python:v1.49.1-noble
+# -----------------------------------------------------------------------------
+# Stage 1: Builder - Build wheels for faster installation
+# -----------------------------------------------------------------------------
+FROM mcr.microsoft.com/playwright/python:v1.49.1-noble AS builder
+
+# Set environment variables
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+WORKDIR /wheels
+
+# Copy and build wheels for all dependencies
+COPY requirements.txt .
+RUN pip wheel --no-cache-dir --wheel-dir=/wheels -r requirements.txt
+
+# -----------------------------------------------------------------------------
+# Stage 2: Runtime
+# -----------------------------------------------------------------------------
+FROM mcr.microsoft.com/playwright/python:v1.49.1-noble AS runtime
 
 # Labels
-LABEL maintainer="Screenshot API Team <team@screenshotapi.com>" \
+LABEL maintainer="ScreenshotBeam <support@screenshotbeam.com>" \
       version="1.0.0" \
-      description="Screenshot API - FastAPI Application with Playwright"
+      description="ScreenshotBeam API - FastAPI Application with Playwright"
 
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -19,27 +41,32 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 # Set working directory
 WORKDIR $APP_HOME
 
-# Install Python dependencies
-COPY requirements.txt .
-RUN pip install --upgrade pip && \
-    pip install -r requirements.txt
+# Copy wheels from builder and install
+COPY --from=builder /wheels /wheels
+RUN pip install --no-cache-dir --no-index --find-links=/wheels /wheels/*.whl && \
+    rm -rf /wheels
 
-# Note: Playwright base image already includes Chromium browser
-# Playwright will use its internal default path to locate browsers
+# Create non-root user for security
+RUN groupadd -r appuser && useradd -r -g appuser appuser
 
-# Copy application code
-COPY . .
+# Copy only necessary application code (not tests, docs, etc.)
+COPY app/ ./app/
+COPY alembic/ ./alembic/
+COPY alembic.ini .
 
-# Create necessary directories
-RUN mkdir -p /app/logs
+# Create necessary directories with proper permissions
+RUN mkdir -p /app/logs && \
+    chown -R appuser:appuser /app
+
+# Switch to non-root user
+USER appuser
 
 # Expose port
 EXPOSE 8080
 
-# Health check - DigitalOcean App Platform handles health checks via http_path
-# HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-#     CMD curl -f http://localhost:8080/api/v1/health/live || exit 1
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+    CMD curl -f http://localhost:8080/api/v1/health/live || exit 1
 
-# Default command - DigitalOcean App Platform sets PORT env var
-# This is a fallback, App Platform will use run_command from app spec
-CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8080}"]
+# Default command
+CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8080} --workers ${WORKERS:-2}"]

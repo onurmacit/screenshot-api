@@ -610,6 +610,66 @@ class RenderService:
 
         await page.route("**/*", handle_route)
 
+    def _markdown_to_html(self, markdown_content: str) -> str:
+        """Convert Markdown to HTML with basic styling."""
+        # Basic HTML wrapper with styling
+        html_template = """<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 40px 20px;
+            line-height: 1.6;
+            color: #333;
+        }
+        h1, h2, h3, h4, h5, h6 { color: #1a1a1a; margin-top: 1.5em; }
+        h1 { font-size: 2.5em; border-bottom: 2px solid #eee; padding-bottom: 0.3em; }
+        h2 { font-size: 2em; border-bottom: 1px solid #eee; padding-bottom: 0.2em; }
+        code { background: #f4f4f4; padding: 2px 6px; border-radius: 3px; font-size: 0.9em; }
+        pre { background: #f4f4f4; padding: 16px; border-radius: 6px; overflow-x: auto; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 4px solid #ddd; margin: 0; padding-left: 16px; color: #666; }
+        a { color: #0366d6; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        img { max-width: 100%; height: auto; }
+        table { border-collapse: collapse; width: 100%; margin: 1em 0; }
+        th, td { border: 1px solid #ddd; padding: 8px 12px; text-align: left; }
+        th { background: #f4f4f4; }
+    </style>
+</head>
+<body>
+{content}
+</body>
+</html>"""
+        try:
+            import markdown
+            html_content = markdown.markdown(
+                markdown_content, 
+                extensions=['tables', 'fenced_code', 'codehilite']
+            )
+            return html_template.format(content=html_content)
+        except ImportError:
+            # Fallback: basic markdown conversion
+            import re
+            content = markdown_content
+            # Headers
+            content = re.sub(r'^### (.+)$', r'<h3>\1</h3>', content, flags=re.MULTILINE)
+            content = re.sub(r'^## (.+)$', r'<h2>\1</h2>', content, flags=re.MULTILINE)
+            content = re.sub(r'^# (.+)$', r'<h1>\1</h1>', content, flags=re.MULTILINE)
+            # Bold and italic
+            content = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', content)
+            content = re.sub(r'\*(.+?)\*', r'<em>\1</em>', content)
+            # Code
+            content = re.sub(r'`(.+?)`', r'<code>\1</code>', content)
+            # Paragraphs
+            content = '<p>' + re.sub(r'\n\n+', '</p><p>', content) + '</p>'
+            return html_template.format(content=content)
+
     async def capture_screenshot(
         self,
         url: str,
@@ -721,16 +781,17 @@ class RenderService:
                     await context.grant_permissions(["geolocation"])
 
                 # =============================================================
-                # ULTRA-FAST NAVIGATION - Target: 2 seconds!
+                # CONTENT LOADING - URL, HTML, or Markdown
                 # =============================================================
                 timeout = options.get("timeout", settings.BROWSER_TIMEOUT_MS)
+                
+                # Get source type from options
+                html_content = options.get("html")
+                markdown_content = options.get("markdown")
 
                 try:
-                    # STRATEGY: Use "commit" (fastest) + parallel CSS injection
-                    # "commit" returns when first byte received from server
-                    
                     # Inject cookie hiding CSS BEFORE navigation (runs immediately when DOM ready)
-                    if block_cookie_banners:
+                    if block_cookie_banners and not html_content and not markdown_content:
                         await page.add_init_script("""
                             document.addEventListener('DOMContentLoaded', () => {
                                 const style = document.createElement('style');
@@ -745,22 +806,35 @@ class RenderService:
                             });
                         """)
                     
-                    # Navigate with "commit" - fastest option
-                    await page.goto(url, timeout=timeout, wait_until="commit")
-                    
-                    # Quick wait for DOM to be ready (max 2 seconds)
-                    try:
-                        await page.wait_for_load_state("domcontentloaded", timeout=2000)
-                    except:
-                        pass  # Continue even if timeout - page might still be usable
-                    
-                    # Ultra-minimal stabilization (200ms fixed)
-                    await asyncio.sleep(0.2)
+                    if html_content:
+                        # Render HTML content directly
+                        await page.set_content(html_content, timeout=timeout, wait_until="domcontentloaded")
+                        await asyncio.sleep(0.1)  # Brief stabilization
+                        
+                    elif markdown_content:
+                        # Convert Markdown to HTML and render
+                        html_from_md = self._markdown_to_html(markdown_content)
+                        await page.set_content(html_from_md, timeout=timeout, wait_until="domcontentloaded")
+                        await asyncio.sleep(0.1)  # Brief stabilization
+                        
+                    else:
+                        # Standard URL navigation with "commit" - fastest option
+                        await page.goto(url, timeout=timeout, wait_until="commit")
+                        
+                        # Quick wait for DOM to be ready (max 2 seconds)
+                        try:
+                            await page.wait_for_load_state("domcontentloaded", timeout=2000)
+                        except:
+                            pass  # Continue even if timeout - page might still be usable
+                        
+                        # Ultra-minimal stabilization (200ms fixed)
+                        await asyncio.sleep(0.2)
                     
                 except Exception as e:
+                    source_type = "HTML" if html_content else ("Markdown" if markdown_content else "URL")
                     raise RenderError(
-                        f"Failed to load URL: {str(e)}",
-                        details={"url": url, "error": str(e)},
+                        f"Failed to load {source_type}: {str(e)}",
+                        details={"source": source_type, "error": str(e)},
                     )
 
                 # Additional user-requested delay
@@ -804,15 +878,50 @@ class RenderService:
                     screenshot_options["type"] = "png"  # Capture as PNG first
                     convert_to_webp = True
 
-                # Capture specific element or full page
-                if options.get("element_selector") and user_plan and user_plan.get("element_selector"):
+                # =============================================================
+                # SCROLL INTO VIEW (if specified)
+                # =============================================================
+                scroll_selector = options.get("scroll_into_view")
+                scroll_adjust = options.get("scroll_adjust_top", 0)
+                
+                if scroll_selector:
                     try:
-                        element = await page.query_selector(options["element_selector"])
+                        scroll_element = await page.query_selector(scroll_selector)
+                        if scroll_element:
+                            await scroll_element.scroll_into_view_if_needed()
+                            if scroll_adjust != 0:
+                                await page.evaluate(f"window.scrollBy(0, {scroll_adjust})")
+                            await asyncio.sleep(0.1)  # Brief stabilization after scroll
+                    except Exception as e:
+                        logger.warning(
+                            "Failed to scroll to element",
+                            selector=scroll_selector,
+                            error=str(e),
+                        )
+
+                # =============================================================
+                # CAPTURE SCREENSHOT
+                # =============================================================
+                # Use new 'selector' param, fallback to deprecated 'element_selector'
+                capture_selector = options.get("selector") or options.get("element_selector")
+                
+                if capture_selector:
+                    # Check if element_selector requires pro plan (backward compat)
+                    if options.get("element_selector") and not options.get("selector"):
+                        if not (user_plan and user_plan.get("element_selector")):
+                            raise RenderError("Element selector requires Pro+ plan")
+                    
+                    try:
+                        element = await page.query_selector(capture_selector)
                         if element:
+                            # Scroll element into view if not already scrolled
+                            if not scroll_selector:
+                                await element.scroll_into_view_if_needed()
+                                await asyncio.sleep(0.1)
                             screenshot_bytes = await element.screenshot(**screenshot_options)
                         else:
                             raise RenderError(
-                                f"Element not found: {options['element_selector']}"
+                                f"Element not found: {capture_selector}"
                             )
                     except RenderError:
                         raise

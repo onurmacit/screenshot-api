@@ -208,13 +208,22 @@ async def demo_screenshot(
 )
 async def take_screenshot(
     current_user: RateLimitedUser,
-    url: str = Query(..., description="URL to capture"),
+    # Source options (only one required)
+    url: str | None = Query(None, description="URL to capture"),
+    html: str | None = Query(None, description="HTML content to render"),
+    markdown: str | None = Query(None, description="Markdown content to render"),
+    # Viewport options
     format: str = Query("jpeg", description="Output format (png, jpeg, webp)"),
     width: int = Query(1920, ge=320, le=3840, description="Viewport width"),
     height: int = Query(1080, ge=240, le=2160, description="Viewport height"),
     quality: int = Query(80, ge=1, le=100, description="Image quality (jpeg/webp)"),
     full_page: bool = Query(False, description="Capture full page"),
     delay: int = Query(0, ge=0, le=10000, description="Delay before capture (ms)"),
+    # Selector options
+    selector: str | None = Query(None, description="CSS selector to capture specific element"),
+    scroll_into_view: str | None = Query(None, description="CSS selector to scroll into view"),
+    scroll_adjust_top: int = Query(0, ge=-1000, le=1000, description="Pixel offset after scroll"),
+    # Blocking options
     block_ads: bool = Query(True, description="Block ads"),
     block_trackers: bool = Query(True, description="Block trackers"),
     block_cookie_banners: bool = Query(True, description="Block cookie banners"),
@@ -225,11 +234,20 @@ async def take_screenshot(
     **This is the fastest endpoint** - no S3 upload, no JSON response.
     Just pure image data returned directly.
     
-    **Cache-enabled:** Same URL + options returns cached image instantly.
+    **Source options (one required):**
+    - `url`: URL to capture
+    - `html`: HTML content to render directly
+    - `markdown`: Markdown content to render
+    
+    **Selector options:**
+    - `selector`: CSS selector to capture specific element
+    - `scroll_into_view`: Scroll to this element before capture
+    - `scroll_adjust_top`: Pixel offset after scrolling
     
     **Example:**
     ```
     GET /api/v1/renders/take?url=https://stripe.com&format=jpeg&quality=80
+    GET /api/v1/renders/take?html=<h1>Hello</h1>&format=png
     ```
     
     Returns: Binary image data with appropriate Content-Type header.
@@ -237,10 +255,19 @@ async def take_screenshot(
     import time
     start_time = time.perf_counter()
     
-    # Validate URL
-    is_valid, error_message = validate_url(url, require_https=False)
-    if not is_valid:
-        raise ValidationError(error_message or "Invalid URL")
+    # Validate source - at least one required
+    sources = [url, html, markdown]
+    provided = [s for s in sources if s is not None]
+    if len(provided) == 0:
+        raise ValidationError("At least one source required: url, html, or markdown")
+    if len(provided) > 1:
+        raise ValidationError("Only one source allowed: url, html, or markdown")
+    
+    # Validate URL if provided
+    if url:
+        is_valid, error_message = validate_url(url, require_https=False)
+        if not is_valid:
+            raise ValidationError(error_message or "Invalid URL")
     
     # Build options
     options = {
@@ -254,6 +281,12 @@ async def take_screenshot(
         "block_ads": block_ads,
         "block_trackers": block_trackers,
         "block_cookie_banners": block_cookie_banners,
+        # New Essentials options
+        "html": html,
+        "markdown": markdown,
+        "selector": selector,
+        "scroll_into_view": scroll_into_view,
+        "scroll_adjust_top": scroll_adjust_top,
     }
     
     # =========================================================================

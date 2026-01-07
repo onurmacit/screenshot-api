@@ -12,7 +12,11 @@ from pydantic import BaseModel, Field, field_validator
 class ScreenshotRequest(BaseModel):
     """Screenshot render request."""
 
-    url: str = Field(..., description="URL to capture (HTTPS only)")
+    # Source options - URL, HTML, or Markdown (only one required)
+    url: str | None = Field(None, description="URL to capture")
+    html: str | None = Field(None, description="HTML content to render directly")
+    markdown: str | None = Field(None, description="Markdown content to render")
+    
     async_mode: bool = Field(
         default=False,
         alias="async",
@@ -42,9 +46,14 @@ class ScreenshotRequest(BaseModel):
         description="Wait condition (load, domcontentloaded, networkidle)",
     )
 
+    # Selector options
+    selector: str | None = Field(None, description="CSS selector to capture specific element")
+    scroll_into_view: str | None = Field(None, description="CSS selector to scroll into view before capture")
+    scroll_adjust_top: int = Field(default=0, ge=-1000, le=1000, description="Pixel offset after scrolling to element")
+
     # Advanced options (plan-gated)
     custom_css: str | None = Field(None, description="Custom CSS to inject (pro+)")
-    element_selector: str | None = Field(None, description="Element to capture (pro+)")
+    element_selector: str | None = Field(None, description="[DEPRECATED] Use 'selector' instead")
     remove_elements: list[str] | None = Field(None, description="Selectors to remove")
     geolocation: dict[str, float] | None = Field(
         None,
@@ -69,12 +78,34 @@ class ScreenshotRequest(BaseModel):
 
     @field_validator("url")
     @classmethod
-    def validate_url(cls, v: str) -> str:
+    def validate_url(cls, v: str | None) -> str | None:
         """Validate URL format and protocol."""
+        if v is None:
+            return v
         if not v.startswith(("http://", "https://")):
             raise ValueError("URL must start with http:// or https://")
         if len(v) > 2048:
             raise ValueError("URL must be less than 2048 characters")
+        return v
+
+    @field_validator("html")
+    @classmethod
+    def validate_html(cls, v: str | None) -> str | None:
+        """Validate HTML content."""
+        if v is None:
+            return v
+        if len(v) > 5_000_000:  # 5MB limit
+            raise ValueError("HTML content must be less than 5MB")
+        return v
+
+    @field_validator("markdown")
+    @classmethod
+    def validate_markdown(cls, v: str | None) -> str | None:
+        """Validate Markdown content."""
+        if v is None:
+            return v
+        if len(v) > 1_000_000:  # 1MB limit
+            raise ValueError("Markdown content must be less than 1MB")
         return v
 
     @field_validator("format")
@@ -94,6 +125,15 @@ class ScreenshotRequest(BaseModel):
         if v.lower() not in allowed:
             raise ValueError(f"wait_until must be one of: {', '.join(allowed)}")
         return v.lower()
+
+    def model_post_init(self, __context) -> None:
+        """Validate that at least one source is provided."""
+        sources = [self.url, self.html, self.markdown]
+        provided = [s for s in sources if s is not None]
+        if len(provided) == 0:
+            raise ValueError("At least one source must be provided: url, html, or markdown")
+        if len(provided) > 1:
+            raise ValueError("Only one source can be provided: url, html, or markdown")
 
     model_config = {"populate_by_name": True}
 

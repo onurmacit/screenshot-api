@@ -414,10 +414,11 @@ async def create_screenshot(
     - **full_page**: Capture full scrollable page
     - **delay**: Wait time before capture (ms)
     """
-    # Validate URL
-    is_valid, error_message = validate_url(request.url, require_https=False)
-    if not is_valid:
-        raise ValidationError(error_message or "Invalid URL")
+    # Validate source - URL only if provided
+    if request.url:
+        is_valid, error_message = validate_url(request.url, require_https=False)
+        if not is_valid:
+            raise ValidationError(error_message or "Invalid URL")
 
     # Check feature availability based on plan
     if request.custom_css and not current_user.has_feature("custom_css"):
@@ -444,7 +445,7 @@ async def create_screenshot(
             details={"feature": "full_page", "requires": "starter"},
         )
 
-    # Build options dict
+    # Build options dict with Essentials features
     options = {
         "width": request.width,
         "height": request.height,
@@ -462,7 +463,18 @@ async def create_screenshot(
         "extra_http_headers": request.extra_http_headers,
         "authentication": request.authentication,
         "device": request.device,
+        # Essentials features
+        "html": request.html,
+        "markdown": request.markdown,
+        "selector": request.selector,
+        "scroll_into_view": request.scroll_into_view,
+        "scroll_adjust_top": request.scroll_adjust_top,
     }
+
+    # Determine source label for job record
+    source_label = request.url or (
+        "[HTML]" if request.html else ("[Markdown]" if request.markdown else "[Unknown]")
+    )
 
     # Create render job record
     render_job = RenderJob(
@@ -470,7 +482,7 @@ async def create_screenshot(
         api_key_id=current_user.api_key_id,
         type="screenshot",
         status="pending",
-        url=request.url,
+        url=source_label,
         options=options,
         webhook_url=request.webhook_url,
         priority=_get_priority(current_user.plan_name),
@@ -520,12 +532,15 @@ async def create_screenshot(
         }
         
         try:
-            cached_result = await cache_service.get_render_cache(request.url, cache_options)
+            # Only check cache for URL-based requests
+            cached_result = None
+            if request.url:
+                cached_result = await cache_service.get_render_cache(request.url, cache_options)
             if cached_result:
                 elapsed = time.perf_counter() - start_time
                 logger.info(
                     "Screenshot served from S3 cache",
-                    url=request.url[:50],
+                    url=source_label[:50],
                     elapsed=f"{elapsed:.3f}s",
                 )
                 
@@ -564,7 +579,7 @@ async def create_screenshot(
         # RENDER - Capture new screenshot
         # =====================================================================
         image_bytes, metadata = await render_service.capture_screenshot(
-            url=request.url,
+            url=request.url or "",  # Empty string if HTML/Markdown
             options=options,
             user_plan=current_user.plan_features,
         )
@@ -591,9 +606,11 @@ async def create_screenshot(
         # CACHE SET - Store for future requests
         # =====================================================================
         try:
-            await cache_service.set_render_cache(
-                url=request.url,
-                options=cache_options,
+            # Only cache URL-based requests
+            if request.url:
+                await cache_service.set_render_cache(
+                    url=request.url,
+                    options=cache_options,
                 data={
                     "s3_key": upload_result["s3_key"],
                     "s3_url": upload_result["s3_url"],

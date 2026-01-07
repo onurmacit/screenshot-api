@@ -639,7 +639,7 @@ async def create_screenshot(
         elapsed = time.perf_counter() - start_time
         logger.info(
             "Screenshot endpoint completed",
-            url=request.url[:50],
+            url=source_label[:50],
             elapsed=f"{elapsed:.3f}s",
             size=upload_result["file_size"],
         )

@@ -650,7 +650,7 @@ class RenderService:
             import markdown
             html_content = markdown.markdown(
                 markdown_content, 
-                extensions=['tables', 'fenced_code', 'codehilite']
+                extensions=['tables', 'fenced_code']
             )
             return html_template.format(content=html_content)
         except ImportError:

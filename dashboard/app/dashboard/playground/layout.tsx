@@ -29,30 +29,34 @@ export default function PlaygroundLayout({
                 </p>
             </div>
 
-            {/* Navigation Tabs */}
-            <div className="flex gap-2 border-b pb-4">
-                {playgroundNavItems.map((item) => {
-                    const isActive = pathname === item.href;
-                    return (
-                        <Link key={item.href} href={item.href}>
-                            <Button
-                                variant={isActive ? "default" : "outline"}
-                                className={cn(
-                                    "gap-2",
-                                    isActive && "bg-blue-600 hover:bg-blue-700"
-                                )}
-                            >
-                                <item.icon className="h-4 w-4" />
-                                {item.label}
-                                {item.badge && (
-                                    <span className="ml-1 text-xs bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded">
-                                        {item.badge}
-                                    </span>
-                                )}
-                            </Button>
-                        </Link>
-                    );
-                })}
+            {/* Navigation Tabs - Left side, Code Snippet slot will be on right via page */}
+            <div className="flex items-center justify-between border-b pb-4">
+                <div className="flex gap-2">
+                    {playgroundNavItems.map((item) => {
+                        const isActive = pathname === item.href;
+                        return (
+                            <Link key={item.href} href={item.href}>
+                                <Button
+                                    variant={isActive ? "default" : "outline"}
+                                    className={cn(
+                                        "gap-2",
+                                        isActive && "bg-blue-600 hover:bg-blue-700"
+                                    )}
+                                >
+                                    <item.icon className="h-4 w-4" />
+                                    {item.label}
+                                    {item.badge && (
+                                        <span className="ml-1 text-xs bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded">
+                                            {item.badge}
+                                        </span>
+                                    )}
+                                </Button>
+                            </Link>
+                        );
+                    })}
+                </div>
+                {/* Right side slot - filled by page components via portal or absolute positioning */}
+                <div id="header-right-slot"></div>
             </div>
 
             {/* Page Content */}

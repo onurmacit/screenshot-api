@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -51,6 +52,13 @@ export default function ScreenshotPlaygroundPage() {
     const [result, setResult] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [isImageLoaded, setIsImageLoaded] = useState(false);
+
+    // Portal container for Code Snippet in header
+    const [headerSlot, setHeaderSlot] = useState<HTMLElement | null>(null);
+    useEffect(() => {
+        const slot = document.getElementById('header-right-slot');
+        if (slot) setHeaderSlot(slot);
+    }, []);
 
     // Count active options per category
     const blockingCount = [blockAds, blockCookieBanners, blockTrackers, blockChatWidgets].filter(Boolean).length;
@@ -168,330 +176,336 @@ export default function ScreenshotPlaygroundPage() {
     };
 
     return (
-        <div className="flex flex-col lg:flex-row gap-6 h-[calc(100vh-280px)]">
-            {/* Controls Panel */}
-            <div className="w-full lg:w-96 flex-shrink-0 flex flex-col">
-                {/* Scrollable Options */}
-                <div className="flex-1 space-y-4 overflow-y-auto pr-2">
-                    {/* API Key - Always visible */}
-                    <Card>
-                        <CardContent className="pt-4">
-                            <div className="space-y-2">
-                                <Label>API Key</Label>
-                                <Input
-                                    type="password"
-                                    placeholder="Enter your API Key"
-                                    value={apiKey}
-                                    onChange={(e) => setApiKey(e.target.value)}
-                                />
-                            </div>
-                        </CardContent>
-                    </Card>
-
-                    {/* Accordion Options */}
-                    <Accordion type="multiple" defaultValue={["essentials", "viewport"]} className="space-y-2">
-                        {/* ESSENTIALS - Always expanded by default */}
-                        <AccordionItem value="essentials" className="border rounded-lg px-4">
-                            <AccordionTrigger className="hover:no-underline">
-                                <div className="flex items-center gap-2">
-                                    <Camera className="h-4 w-4" />
-                                    <span className="font-medium">Essentials</span>
-                                </div>
-                            </AccordionTrigger>
-                            <AccordionContent className="space-y-4 pb-4">
-                                {/* Source Type */}
+        <>
+            <div className="flex flex-col lg:flex-row gap-6 h-[calc(100vh-280px)]">
+                {/* Controls Panel */}
+                <div className="w-full lg:w-96 flex-shrink-0 flex flex-col">
+                    {/* Scrollable Options */}
+                    <div className="flex-1 space-y-4 overflow-y-auto pr-2">
+                        {/* API Key - Always visible */}
+                        <Card>
+                            <CardContent className="pt-4">
                                 <div className="space-y-2">
-                                    <Label>Source</Label>
-                                    <Tabs value={sourceType} onValueChange={(v) => setSourceType(v as "url" | "html" | "markdown")} className="w-full">
-                                        <TabsList className="grid w-full grid-cols-3">
-                                            <TabsTrigger value="url">URL</TabsTrigger>
-                                            <TabsTrigger value="html">HTML</TabsTrigger>
-                                            <TabsTrigger value="markdown">Markdown</TabsTrigger>
-                                        </TabsList>
-                                    </Tabs>
+                                    <Label>API Key</Label>
+                                    <Input
+                                        type="password"
+                                        placeholder="Enter your API Key"
+                                        value={apiKey}
+                                        onChange={(e) => setApiKey(e.target.value)}
+                                    />
                                 </div>
+                            </CardContent>
+                        </Card>
 
-                                {/* Source Input */}
-                                {sourceType === "url" && (
-                                    <div className="space-y-2">
-                                        <Label>URL</Label>
-                                        <Input placeholder="https://example.com" value={url} onChange={(e) => setUrl(e.target.value)} />
+                        {/* Accordion Options */}
+                        <Accordion type="multiple" defaultValue={["essentials", "viewport"]} className="space-y-2">
+                            {/* ESSENTIALS - Always expanded by default */}
+                            <AccordionItem value="essentials" className="border rounded-lg px-4">
+                                <AccordionTrigger className="hover:no-underline">
+                                    <div className="flex items-center gap-2">
+                                        <Camera className="h-4 w-4" />
+                                        <span className="font-medium">Essentials</span>
                                     </div>
-                                )}
-                                {sourceType === "html" && (
+                                </AccordionTrigger>
+                                <AccordionContent className="space-y-4 pb-4">
+                                    {/* Source Type */}
                                     <div className="space-y-2">
-                                        <Label>HTML Content</Label>
-                                        <Textarea placeholder="<h1>Hello</h1>" value={htmlContent} onChange={(e) => setHtmlContent(e.target.value)} rows={4} />
+                                        <Label>Source</Label>
+                                        <Tabs value={sourceType} onValueChange={(v) => setSourceType(v as "url" | "html" | "markdown")} className="w-full">
+                                            <TabsList className="grid w-full grid-cols-3">
+                                                <TabsTrigger value="url">URL</TabsTrigger>
+                                                <TabsTrigger value="html">HTML</TabsTrigger>
+                                                <TabsTrigger value="markdown">Markdown</TabsTrigger>
+                                            </TabsList>
+                                        </Tabs>
                                     </div>
-                                )}
-                                {sourceType === "markdown" && (
-                                    <div className="space-y-2">
-                                        <Label>Markdown Content</Label>
-                                        <Textarea placeholder="# Hello" value={markdownContent} onChange={(e) => setMarkdownContent(e.target.value)} rows={4} />
-                                    </div>
-                                )}
 
-                                {/* Selector */}
-                                <div className="space-y-2">
-                                    <Label>Element Selector <span className="text-muted-foreground text-xs">(optional)</span></Label>
-                                    <Input placeholder=".hero, #main" value={selector} onChange={(e) => setSelector(e.target.value)} />
-                                </div>
-                            </AccordionContent>
-                        </AccordionItem>
-
-                        {/* VIEWPORT & DISPLAY */}
-                        <AccordionItem value="viewport" className="border rounded-lg px-4">
-                            <AccordionTrigger className="hover:no-underline">
-                                <div className="flex items-center gap-2">
-                                    <span className="font-medium">Viewport & Display</span>
-                                </div>
-                            </AccordionTrigger>
-                            <AccordionContent className="space-y-4 pb-4">
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div className="space-y-2">
-                                        <Label>Width</Label>
-                                        <Input type="number" value={width} onChange={(e) => setWidth(Number(e.target.value))} />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label>Height</Label>
-                                        <Input type="number" value={height} onChange={(e) => setHeight(Number(e.target.value))} />
-                                    </div>
-                                </div>
-                                <div className="space-y-2">
-                                    <Label>Format</Label>
-                                    <Select value={format} onValueChange={setFormat}>
-                                        <SelectTrigger><SelectValue /></SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="png">PNG</SelectItem>
-                                            <SelectItem value="jpeg">JPEG</SelectItem>
-                                            <SelectItem value="webp">WebP</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                                <div className="space-y-2">
-                                    <Label>Device Scale</Label>
-                                    <Select value={deviceScale.toString()} onValueChange={(v) => setDeviceScale(Number(v))}>
-                                        <SelectTrigger><SelectValue /></SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="1">1x</SelectItem>
-                                            <SelectItem value="2">2x (Retina)</SelectItem>
-                                            <SelectItem value="3">3x</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                                <div className="flex items-center justify-between">
-                                    <Label>Dark Mode</Label>
-                                    <Switch checked={darkMode} onCheckedChange={setDarkMode} />
-                                </div>
-                            </AccordionContent>
-                        </AccordionItem>
-
-                        {/* BLOCKING */}
-                        <AccordionItem value="blocking" className="border rounded-lg px-4">
-                            <AccordionTrigger className="hover:no-underline">
-                                <div className="flex items-center gap-2">
-                                    <span className="font-medium">Blocking</span>
-                                    {blockingCount > 0 && (
-                                        <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">{blockingCount} active</span>
+                                    {/* Source Input */}
+                                    {sourceType === "url" && (
+                                        <div className="space-y-2">
+                                            <Label>URL</Label>
+                                            <Input placeholder="https://example.com" value={url} onChange={(e) => setUrl(e.target.value)} />
+                                        </div>
                                     )}
-                                </div>
-                            </AccordionTrigger>
-                            <AccordionContent className="space-y-3 pb-4">
-                                <div className="flex items-center justify-between">
-                                    <Label>Block Ads</Label>
-                                    <Switch checked={blockAds} onCheckedChange={setBlockAds} />
-                                </div>
-                                <div className="flex items-center justify-between">
-                                    <Label>Block Cookie Banners</Label>
-                                    <Switch checked={blockCookieBanners} onCheckedChange={setBlockCookieBanners} />
-                                </div>
-                                <div className="flex items-center justify-between">
-                                    <Label>Block Trackers</Label>
-                                    <Switch checked={blockTrackers} onCheckedChange={setBlockTrackers} />
-                                </div>
-                                <div className="flex items-center justify-between">
-                                    <Label>Block Chat Widgets</Label>
-                                    <Switch checked={blockChatWidgets} onCheckedChange={setBlockChatWidgets} />
-                                </div>
-                            </AccordionContent>
-                        </AccordionItem>
-
-                        {/* FULL PAGE & CLIP */}
-                        <AccordionItem value="fullpage" className="border rounded-lg px-4">
-                            <AccordionTrigger className="hover:no-underline">
-                                <div className="flex items-center gap-2">
-                                    <span className="font-medium">Full Page & Scroll</span>
-                                    {fullPageCount > 0 && (
-                                        <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">{fullPageCount} active</span>
+                                    {sourceType === "html" && (
+                                        <div className="space-y-2">
+                                            <Label>HTML Content</Label>
+                                            <Textarea placeholder="<h1>Hello</h1>" value={htmlContent} onChange={(e) => setHtmlContent(e.target.value)} rows={4} />
+                                        </div>
                                     )}
-                                </div>
-                            </AccordionTrigger>
-                            <AccordionContent className="space-y-4 pb-4">
-                                <div className="flex items-center justify-between">
-                                    <Label>Full Page Screenshot</Label>
-                                    <Switch checked={fullPage} onCheckedChange={setFullPage} />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label>Scroll Into View <span className="text-muted-foreground text-xs">(selector)</span></Label>
-                                    <Input placeholder="#section, .element" value={scrollIntoView} onChange={(e) => setScrollIntoView(e.target.value)} />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label>Scroll Adjust Top <span className="text-muted-foreground text-xs">(pixels)</span></Label>
-                                    <Input type="number" value={scrollAdjustTop} onChange={(e) => setScrollAdjustTop(Number(e.target.value))} />
-                                </div>
-                            </AccordionContent>
-                        </AccordionItem>
-
-                        {/* ADVANCED */}
-                        <AccordionItem value="advanced" className="border rounded-lg px-4">
-                            <AccordionTrigger className="hover:no-underline">
-                                <div className="flex items-center gap-2">
-                                    <span className="font-medium">Advanced</span>
-                                    {advancedCount > 0 && (
-                                        <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">{advancedCount} active</span>
+                                    {sourceType === "markdown" && (
+                                        <div className="space-y-2">
+                                            <Label>Markdown Content</Label>
+                                            <Textarea placeholder="# Hello" value={markdownContent} onChange={(e) => setMarkdownContent(e.target.value)} rows={4} />
+                                        </div>
                                     )}
-                                </div>
-                            </AccordionTrigger>
-                            <AccordionContent className="space-y-4 pb-4">
-                                <div className="space-y-2">
-                                    <Label>Delay <span className="text-muted-foreground text-xs">(ms)</span></Label>
-                                    <Input type="number" value={delay} onChange={(e) => setDelay(Number(e.target.value))} placeholder="0" />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label>Timeout <span className="text-muted-foreground text-xs">(ms)</span></Label>
-                                    <Input type="number" value={timeout} onChange={(e) => setTimeout(Number(e.target.value))} />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label>User Agent</Label>
-                                    <Input placeholder="Custom user agent string" value={userAgent} onChange={(e) => setUserAgent(e.target.value)} />
-                                </div>
-                            </AccordionContent>
-                        </AccordionItem>
-                    </Accordion>
-                </div>
 
-                {/* Sticky Button Area - Always visible */}
-                <div className="pt-4 border-t bg-background space-y-3">
-                    <Button
-                        className="w-full"
-                        size="lg"
-                        onClick={handleRender}
-                        disabled={isLoading}
-                    >
-                        {isLoading ? (
-                            <>
-                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                Rendering...
-                            </>
-                        ) : (
-                            <>
-                                <Camera className="mr-2 h-4 w-4" />
-                                Render Screenshot
-                            </>
-                        )}
-                    </Button>
+                                    {/* Selector */}
+                                    <div className="space-y-2">
+                                        <Label>Element Selector <span className="text-muted-foreground text-xs">(optional)</span></Label>
+                                        <Input placeholder=".hero, #main" value={selector} onChange={(e) => setSelector(e.target.value)} />
+                                    </div>
+                                </AccordionContent>
+                            </AccordionItem>
 
-                    {/* Download Button - Only shows when result exists */}
-                    {result && !isLoading && (
+                            {/* VIEWPORT & DISPLAY */}
+                            <AccordionItem value="viewport" className="border rounded-lg px-4">
+                                <AccordionTrigger className="hover:no-underline">
+                                    <div className="flex items-center gap-2">
+                                        <span className="font-medium">Viewport & Display</span>
+                                    </div>
+                                </AccordionTrigger>
+                                <AccordionContent className="space-y-4 pb-4">
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="space-y-2">
+                                            <Label>Width</Label>
+                                            <Input type="number" value={width} onChange={(e) => setWidth(Number(e.target.value))} />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label>Height</Label>
+                                            <Input type="number" value={height} onChange={(e) => setHeight(Number(e.target.value))} />
+                                        </div>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label>Format</Label>
+                                        <Select value={format} onValueChange={setFormat}>
+                                            <SelectTrigger><SelectValue /></SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="png">PNG</SelectItem>
+                                                <SelectItem value="jpeg">JPEG</SelectItem>
+                                                <SelectItem value="webp">WebP</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label>Device Scale</Label>
+                                        <Select value={deviceScale.toString()} onValueChange={(v) => setDeviceScale(Number(v))}>
+                                            <SelectTrigger><SelectValue /></SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="1">1x</SelectItem>
+                                                <SelectItem value="2">2x (Retina)</SelectItem>
+                                                <SelectItem value="3">3x</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    <div className="flex items-center justify-between">
+                                        <Label>Dark Mode</Label>
+                                        <Switch checked={darkMode} onCheckedChange={setDarkMode} />
+                                    </div>
+                                </AccordionContent>
+                            </AccordionItem>
+
+                            {/* BLOCKING */}
+                            <AccordionItem value="blocking" className="border rounded-lg px-4">
+                                <AccordionTrigger className="hover:no-underline">
+                                    <div className="flex items-center gap-2">
+                                        <span className="font-medium">Blocking</span>
+                                        {blockingCount > 0 && (
+                                            <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">{blockingCount} active</span>
+                                        )}
+                                    </div>
+                                </AccordionTrigger>
+                                <AccordionContent className="space-y-3 pb-4">
+                                    <div className="flex items-center justify-between">
+                                        <Label>Block Ads</Label>
+                                        <Switch checked={blockAds} onCheckedChange={setBlockAds} />
+                                    </div>
+                                    <div className="flex items-center justify-between">
+                                        <Label>Block Cookie Banners</Label>
+                                        <Switch checked={blockCookieBanners} onCheckedChange={setBlockCookieBanners} />
+                                    </div>
+                                    <div className="flex items-center justify-between">
+                                        <Label>Block Trackers</Label>
+                                        <Switch checked={blockTrackers} onCheckedChange={setBlockTrackers} />
+                                    </div>
+                                    <div className="flex items-center justify-between">
+                                        <Label>Block Chat Widgets</Label>
+                                        <Switch checked={blockChatWidgets} onCheckedChange={setBlockChatWidgets} />
+                                    </div>
+                                </AccordionContent>
+                            </AccordionItem>
+
+                            {/* FULL PAGE & CLIP */}
+                            <AccordionItem value="fullpage" className="border rounded-lg px-4">
+                                <AccordionTrigger className="hover:no-underline">
+                                    <div className="flex items-center gap-2">
+                                        <span className="font-medium">Full Page & Scroll</span>
+                                        {fullPageCount > 0 && (
+                                            <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">{fullPageCount} active</span>
+                                        )}
+                                    </div>
+                                </AccordionTrigger>
+                                <AccordionContent className="space-y-4 pb-4">
+                                    <div className="flex items-center justify-between">
+                                        <Label>Full Page Screenshot</Label>
+                                        <Switch checked={fullPage} onCheckedChange={setFullPage} />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label>Scroll Into View <span className="text-muted-foreground text-xs">(selector)</span></Label>
+                                        <Input placeholder="#section, .element" value={scrollIntoView} onChange={(e) => setScrollIntoView(e.target.value)} />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label>Scroll Adjust Top <span className="text-muted-foreground text-xs">(pixels)</span></Label>
+                                        <Input type="number" value={scrollAdjustTop} onChange={(e) => setScrollAdjustTop(Number(e.target.value))} />
+                                    </div>
+                                </AccordionContent>
+                            </AccordionItem>
+
+                            {/* ADVANCED */}
+                            <AccordionItem value="advanced" className="border rounded-lg px-4">
+                                <AccordionTrigger className="hover:no-underline">
+                                    <div className="flex items-center gap-2">
+                                        <span className="font-medium">Advanced</span>
+                                        {advancedCount > 0 && (
+                                            <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">{advancedCount} active</span>
+                                        )}
+                                    </div>
+                                </AccordionTrigger>
+                                <AccordionContent className="space-y-4 pb-4">
+                                    <div className="space-y-2">
+                                        <Label>Delay <span className="text-muted-foreground text-xs">(ms)</span></Label>
+                                        <Input type="number" value={delay} onChange={(e) => setDelay(Number(e.target.value))} placeholder="0" />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label>Timeout <span className="text-muted-foreground text-xs">(ms)</span></Label>
+                                        <Input type="number" value={timeout} onChange={(e) => setTimeout(Number(e.target.value))} />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label>User Agent</Label>
+                                        <Input placeholder="Custom user agent string" value={userAgent} onChange={(e) => setUserAgent(e.target.value)} />
+                                    </div>
+                                </AccordionContent>
+                            </AccordionItem>
+                        </Accordion>
+                    </div>
+
+                    {/* Sticky Button Area - Always visible */}
+                    <div className="pt-4 border-t bg-background space-y-3">
                         <Button
-                            variant="outline"
                             className="w-full"
                             size="lg"
-                            onClick={() => {
-                                const link = document.createElement('a');
-                                link.href = result;
-                                link.download = `screenshot-${Date.now()}.${format}`;
-                                link.target = '_blank';
-                                link.click();
-                            }}
+                            onClick={handleRender}
+                            disabled={isLoading}
                         >
-                            <svg className="mr-2 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                            </svg>
-                            Download {format.toUpperCase()}
+                            {isLoading ? (
+                                <>
+                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                    Rendering...
+                                </>
+                            ) : (
+                                <>
+                                    <Camera className="mr-2 h-4 w-4" />
+                                    Render Screenshot
+                                </>
+                            )}
                         </Button>
-                    )}
-                </div>
-            </div>
 
-            {/* Preview Panel */}
-            <div className="flex-1 flex flex-col min-w-0">
-                {/* Code Snippet - Top right aligned */}
-                <div className="mb-4">
-                    <CodeSnippet code={generateCurl()} />
-                </div>
-
-                {/* Monitor Frame */}
-                <div className="bg-gradient-to-b from-gray-700 to-gray-900 rounded-2xl p-3 shadow-2xl flex-1 flex flex-col">
-                    {/* Browser Chrome */}
-                    <div className="bg-gray-800 rounded-xl px-4 py-2.5 flex items-center gap-3">
-                        <div className="flex gap-2">
-                            <div className="w-3 h-3 rounded-full bg-red-500 hover:bg-red-400 transition-colors cursor-pointer"></div>
-                            <div className="w-3 h-3 rounded-full bg-yellow-500 hover:bg-yellow-400 transition-colors cursor-pointer"></div>
-                            <div className="w-3 h-3 rounded-full bg-green-500 hover:bg-green-400 transition-colors cursor-pointer"></div>
-                        </div>
-                        <div className="flex-1 mx-4">
-                            <div className="bg-gray-700 rounded-lg px-4 py-1.5 text-sm text-gray-300 truncate">
-                                {sourceType === "url" ? url : sourceType === "html" ? "[HTML Content]" : "[Markdown Content]"}
-                            </div>
-                        </div>
-                    </div>
-                    {/* Screenshot Content Area - 16:9 aspect ratio */}
-                    <div className="bg-white rounded-xl mt-2 overflow-hidden aspect-video flex items-center justify-center relative">
-                        {/* Loading Overlay - shows during API call and image loading */}
-                        {isLoading && (
-                            <div className="absolute inset-0 flex items-center justify-center bg-white z-10">
-                                <div className="text-center text-gray-400">
-                                    <Loader2 className="h-10 w-10 mx-auto mb-3 animate-spin text-blue-500" />
-                                    <p className="text-sm font-medium">Rendering screenshot...</p>
-                                    <p className="text-xs mt-1 text-gray-300">This may take a few seconds</p>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Error State */}
-                        {error && !isLoading && (
-                            <div className="text-center max-w-sm py-12 px-4">
-                                <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-3">
-                                    <span className="text-red-500 text-xl">!</span>
-                                </div>
-                                <p className="font-medium text-gray-800 mb-1">Rendering Failed</p>
-                                <p className="text-sm text-gray-500">{error}</p>
-                            </div>
-                        )}
-
-                        {/* Image - renders hidden during loading, visible when ready */}
-                        {result && (
-                            <img
-                                src={result}
-                                alt="Screenshot Preview"
-                                className={`w-full h-full object-cover transition-opacity duration-300 ${isLoading ? 'opacity-0' : 'opacity-100'}`}
-                                onLoad={() => {
-                                    setIsImageLoaded(true);
-                                    setIsLoading(false);
+                        {/* Download Button - Only shows when result exists */}
+                        {result && !isLoading && (
+                            <Button
+                                variant="outline"
+                                className="w-full"
+                                size="lg"
+                                onClick={() => {
+                                    const link = document.createElement('a');
+                                    link.href = result;
+                                    link.download = `screenshot-${Date.now()}.${format}`;
+                                    link.target = '_blank';
+                                    link.click();
                                 }}
-                            />
-                        )}
-
-                        {/* Empty State */}
-                        {!result && !error && !isLoading && (
-                            <div className="text-center text-gray-400 py-16">
-                                <Camera className="h-10 w-10 mx-auto mb-3 opacity-40" />
-                                <p className="text-sm font-medium">No screenshot yet</p>
-                                <p className="text-xs mt-1 text-gray-300">Click "Render Screenshot" to generate</p>
-                            </div>
+                            >
+                                <svg className="mr-2 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                </svg>
+                                Download {format.toUpperCase()}
+                            </Button>
                         )}
                     </div>
                 </div>
-                {/* Monitor Stand */}
-                <div className="flex justify-center">
-                    <div className="w-16 h-5 bg-gradient-to-b from-gray-700 to-gray-800 rounded-b-sm"></div>
-                </div>
-                <div className="flex justify-center">
-                    <div className="w-28 h-2 bg-gradient-to-b from-gray-600 to-gray-700 rounded-b-lg shadow-md"></div>
-                </div>
 
+                {/* Preview Panel */}
+                <div className="flex-1 flex flex-col min-w-0">
+
+                    {/* Monitor Frame */}
+                    <div className="bg-gradient-to-b from-gray-700 to-gray-900 rounded-2xl p-3 shadow-2xl flex-1 flex flex-col">
+                        {/* Browser Chrome */}
+                        <div className="bg-gray-800 rounded-xl px-4 py-2.5 flex items-center gap-3">
+                            <div className="flex gap-2">
+                                <div className="w-3 h-3 rounded-full bg-red-500 hover:bg-red-400 transition-colors cursor-pointer"></div>
+                                <div className="w-3 h-3 rounded-full bg-yellow-500 hover:bg-yellow-400 transition-colors cursor-pointer"></div>
+                                <div className="w-3 h-3 rounded-full bg-green-500 hover:bg-green-400 transition-colors cursor-pointer"></div>
+                            </div>
+                            <div className="flex-1 mx-4">
+                                <div className="bg-gray-700 rounded-lg px-4 py-1.5 text-sm text-gray-300 truncate">
+                                    {sourceType === "url" ? url : sourceType === "html" ? "[HTML Content]" : "[Markdown Content]"}
+                                </div>
+                            </div>
+                        </div>
+                        {/* Screenshot Content Area - 16:9 aspect ratio */}
+                        <div className="bg-white rounded-xl mt-2 overflow-hidden aspect-video flex items-center justify-center relative">
+                            {/* Loading Overlay - shows during API call and image loading */}
+                            {isLoading && (
+                                <div className="absolute inset-0 flex items-center justify-center bg-white z-10">
+                                    <div className="text-center text-gray-400">
+                                        <Loader2 className="h-10 w-10 mx-auto mb-3 animate-spin text-blue-500" />
+                                        <p className="text-sm font-medium">Rendering screenshot...</p>
+                                        <p className="text-xs mt-1 text-gray-300">This may take a few seconds</p>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Error State */}
+                            {error && !isLoading && (
+                                <div className="text-center max-w-sm py-12 px-4">
+                                    <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-3">
+                                        <span className="text-red-500 text-xl">!</span>
+                                    </div>
+                                    <p className="font-medium text-gray-800 mb-1">Rendering Failed</p>
+                                    <p className="text-sm text-gray-500">{error}</p>
+                                </div>
+                            )}
+
+                            {/* Image - renders hidden during loading, visible when ready */}
+                            {result && (
+                                <img
+                                    src={result}
+                                    alt="Screenshot Preview"
+                                    className={`w-full h-full object-cover transition-opacity duration-300 ${isLoading ? 'opacity-0' : 'opacity-100'}`}
+                                    onLoad={() => {
+                                        setIsImageLoaded(true);
+                                        setIsLoading(false);
+                                    }}
+                                />
+                            )}
+
+                            {/* Empty State */}
+                            {!result && !error && !isLoading && (
+                                <div className="text-center text-gray-400 py-16">
+                                    <Camera className="h-10 w-10 mx-auto mb-3 opacity-40" />
+                                    <p className="text-sm font-medium">No screenshot yet</p>
+                                    <p className="text-xs mt-1 text-gray-300">Click "Render Screenshot" to generate</p>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                    {/* Monitor Stand */}
+                    <div className="flex justify-center">
+                        <div className="w-16 h-5 bg-gradient-to-b from-gray-700 to-gray-800 rounded-b-sm"></div>
+                    </div>
+                    <div className="flex justify-center">
+                        <div className="w-28 h-2 bg-gradient-to-b from-gray-600 to-gray-700 rounded-b-lg shadow-md"></div>
+                    </div>
+
+                </div>
             </div>
-        </div>
+
+            {/* Portal: Code Snippet in header */}
+            {
+                headerSlot && createPortal(
+                    <CodeSnippet code={generateCurl()} />,
+                    headerSlot
+                )
+            }
+        </>
     );
 }

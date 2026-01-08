@@ -170,225 +170,230 @@ export default function ScreenshotPlaygroundPage() {
     return (
         <div className="flex flex-col lg:flex-row gap-6 h-[calc(100vh-280px)]">
             {/* Controls Panel */}
-            <div className="w-full lg:w-96 flex-shrink-0 space-y-4 overflow-y-auto pr-2">
-                {/* API Key - Always visible */}
-                <Card>
-                    <CardContent className="pt-4">
-                        <div className="space-y-2">
-                            <Label>API Key</Label>
-                            <Input
-                                type="password"
-                                placeholder="Enter your API Key"
-                                value={apiKey}
-                                onChange={(e) => setApiKey(e.target.value)}
-                            />
-                        </div>
-                    </CardContent>
-                </Card>
-
-                {/* Accordion Options */}
-                <Accordion type="multiple" defaultValue={["essentials", "viewport"]} className="space-y-2">
-                    {/* ESSENTIALS - Always expanded by default */}
-                    <AccordionItem value="essentials" className="border rounded-lg px-4">
-                        <AccordionTrigger className="hover:no-underline">
-                            <div className="flex items-center gap-2">
-                                <Camera className="h-4 w-4" />
-                                <span className="font-medium">Essentials</span>
-                            </div>
-                        </AccordionTrigger>
-                        <AccordionContent className="space-y-4 pb-4">
-                            {/* Source Type */}
+            <div className="w-full lg:w-96 flex-shrink-0 flex flex-col">
+                {/* Scrollable Options */}
+                <div className="flex-1 space-y-4 overflow-y-auto pr-2">
+                    {/* API Key - Always visible */}
+                    <Card>
+                        <CardContent className="pt-4">
                             <div className="space-y-2">
-                                <Label>Source</Label>
-                                <Tabs value={sourceType} onValueChange={(v) => setSourceType(v as "url" | "html" | "markdown")} className="w-full">
-                                    <TabsList className="grid w-full grid-cols-3">
-                                        <TabsTrigger value="url">URL</TabsTrigger>
-                                        <TabsTrigger value="html">HTML</TabsTrigger>
-                                        <TabsTrigger value="markdown">Markdown</TabsTrigger>
-                                    </TabsList>
-                                </Tabs>
+                                <Label>API Key</Label>
+                                <Input
+                                    type="password"
+                                    placeholder="Enter your API Key"
+                                    value={apiKey}
+                                    onChange={(e) => setApiKey(e.target.value)}
+                                />
                             </div>
+                        </CardContent>
+                    </Card>
 
-                            {/* Source Input */}
-                            {sourceType === "url" && (
-                                <div className="space-y-2">
-                                    <Label>URL</Label>
-                                    <Input placeholder="https://example.com" value={url} onChange={(e) => setUrl(e.target.value)} />
+                    {/* Accordion Options */}
+                    <Accordion type="multiple" defaultValue={["essentials", "viewport"]} className="space-y-2">
+                        {/* ESSENTIALS - Always expanded by default */}
+                        <AccordionItem value="essentials" className="border rounded-lg px-4">
+                            <AccordionTrigger className="hover:no-underline">
+                                <div className="flex items-center gap-2">
+                                    <Camera className="h-4 w-4" />
+                                    <span className="font-medium">Essentials</span>
                                 </div>
-                            )}
-                            {sourceType === "html" && (
+                            </AccordionTrigger>
+                            <AccordionContent className="space-y-4 pb-4">
+                                {/* Source Type */}
                                 <div className="space-y-2">
-                                    <Label>HTML Content</Label>
-                                    <Textarea placeholder="<h1>Hello</h1>" value={htmlContent} onChange={(e) => setHtmlContent(e.target.value)} rows={4} />
+                                    <Label>Source</Label>
+                                    <Tabs value={sourceType} onValueChange={(v) => setSourceType(v as "url" | "html" | "markdown")} className="w-full">
+                                        <TabsList className="grid w-full grid-cols-3">
+                                            <TabsTrigger value="url">URL</TabsTrigger>
+                                            <TabsTrigger value="html">HTML</TabsTrigger>
+                                            <TabsTrigger value="markdown">Markdown</TabsTrigger>
+                                        </TabsList>
+                                    </Tabs>
                                 </div>
-                            )}
-                            {sourceType === "markdown" && (
-                                <div className="space-y-2">
-                                    <Label>Markdown Content</Label>
-                                    <Textarea placeholder="# Hello" value={markdownContent} onChange={(e) => setMarkdownContent(e.target.value)} rows={4} />
-                                </div>
-                            )}
 
-                            {/* Selector */}
-                            <div className="space-y-2">
-                                <Label>Element Selector <span className="text-muted-foreground text-xs">(optional)</span></Label>
-                                <Input placeholder=".hero, #main" value={selector} onChange={(e) => setSelector(e.target.value)} />
-                            </div>
-                        </AccordionContent>
-                    </AccordionItem>
-
-                    {/* VIEWPORT & DISPLAY */}
-                    <AccordionItem value="viewport" className="border rounded-lg px-4">
-                        <AccordionTrigger className="hover:no-underline">
-                            <div className="flex items-center gap-2">
-                                <span className="font-medium">Viewport & Display</span>
-                            </div>
-                        </AccordionTrigger>
-                        <AccordionContent className="space-y-4 pb-4">
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-2">
-                                    <Label>Width</Label>
-                                    <Input type="number" value={width} onChange={(e) => setWidth(Number(e.target.value))} />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label>Height</Label>
-                                    <Input type="number" value={height} onChange={(e) => setHeight(Number(e.target.value))} />
-                                </div>
-                            </div>
-                            <div className="space-y-2">
-                                <Label>Format</Label>
-                                <Select value={format} onValueChange={setFormat}>
-                                    <SelectTrigger><SelectValue /></SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="png">PNG</SelectItem>
-                                        <SelectItem value="jpeg">JPEG</SelectItem>
-                                        <SelectItem value="webp">WebP</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                            <div className="space-y-2">
-                                <Label>Device Scale</Label>
-                                <Select value={deviceScale.toString()} onValueChange={(v) => setDeviceScale(Number(v))}>
-                                    <SelectTrigger><SelectValue /></SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="1">1x</SelectItem>
-                                        <SelectItem value="2">2x (Retina)</SelectItem>
-                                        <SelectItem value="3">3x</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                            <div className="flex items-center justify-between">
-                                <Label>Dark Mode</Label>
-                                <Switch checked={darkMode} onCheckedChange={setDarkMode} />
-                            </div>
-                        </AccordionContent>
-                    </AccordionItem>
-
-                    {/* BLOCKING */}
-                    <AccordionItem value="blocking" className="border rounded-lg px-4">
-                        <AccordionTrigger className="hover:no-underline">
-                            <div className="flex items-center gap-2">
-                                <span className="font-medium">Blocking</span>
-                                {blockingCount > 0 && (
-                                    <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">{blockingCount} active</span>
+                                {/* Source Input */}
+                                {sourceType === "url" && (
+                                    <div className="space-y-2">
+                                        <Label>URL</Label>
+                                        <Input placeholder="https://example.com" value={url} onChange={(e) => setUrl(e.target.value)} />
+                                    </div>
                                 )}
-                            </div>
-                        </AccordionTrigger>
-                        <AccordionContent className="space-y-3 pb-4">
-                            <div className="flex items-center justify-between">
-                                <Label>Block Ads</Label>
-                                <Switch checked={blockAds} onCheckedChange={setBlockAds} />
-                            </div>
-                            <div className="flex items-center justify-between">
-                                <Label>Block Cookie Banners</Label>
-                                <Switch checked={blockCookieBanners} onCheckedChange={setBlockCookieBanners} />
-                            </div>
-                            <div className="flex items-center justify-between">
-                                <Label>Block Trackers</Label>
-                                <Switch checked={blockTrackers} onCheckedChange={setBlockTrackers} />
-                            </div>
-                            <div className="flex items-center justify-between">
-                                <Label>Block Chat Widgets</Label>
-                                <Switch checked={blockChatWidgets} onCheckedChange={setBlockChatWidgets} />
-                            </div>
-                        </AccordionContent>
-                    </AccordionItem>
-
-                    {/* FULL PAGE & CLIP */}
-                    <AccordionItem value="fullpage" className="border rounded-lg px-4">
-                        <AccordionTrigger className="hover:no-underline">
-                            <div className="flex items-center gap-2">
-                                <span className="font-medium">Full Page & Scroll</span>
-                                {fullPageCount > 0 && (
-                                    <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">{fullPageCount} active</span>
+                                {sourceType === "html" && (
+                                    <div className="space-y-2">
+                                        <Label>HTML Content</Label>
+                                        <Textarea placeholder="<h1>Hello</h1>" value={htmlContent} onChange={(e) => setHtmlContent(e.target.value)} rows={4} />
+                                    </div>
                                 )}
-                            </div>
-                        </AccordionTrigger>
-                        <AccordionContent className="space-y-4 pb-4">
-                            <div className="flex items-center justify-between">
-                                <Label>Full Page Screenshot</Label>
-                                <Switch checked={fullPage} onCheckedChange={setFullPage} />
-                            </div>
-                            <div className="space-y-2">
-                                <Label>Scroll Into View <span className="text-muted-foreground text-xs">(selector)</span></Label>
-                                <Input placeholder="#section, .element" value={scrollIntoView} onChange={(e) => setScrollIntoView(e.target.value)} />
-                            </div>
-                            <div className="space-y-2">
-                                <Label>Scroll Adjust Top <span className="text-muted-foreground text-xs">(pixels)</span></Label>
-                                <Input type="number" value={scrollAdjustTop} onChange={(e) => setScrollAdjustTop(Number(e.target.value))} />
-                            </div>
-                        </AccordionContent>
-                    </AccordionItem>
-
-                    {/* ADVANCED */}
-                    <AccordionItem value="advanced" className="border rounded-lg px-4">
-                        <AccordionTrigger className="hover:no-underline">
-                            <div className="flex items-center gap-2">
-                                <span className="font-medium">Advanced</span>
-                                {advancedCount > 0 && (
-                                    <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">{advancedCount} active</span>
+                                {sourceType === "markdown" && (
+                                    <div className="space-y-2">
+                                        <Label>Markdown Content</Label>
+                                        <Textarea placeholder="# Hello" value={markdownContent} onChange={(e) => setMarkdownContent(e.target.value)} rows={4} />
+                                    </div>
                                 )}
-                            </div>
-                        </AccordionTrigger>
-                        <AccordionContent className="space-y-4 pb-4">
-                            <div className="space-y-2">
-                                <Label>Delay <span className="text-muted-foreground text-xs">(ms)</span></Label>
-                                <Input type="number" value={delay} onChange={(e) => setDelay(Number(e.target.value))} placeholder="0" />
-                            </div>
-                            <div className="space-y-2">
-                                <Label>Timeout <span className="text-muted-foreground text-xs">(ms)</span></Label>
-                                <Input type="number" value={timeout} onChange={(e) => setTimeout(Number(e.target.value))} />
-                            </div>
-                            <div className="space-y-2">
-                                <Label>User Agent</Label>
-                                <Input placeholder="Custom user agent string" value={userAgent} onChange={(e) => setUserAgent(e.target.value)} />
-                            </div>
-                        </AccordionContent>
-                    </AccordionItem>
-                </Accordion>
 
-                {/* Render Button */}
-                <Button
-                    className="w-full"
-                    size="lg"
-                    onClick={handleRender}
-                    disabled={isLoading}
-                >
-                    {isLoading ? (
-                        <>
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            Rendering...
-                        </>
-                    ) : (
-                        <>
-                            <Camera className="mr-2 h-4 w-4" />
-                            Render Screenshot
-                        </>
-                    )}
-                </Button>
+                                {/* Selector */}
+                                <div className="space-y-2">
+                                    <Label>Element Selector <span className="text-muted-foreground text-xs">(optional)</span></Label>
+                                    <Input placeholder=".hero, #main" value={selector} onChange={(e) => setSelector(e.target.value)} />
+                                </div>
+                            </AccordionContent>
+                        </AccordionItem>
 
-                {/* Code Snippet */}
-                <CodeSnippet code={generateCurl()} />
+                        {/* VIEWPORT & DISPLAY */}
+                        <AccordionItem value="viewport" className="border rounded-lg px-4">
+                            <AccordionTrigger className="hover:no-underline">
+                                <div className="flex items-center gap-2">
+                                    <span className="font-medium">Viewport & Display</span>
+                                </div>
+                            </AccordionTrigger>
+                            <AccordionContent className="space-y-4 pb-4">
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <Label>Width</Label>
+                                        <Input type="number" value={width} onChange={(e) => setWidth(Number(e.target.value))} />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label>Height</Label>
+                                        <Input type="number" value={height} onChange={(e) => setHeight(Number(e.target.value))} />
+                                    </div>
+                                </div>
+                                <div className="space-y-2">
+                                    <Label>Format</Label>
+                                    <Select value={format} onValueChange={setFormat}>
+                                        <SelectTrigger><SelectValue /></SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="png">PNG</SelectItem>
+                                            <SelectItem value="jpeg">JPEG</SelectItem>
+                                            <SelectItem value="webp">WebP</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div className="space-y-2">
+                                    <Label>Device Scale</Label>
+                                    <Select value={deviceScale.toString()} onValueChange={(v) => setDeviceScale(Number(v))}>
+                                        <SelectTrigger><SelectValue /></SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="1">1x</SelectItem>
+                                            <SelectItem value="2">2x (Retina)</SelectItem>
+                                            <SelectItem value="3">3x</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                    <Label>Dark Mode</Label>
+                                    <Switch checked={darkMode} onCheckedChange={setDarkMode} />
+                                </div>
+                            </AccordionContent>
+                        </AccordionItem>
+
+                        {/* BLOCKING */}
+                        <AccordionItem value="blocking" className="border rounded-lg px-4">
+                            <AccordionTrigger className="hover:no-underline">
+                                <div className="flex items-center gap-2">
+                                    <span className="font-medium">Blocking</span>
+                                    {blockingCount > 0 && (
+                                        <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">{blockingCount} active</span>
+                                    )}
+                                </div>
+                            </AccordionTrigger>
+                            <AccordionContent className="space-y-3 pb-4">
+                                <div className="flex items-center justify-between">
+                                    <Label>Block Ads</Label>
+                                    <Switch checked={blockAds} onCheckedChange={setBlockAds} />
+                                </div>
+                                <div className="flex items-center justify-between">
+                                    <Label>Block Cookie Banners</Label>
+                                    <Switch checked={blockCookieBanners} onCheckedChange={setBlockCookieBanners} />
+                                </div>
+                                <div className="flex items-center justify-between">
+                                    <Label>Block Trackers</Label>
+                                    <Switch checked={blockTrackers} onCheckedChange={setBlockTrackers} />
+                                </div>
+                                <div className="flex items-center justify-between">
+                                    <Label>Block Chat Widgets</Label>
+                                    <Switch checked={blockChatWidgets} onCheckedChange={setBlockChatWidgets} />
+                                </div>
+                            </AccordionContent>
+                        </AccordionItem>
+
+                        {/* FULL PAGE & CLIP */}
+                        <AccordionItem value="fullpage" className="border rounded-lg px-4">
+                            <AccordionTrigger className="hover:no-underline">
+                                <div className="flex items-center gap-2">
+                                    <span className="font-medium">Full Page & Scroll</span>
+                                    {fullPageCount > 0 && (
+                                        <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">{fullPageCount} active</span>
+                                    )}
+                                </div>
+                            </AccordionTrigger>
+                            <AccordionContent className="space-y-4 pb-4">
+                                <div className="flex items-center justify-between">
+                                    <Label>Full Page Screenshot</Label>
+                                    <Switch checked={fullPage} onCheckedChange={setFullPage} />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label>Scroll Into View <span className="text-muted-foreground text-xs">(selector)</span></Label>
+                                    <Input placeholder="#section, .element" value={scrollIntoView} onChange={(e) => setScrollIntoView(e.target.value)} />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label>Scroll Adjust Top <span className="text-muted-foreground text-xs">(pixels)</span></Label>
+                                    <Input type="number" value={scrollAdjustTop} onChange={(e) => setScrollAdjustTop(Number(e.target.value))} />
+                                </div>
+                            </AccordionContent>
+                        </AccordionItem>
+
+                        {/* ADVANCED */}
+                        <AccordionItem value="advanced" className="border rounded-lg px-4">
+                            <AccordionTrigger className="hover:no-underline">
+                                <div className="flex items-center gap-2">
+                                    <span className="font-medium">Advanced</span>
+                                    {advancedCount > 0 && (
+                                        <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">{advancedCount} active</span>
+                                    )}
+                                </div>
+                            </AccordionTrigger>
+                            <AccordionContent className="space-y-4 pb-4">
+                                <div className="space-y-2">
+                                    <Label>Delay <span className="text-muted-foreground text-xs">(ms)</span></Label>
+                                    <Input type="number" value={delay} onChange={(e) => setDelay(Number(e.target.value))} placeholder="0" />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label>Timeout <span className="text-muted-foreground text-xs">(ms)</span></Label>
+                                    <Input type="number" value={timeout} onChange={(e) => setTimeout(Number(e.target.value))} />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label>User Agent</Label>
+                                    <Input placeholder="Custom user agent string" value={userAgent} onChange={(e) => setUserAgent(e.target.value)} />
+                                </div>
+                            </AccordionContent>
+                        </AccordionItem>
+                    </Accordion>
+
+                    {/* Code Snippet */}
+                    <CodeSnippet code={generateCurl()} />
+                </div>
+
+                {/* Sticky Render Button - Always visible */}
+                <div className="pt-4 border-t bg-background sticky bottom-0">
+                    <Button
+                        className="w-full"
+                        size="lg"
+                        onClick={handleRender}
+                        disabled={isLoading}
+                    >
+                        {isLoading ? (
+                            <>
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                Rendering...
+                            </>
+                        ) : (
+                            <>
+                                <Camera className="mr-2 h-4 w-4" />
+                                Render Screenshot
+                            </>
+                        )}
+                    </Button>
+                </div>
             </div>
 
             {/* Preview Panel */}

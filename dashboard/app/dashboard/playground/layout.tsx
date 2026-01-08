@@ -3,8 +3,6 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Camera, FileText, ScrollText, Video } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
 
 const playgroundNavItems = [
     { icon: Camera, label: "Screenshot", href: "/dashboard/playground/screenshot" },
@@ -21,46 +19,52 @@ export default function PlaygroundLayout({
     const pathname = usePathname();
 
     return (
-        <div className="space-y-6">
-            <div>
-                <h1 className="text-3xl font-bold tracking-tight">Playground</h1>
-                <p className="text-muted-foreground mt-2">
-                    Test the API and generate code snippets
-                </p>
-            </div>
+        <div className="min-h-screen bg-[#0a0a0f] -m-6 p-6">
+            {/* Subtle background glow */}
+            <div className="fixed top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-gradient-to-b from-[#6155f5]/10 to-transparent blur-[120px] pointer-events-none" />
 
-            {/* Navigation Tabs - Left side, Code Snippet slot will be on right via page */}
-            <div className="flex items-center justify-between border-b pb-4">
-                <div className="flex gap-2">
-                    {playgroundNavItems.map((item) => {
-                        const isActive = pathname === item.href;
-                        return (
-                            <Link key={item.href} href={item.href}>
-                                <Button
-                                    variant={isActive ? "default" : "outline"}
-                                    className={cn(
-                                        "gap-2",
-                                        isActive && "bg-blue-600 hover:bg-blue-700"
-                                    )}
-                                >
-                                    <item.icon className="h-4 w-4" />
-                                    {item.label}
-                                    {item.badge && (
-                                        <span className="ml-1 text-xs bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded">
-                                            {item.badge}
-                                        </span>
-                                    )}
-                                </Button>
-                            </Link>
-                        );
-                    })}
+            <div className="relative z-10 space-y-6">
+                {/* Header */}
+                <div className="flex items-center justify-between">
+                    <div>
+                        <h1 className="text-2xl font-bold text-white">Playground</h1>
+                        <p className="text-sm text-slate-400">
+                            Test the API and generate code snippets
+                        </p>
+                    </div>
+
+                    {/* Tabs */}
+                    <div className="flex items-center gap-2">
+                        {playgroundNavItems.map((item) => {
+                            const isActive = pathname === item.href;
+                            return (
+                                <Link key={item.href} href={item.href}>
+                                    <button
+                                        className={`
+                                            flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all
+                                            ${isActive
+                                                ? "bg-[#6155f5]/20 border border-[#6155f5]/50 text-white"
+                                                : "bg-white/5 border border-white/10 text-slate-400 hover:text-white hover:border-white/20"
+                                            }
+                                        `}
+                                    >
+                                        <item.icon className="h-4 w-4" />
+                                        {item.label}
+                                        {item.badge && (
+                                            <span className="text-[10px] bg-amber-500/20 text-amber-400 px-1.5 py-0.5 rounded font-semibold">
+                                                {item.badge}
+                                            </span>
+                                        )}
+                                    </button>
+                                </Link>
+                            );
+                        })}
+                    </div>
                 </div>
-                {/* Right side slot - filled by page components via portal or absolute positioning */}
-                <div id="header-right-slot"></div>
-            </div>
 
-            {/* Page Content */}
-            {children}
+                {/* Content */}
+                {children}
+            </div>
         </div>
     );
 }

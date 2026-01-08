@@ -123,3 +123,77 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* ============================================
+   BRAND UTILITIES (from Landing Page)
+   ============================================ */
+
+/* Brand Gradient */
+.brand-gradient {
+  background: linear-gradient(135deg, #6155f5 0%, #8145e0 50%, #a135cb 100%);
+}
+
+.brand-text-gradient {
+  background: linear-gradient(135deg, #6155f5 0%, #8145e0 50%, #a135cb 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Glass Effects */
+.glass-dark {
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+/* Glow Effects */
+.glow-purple {
+  box-shadow: 0 0 50px -10px rgba(97, 85, 245, 0.3);
+}
+
+/* Playground Dark Theme */
+.playground-dark {
+  --playground-bg: #0a0a0f;
+  --playground-card: rgba(255, 255, 255, 0.03);
+  --playground-border: rgba(255, 255, 255, 0.1);
+  --playground-input: rgba(0, 0, 0, 0.4);
+  --playground-text: #ffffff;
+  --playground-text-muted: #94a3b8;
+  --playground-brand: #6155f5;
+}
+
+.playground-input {
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: white;
+}
+
+.playground-input:focus {
+  border-color: rgba(97, 85, 245, 0.5);
+  box-shadow: 0 0 0 2px rgba(97, 85, 245, 0.2);
+  outline: none;
+}
+
+.playground-input::placeholder {
+  color: #64748b;
+}
+
+/* Custom Scrollbar for Dark Theme */
+.dark-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.dark-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.dark-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 10px;
+}
+
+.dark-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
+}

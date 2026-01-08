@@ -567,11 +567,11 @@ export default function ScreenshotPlaygroundPage() {
                             />
                         </div>
 
-                        {/* Response Info Panel - Animated */}
-                        <div className={`flex-shrink-0 transition-all duration-500 ease-out ${responseMetadata ? 'w-72' : 'w-56'}`}>
-                            <div className={`border rounded-lg bg-background overflow-hidden transition-all duration-500 ease-out h-full ${responseMetadata ? '' : 'flex items-center justify-center'}`}>
+                        {/* Response Info Panel - Expands vertically on render */}
+                        <div className="w-72 flex-shrink-0">
+                            <div className="border rounded-lg bg-background overflow-hidden transition-all duration-500 ease-out">
                                 {responseMetadata ? (
-                                    <div className="p-4 space-y-4 animate-in fade-in slide-in-from-right-2 duration-300">
+                                    <div className="p-4 space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
                                         {/* Status Row */}
                                         <div className="flex items-center gap-2 flex-wrap">
                                             <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">

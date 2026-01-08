@@ -411,14 +411,16 @@ export default function ScreenshotPlaygroundPage() {
                             Download {format.toUpperCase()}
                         </Button>
                     )}
-
-                    {/* Code Snippet */}
-                    <CodeSnippet code={generateCurl()} />
                 </div>
             </div>
 
             {/* Preview Panel */}
             <div className="flex-1 flex flex-col min-w-0">
+                {/* Code Snippet - Top right aligned */}
+                <div className="mb-4">
+                    <CodeSnippet code={generateCurl()} />
+                </div>
+
                 {/* Monitor Frame */}
                 <div className="bg-gradient-to-b from-gray-700 to-gray-900 rounded-2xl p-3 shadow-2xl flex-1 flex flex-col">
                     {/* Browser Chrome */}

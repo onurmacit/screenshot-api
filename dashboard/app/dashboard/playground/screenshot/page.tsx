@@ -126,15 +126,17 @@ export default function ScreenshotPlaygroundPage() {
 
             if (response.data.status === "completed" && response.data.url) {
                 setResult(response.data.url);
+                // Keep isLoading true - image onLoad will set it to false
             } else if (response.data.id) {
                 setError("Job started asynchronously. Check Jobs page.");
+                setIsLoading(false);
             } else {
                 setError("Failed to generate screenshot");
+                setIsLoading(false);
             }
         } catch (err: any) {
             console.error(err);
             setError(err.response?.data?.message || err.message || "An error occurred");
-        } finally {
             setIsLoading(false);
         }
     };
@@ -424,20 +426,15 @@ export default function ScreenshotPlaygroundPage() {
                             </div>
                         ) : result ? (
                             <>
-                                {/* Show loading while image loads in background */}
-                                {!isImageLoaded && (
-                                    <div className="text-center text-gray-400 py-16">
-                                        <Loader2 className="h-10 w-10 mx-auto mb-3 animate-spin text-blue-500" />
-                                        <p className="text-sm font-medium">Rendering screenshot...</p>
-                                        <p className="text-xs mt-1 text-gray-300">This may take a few seconds</p>
-                                    </div>
-                                )}
                                 {/* Image loads in background, becomes visible when ready */}
                                 <img
                                     src={result}
                                     alt="Screenshot Preview"
-                                    className={`w-full h-full object-contain transition-opacity duration-300 ${isImageLoaded ? 'opacity-100' : 'opacity-0 absolute'}`}
-                                    onLoad={() => setIsImageLoaded(true)}
+                                    className="w-full h-full object-contain"
+                                    onLoad={() => {
+                                        setIsImageLoaded(true);
+                                        setIsLoading(false);
+                                    }}
                                 />
                             </>
                         ) : (

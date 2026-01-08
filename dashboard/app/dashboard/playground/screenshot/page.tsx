@@ -413,8 +413,8 @@ export default function ScreenshotPlaygroundPage() {
                             </div>
                         </div>
                     </div>
-                    {/* Screenshot Content Area - Fixed height to prevent resizing */}
-                    <div className="bg-white rounded-xl mt-2 overflow-hidden h-[500px] flex items-center justify-center relative">
+                    {/* Screenshot Content Area - 16:9 aspect ratio */}
+                    <div className="bg-white rounded-xl mt-2 overflow-hidden aspect-video flex items-center justify-center relative">
                         {/* Loading Overlay - shows during API call and image loading */}
                         {isLoading && (
                             <div className="absolute inset-0 flex items-center justify-center bg-white z-10">
@@ -442,7 +442,7 @@ export default function ScreenshotPlaygroundPage() {
                             <img
                                 src={result}
                                 alt="Screenshot Preview"
-                                className={`w-full h-full object-contain transition-opacity duration-300 ${isLoading ? 'opacity-0' : 'opacity-100'}`}
+                                className={`w-full h-full object-cover transition-opacity duration-300 ${isLoading ? 'opacity-0' : 'opacity-100'}`}
                                 onLoad={() => {
                                     setIsImageLoaded(true);
                                     setIsLoading(false);

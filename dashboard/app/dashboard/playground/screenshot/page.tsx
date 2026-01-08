@@ -156,13 +156,15 @@ export default function ScreenshotPlaygroundPage() {
             if (response.data.status === "completed" && response.data.url) {
                 setResult(response.data.url);
                 // Capture response metadata
+                const fileSizeBytes = response.data.file_size || 0;
                 setResponseMetadata({
                     status: 200,
                     contentType: `image/${format}`,
-                    fileSize: response.data.file_size || 0,
+                    fileSize: fileSizeBytes,
                     headers: {
+                        'cache-control': 'private, no-cache, max-age=0, no-transform',
+                        'content-length': fileSizeBytes.toString(),
                         'content-type': `image/${format}`,
-                        'cache-control': 'private, no-cache',
                         ...(response.data.headers || {})
                     },
                     renderTime: response.data.render_time
@@ -554,7 +556,7 @@ export default function ScreenshotPlaygroundPage() {
                     </div>
 
                     {/* Code Snippet + Response Info - Side by Side */}
-                    <div className="mt-6 flex gap-4">
+                    <div className="mt-6 flex gap-6">
                         {/* Code Snippet */}
                         <div className="flex-1 min-w-0">
                             <CodeSnippet
@@ -566,8 +568,8 @@ export default function ScreenshotPlaygroundPage() {
                         </div>
 
                         {/* Response Info Panel - Animated */}
-                        <div className={`flex-shrink-0 transition-all duration-500 ease-out ${responseMetadata ? 'w-64' : 'w-48'}`}>
-                            <div className={`border rounded-lg bg-background overflow-hidden transition-all duration-500 ease-out ${responseMetadata ? 'h-auto' : 'h-16'}`}>
+                        <div className={`flex-shrink-0 transition-all duration-500 ease-out ${responseMetadata ? 'w-72' : 'w-56'}`}>
+                            <div className={`border rounded-lg bg-background overflow-hidden transition-all duration-500 ease-out h-full ${responseMetadata ? '' : 'flex items-center justify-center'}`}>
                                 {responseMetadata ? (
                                     <div className="p-4 space-y-4 animate-in fade-in slide-in-from-right-2 duration-300">
                                         {/* Status Row */}
@@ -639,8 +641,8 @@ export default function ScreenshotPlaygroundPage() {
                                         </div>
                                     </div>
                                 ) : (
-                                    <div className="p-3 h-full flex items-center justify-center">
-                                        <p className="text-xs text-muted-foreground text-center">
+                                    <div className="p-4">
+                                        <p className="text-sm text-muted-foreground text-center">
                                             Response details will appear after rendering
                                         </p>
                                     </div>

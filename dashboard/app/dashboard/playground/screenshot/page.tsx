@@ -25,6 +25,7 @@ export default function ScreenshotPlaygroundPage() {
     const [isLoading, setIsLoading] = useState(false);
     const [result, setResult] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const [isImageLoaded, setIsImageLoaded] = useState(false);
 
     // Screenshot options
     const [format, setFormat] = useState("png");
@@ -58,6 +59,7 @@ export default function ScreenshotPlaygroundPage() {
         setIsLoading(true);
         setError(null);
         setResult(null);
+        setIsImageLoaded(false);
 
         try {
             // Build request body based on source type
@@ -297,11 +299,20 @@ export default function ScreenshotPlaygroundPage() {
                                     <p className="text-sm text-gray-500">{error}</p>
                                 </div>
                             ) : result ? (
-                                <img
-                                    src={result}
-                                    alt="Screenshot Preview"
-                                    className="w-full h-full object-contain"
-                                />
+                                <>
+                                    {!isImageLoaded && (
+                                        <div className="text-center text-gray-400 py-16">
+                                            <Loader2 className="h-10 w-10 mx-auto mb-3 animate-spin text-blue-500" />
+                                            <p className="text-sm font-medium">Loading image...</p>
+                                        </div>
+                                    )}
+                                    <img
+                                        src={result}
+                                        alt="Screenshot Preview"
+                                        className={`w-full h-full object-contain transition-opacity duration-200 ${isImageLoaded ? 'opacity-100' : 'opacity-0 absolute'}`}
+                                        onLoad={() => setIsImageLoaded(true)}
+                                    />
+                                </>
                             ) : (
                                 <div className="text-center text-gray-400 py-16">
                                     <Camera className="h-10 w-10 mx-auto mb-3 opacity-40" />

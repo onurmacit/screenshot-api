@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -52,6 +52,22 @@ export default function ScreenshotPlaygroundPage() {
     const [error, setError] = useState<string | null>(null);
     const [isImageLoaded, setIsImageLoaded] = useState(false);
 
+    // Ref to measure right panel height
+    const rightPanelRef = useRef<HTMLDivElement>(null);
+    const [rightPanelHeight, setRightPanelHeight] = useState<number | null>(null);
+
+    // Measure right panel height on mount and resize
+    useEffect(() => {
+        const measureHeight = () => {
+            if (rightPanelRef.current) {
+                setRightPanelHeight(rightPanelRef.current.offsetHeight);
+            }
+        };
+
+        measureHeight();
+        window.addEventListener('resize', measureHeight);
+        return () => window.removeEventListener('resize', measureHeight);
+    }, []);
 
 
     // Count active options per category
@@ -195,10 +211,13 @@ export default function ScreenshotPlaygroundPage() {
 
     return (
         <>
-            {/* CSS Grid Layout - Both columns automatically same height */}
+            {/* Grid Layout - Left panel matches right panel height */}
             <div className="grid grid-cols-1 lg:grid-cols-[384px_1fr] gap-6">
-                {/* Left Panel - Options */}
-                <div className="border rounded-xl overflow-hidden bg-background">
+                {/* Left Panel - Fixed height matching right panel */}
+                <div
+                    className="border rounded-xl bg-background overflow-hidden"
+                    style={{ height: rightPanelHeight ? `${rightPanelHeight}px` : 'auto' }}
+                >
                     {/* Scrollable content area */}
                     <div className="h-full overflow-y-auto p-4 space-y-4">
                         {/* API Key + Render Button */}
@@ -438,8 +457,8 @@ export default function ScreenshotPlaygroundPage() {
                     </div>
                 </div>
 
-                {/* Right Panel - Preview */}
-                <div className="flex flex-col min-w-0">
+                {/* Right Panel - Preview (measured for left panel height) */}
+                <div ref={rightPanelRef} className="flex flex-col min-w-0">
 
                     {/* Monitor Frame - Fixed size, doesn't stretch */}
                     <div className="bg-gradient-to-b from-gray-700 to-gray-900 rounded-2xl p-3 shadow-2xl">

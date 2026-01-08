@@ -2,9 +2,15 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Copy, Check, Link, Terminal, Code, FileCode } from "lucide-react";
+
+// Support both old simple interface and new tabbed interface
+interface SimpleCodeSnippetProps {
+    code: string;
+    title?: string;
+}
 
 interface TabbedCodeSnippetProps {
     curl: string;
@@ -13,9 +19,54 @@ interface TabbedCodeSnippetProps {
     apiKey?: string;
 }
 
-export function CodeSnippet({ curl, apiUrl, params, apiKey = "YOUR_API_KEY" }: TabbedCodeSnippetProps) {
+type CodeSnippetProps = SimpleCodeSnippetProps | TabbedCodeSnippetProps;
+
+function isSimpleMode(props: CodeSnippetProps): props is SimpleCodeSnippetProps {
+    return 'code' in props && typeof props.code === 'string';
+}
+
+export function CodeSnippet(props: CodeSnippetProps) {
     const [copied, setCopied] = useState(false);
     const [activeTab, setActiveTab] = useState("curl");
+
+    // Simple mode - just show the code
+    if (isSimpleMode(props)) {
+        const { code, title = "Code Snippet" } = props;
+
+        const handleCopy = async () => {
+            await navigator.clipboard.writeText(code);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+        };
+
+        return (
+            <Card>
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                    <CardTitle className="text-sm">{title}</CardTitle>
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleCopy}
+                        className="h-8 w-8 p-0"
+                    >
+                        {copied ? (
+                            <Check className="h-4 w-4 text-green-500" />
+                        ) : (
+                            <Copy className="h-4 w-4" />
+                        )}
+                    </Button>
+                </CardHeader>
+                <CardContent>
+                    <pre className="bg-slate-950 text-slate-50 p-4 rounded-lg text-xs overflow-x-auto">
+                        <code>{code}</code>
+                    </pre>
+                </CardContent>
+            </Card>
+        );
+    }
+
+    // Tabbed mode - show multiple language options
+    const { curl, apiUrl, params, apiKey = "YOUR_API_KEY" } = props;
 
     // Generate URL with query params
     const generateUrlCode = () => {

@@ -218,8 +218,8 @@ export default function ScreenshotPlaygroundPage() {
                     className="border rounded-xl bg-background overflow-hidden"
                     style={{ height: rightPanelHeight ? `${rightPanelHeight}px` : 'auto' }}
                 >
-                    {/* Scrollable content area */}
-                    <div className="h-full overflow-y-auto p-4 space-y-4">
+                    {/* Scrollable content area - pb-8 prevents bottom cutoff */}
+                    <div className="h-full overflow-y-auto p-4 pb-8 space-y-4">
                         {/* API Key + Render Button */}
                         <Card>
                             <CardContent className="pt-4 space-y-4">

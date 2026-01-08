@@ -327,7 +327,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                 lua_script,
                 1,  # number of keys
                 key,
-                self.limit_per_minute,
+                limit_per_minute,
             )
 
             is_allowed = result[0] == 1

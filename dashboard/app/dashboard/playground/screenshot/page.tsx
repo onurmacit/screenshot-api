@@ -175,6 +175,30 @@ export default function ScreenshotPlaygroundPage() {
   }'`;
     };
 
+    // Get params for CodeSnippet
+    const getCodeSnippetParams = (): Record<string, string | number | boolean> => {
+        const params: Record<string, string | number | boolean> = {
+            width,
+            height,
+            format,
+        };
+
+        if (sourceType === "url") params.url = url;
+        else if (sourceType === "html") params.html = htmlContent;
+        else params.markdown = markdownContent;
+
+        if (selector.trim()) params.selector = selector;
+        if (blockAds) params.block_ads = true;
+        if (blockCookieBanners) params.block_cookie_banners = true;
+        if (blockTrackers) params.block_trackers = true;
+        if (blockChatWidgets) params.block_chat_widgets = true;
+        if (fullPage) params.full_page = true;
+        if (darkMode) params.dark_mode = true;
+        if (delay > 0) params.delay = delay;
+
+        return params;
+    };
+
     return (
         <>
             <div className="flex flex-col lg:flex-row gap-6 h-[calc(100vh-280px)]">
@@ -502,7 +526,12 @@ export default function ScreenshotPlaygroundPage() {
             {/* Portal: Code Snippet in header */}
             {
                 headerSlot && createPortal(
-                    <CodeSnippet code={generateCurl()} />,
+                    <CodeSnippet
+                        curl={generateCurl()}
+                        apiUrl={`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/v1/renders/screenshot`}
+                        params={getCodeSnippetParams()}
+                        apiKey={apiKey || "YOUR_API_KEY"}
+                    />,
                     headerSlot
                 )
             }

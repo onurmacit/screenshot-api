@@ -408,8 +408,8 @@ export default function ScreenshotPlaygroundPage() {
                             </div>
                         </div>
                     </div>
-                    {/* Screenshot Content Area */}
-                    <div className="bg-white rounded-xl mt-2 overflow-hidden flex-1 flex items-center justify-center min-h-[400px] relative">
+                    {/* Screenshot Content Area - Fixed height to prevent resizing */}
+                    <div className="bg-white rounded-xl mt-2 overflow-hidden h-[500px] flex items-center justify-center relative">
                         {/* Loading Overlay - shows during API call and image loading */}
                         {isLoading && (
                             <div className="absolute inset-0 flex items-center justify-center bg-white z-10">

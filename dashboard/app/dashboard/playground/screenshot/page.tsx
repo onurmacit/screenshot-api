@@ -195,9 +195,9 @@ export default function ScreenshotPlaygroundPage() {
 
     return (
         <>
-            <div className="flex flex-col lg:flex-row gap-6 h-[calc(100vh-200px)]">
-                {/* Controls Panel - Scrollable, fixed width */}
-                <div className="w-full lg:w-96 flex-shrink-0 overflow-y-auto pr-2">
+            <div className="flex flex-col lg:flex-row gap-6 lg:items-start">
+                {/* Controls Panel - Sticky on desktop, scrolls within viewport */}
+                <div className="w-full lg:w-96 flex-shrink-0 lg:sticky lg:top-4 lg:max-h-[calc(100vh-120px)] lg:overflow-y-auto lg:pb-4">
                     {/* Options */}
                     <div className="space-y-4">
                         {/* API Key + Render Button */}

@@ -410,13 +410,19 @@ export default function ScreenshotPlaygroundPage() {
                     </div>
                     {/* Screenshot Content Area */}
                     <div className="bg-white rounded-xl mt-2 overflow-hidden flex-1 flex items-center justify-center min-h-[400px] relative">
-                        {isLoading ? (
-                            <div className="text-center text-gray-400 py-16">
-                                <Loader2 className="h-10 w-10 mx-auto mb-3 animate-spin text-blue-500" />
-                                <p className="text-sm font-medium">Rendering screenshot...</p>
-                                <p className="text-xs mt-1 text-gray-300">This may take a few seconds</p>
+                        {/* Loading Overlay - shows during API call and image loading */}
+                        {isLoading && (
+                            <div className="absolute inset-0 flex items-center justify-center bg-white z-10">
+                                <div className="text-center text-gray-400">
+                                    <Loader2 className="h-10 w-10 mx-auto mb-3 animate-spin text-blue-500" />
+                                    <p className="text-sm font-medium">Rendering screenshot...</p>
+                                    <p className="text-xs mt-1 text-gray-300">This may take a few seconds</p>
+                                </div>
                             </div>
-                        ) : error ? (
+                        )}
+
+                        {/* Error State */}
+                        {error && !isLoading && (
                             <div className="text-center max-w-sm py-12 px-4">
                                 <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-3">
                                     <span className="text-red-500 text-xl">!</span>
@@ -424,20 +430,23 @@ export default function ScreenshotPlaygroundPage() {
                                 <p className="font-medium text-gray-800 mb-1">Rendering Failed</p>
                                 <p className="text-sm text-gray-500">{error}</p>
                             </div>
-                        ) : result ? (
-                            <>
-                                {/* Image loads in background, becomes visible when ready */}
-                                <img
-                                    src={result}
-                                    alt="Screenshot Preview"
-                                    className="w-full h-full object-contain"
-                                    onLoad={() => {
-                                        setIsImageLoaded(true);
-                                        setIsLoading(false);
-                                    }}
-                                />
-                            </>
-                        ) : (
+                        )}
+
+                        {/* Image - renders hidden during loading, visible when ready */}
+                        {result && (
+                            <img
+                                src={result}
+                                alt="Screenshot Preview"
+                                className={`w-full h-full object-contain transition-opacity duration-300 ${isLoading ? 'opacity-0' : 'opacity-100'}`}
+                                onLoad={() => {
+                                    setIsImageLoaded(true);
+                                    setIsLoading(false);
+                                }}
+                            />
+                        )}
+
+                        {/* Empty State */}
+                        {!result && !error && !isLoading && (
                             <div className="text-center text-gray-400 py-16">
                                 <Camera className="h-10 w-10 mx-auto mb-3 opacity-40" />
                                 <p className="text-sm font-medium">No screenshot yet</p>

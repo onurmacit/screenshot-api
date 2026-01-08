@@ -565,11 +565,11 @@ export default function ScreenshotPlaygroundPage() {
                             />
                         </div>
 
-                        {/* Response Info Panel */}
-                        <div className="w-64 flex-shrink-0">
-                            <div className="border rounded-lg bg-background h-full">
+                        {/* Response Info Panel - Animated */}
+                        <div className={`flex-shrink-0 transition-all duration-500 ease-out ${responseMetadata ? 'w-64' : 'w-48'}`}>
+                            <div className={`border rounded-lg bg-background overflow-hidden transition-all duration-500 ease-out ${responseMetadata ? 'h-auto' : 'h-16'}`}>
                                 {responseMetadata ? (
-                                    <div className="p-4 space-y-4">
+                                    <div className="p-4 space-y-4 animate-in fade-in slide-in-from-right-2 duration-300">
                                         {/* Status Row */}
                                         <div className="flex items-center gap-2 flex-wrap">
                                             <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">
@@ -639,7 +639,7 @@ export default function ScreenshotPlaygroundPage() {
                                         </div>
                                     </div>
                                 ) : (
-                                    <div className="p-4 h-full flex items-center justify-center">
+                                    <div className="p-3 h-full flex items-center justify-center">
                                         <p className="text-xs text-muted-foreground text-center">
                                             Response details will appear after rendering
                                         </p>

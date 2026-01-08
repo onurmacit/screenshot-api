@@ -22,15 +22,17 @@ export default function PlaygroundLayout({
 
     return (
         <div className="space-y-6">
-            <div>
-                <h1 className="text-3xl font-bold tracking-tight">Playground</h1>
-                <p className="text-muted-foreground mt-2">
-                    Test the API and generate code snippets
-                </p>
-            </div>
-
-            {/* Navigation Tabs - Left side, Code Snippet slot will be on right via page */}
+            {/* Header: Title left, Tabs right */}
             <div className="flex items-center justify-between border-b pb-4">
+                {/* Left: Title */}
+                <div>
+                    <h1 className="text-3xl font-bold tracking-tight">Playground</h1>
+                    <p className="text-muted-foreground mt-1">
+                        Test the API and generate code snippets
+                    </p>
+                </div>
+
+                {/* Right: Navigation Tabs */}
                 <div className="flex gap-2">
                     {playgroundNavItems.map((item) => {
                         const isActive = pathname === item.href;
@@ -55,8 +57,6 @@ export default function PlaygroundLayout({
                         );
                     })}
                 </div>
-                {/* Right side slot - filled by page components via portal or absolute positioning */}
-                <div id="header-right-slot"></div>
             </div>
 
             {/* Page Content */}

@@ -1,7 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { createPortal } from "react-dom";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -53,12 +52,7 @@ export default function ScreenshotPlaygroundPage() {
     const [error, setError] = useState<string | null>(null);
     const [isImageLoaded, setIsImageLoaded] = useState(false);
 
-    // Portal container for Code Snippet in header
-    const [headerSlot, setHeaderSlot] = useState<HTMLElement | null>(null);
-    useEffect(() => {
-        const slot = document.getElementById('header-right-slot');
-        if (slot) setHeaderSlot(slot);
-    }, []);
+
 
     // Count active options per category
     const blockingCount = [blockAds, blockCookieBanners, blockTrackers, blockChatWidgets].filter(Boolean).length;
@@ -520,21 +514,18 @@ export default function ScreenshotPlaygroundPage() {
                         <div className="w-28 h-2 bg-gradient-to-b from-gray-600 to-gray-700 rounded-b-lg shadow-md"></div>
                     </div>
 
+                    {/* Code Snippet - Below Monitor */}
+                    <div className="mt-6">
+                        <CodeSnippet
+                            curl={generateCurl()}
+                            apiUrl={`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/v1/renders/screenshot`}
+                            params={getCodeSnippetParams()}
+                            apiKey={apiKey || "YOUR_API_KEY"}
+                        />
+                    </div>
+
                 </div>
             </div>
-
-            {/* Portal: Code Snippet in header */}
-            {
-                headerSlot && createPortal(
-                    <CodeSnippet
-                        curl={generateCurl()}
-                        apiUrl={`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/v1/renders/screenshot`}
-                        params={getCodeSnippetParams()}
-                        apiKey={apiKey || "YOUR_API_KEY"}
-                    />,
-                    headerSlot
-                )
-            }
         </>
     );
 }

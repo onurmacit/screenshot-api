@@ -153,7 +153,18 @@ export default function PDFPlaygroundPage() {
                     </CardContent>
                 </Card>
 
-                <CodeSnippet code={generateCurl()} title="cURL Command" />
+                <CodeSnippet
+                    curl={generateCurl()}
+                    apiUrl={`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/v1/renders/pdf`}
+                    params={{
+                        url,
+                        format: pdfFormat,
+                        landscape,
+                        print_background: printBackground,
+                        scale
+                    }}
+                    apiKey={apiKey || "YOUR_API_KEY"}
+                />
             </div>
 
             {/* Preview Panel */}

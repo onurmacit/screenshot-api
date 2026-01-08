@@ -136,25 +136,25 @@ print(data['url'])  # Screenshot URL`;
     };
 
     return (
-        <Card className="overflow-hidden">
-            <div className="flex items-center justify-between px-4 py-2 border-b bg-muted/30">
+        <Card className="overflow-hidden shadow-md border-slate-200 dark:border-slate-800">
+            <div className="flex items-center justify-between px-4 py-2 border-b bg-slate-50/50 dark:bg-slate-900/50">
                 <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
                     <div className="flex items-center justify-between">
-                        <TabsList className="h-8">
-                            <TabsTrigger value="url" className="text-xs gap-1 px-2 h-6">
-                                <Link className="h-3 w-3" />
+                        <TabsList className="h-9 bg-slate-100 dark:bg-slate-800 p-1">
+                            <TabsTrigger value="url" className="text-xs gap-1.5 px-3 h-7 data-[state=active]:bg-white dark:data-[state=active]:bg-slate-950 shadow-sm transition-all">
+                                <Link className="h-3.5 w-3.5" />
                                 URL
                             </TabsTrigger>
-                            <TabsTrigger value="curl" className="text-xs gap-1 px-2 h-6">
-                                <Terminal className="h-3 w-3" />
+                            <TabsTrigger value="curl" className="text-xs gap-1.5 px-3 h-7 data-[state=active]:bg-white dark:data-[state=active]:bg-slate-950 shadow-sm transition-all">
+                                <Terminal className="h-3.5 w-3.5" />
                                 cURL
                             </TabsTrigger>
-                            <TabsTrigger value="javascript" className="text-xs gap-1 px-2 h-6">
-                                <Code className="h-3 w-3" />
+                            <TabsTrigger value="javascript" className="text-xs gap-1.5 px-3 h-7 data-[state=active]:bg-white dark:data-[state=active]:bg-slate-950 shadow-sm transition-all">
+                                <Code className="h-3.5 w-3.5" />
                                 JavaScript
                             </TabsTrigger>
-                            <TabsTrigger value="python" className="text-xs gap-1 px-2 h-6">
-                                <FileCode className="h-3 w-3" />
+                            <TabsTrigger value="python" className="text-xs gap-1.5 px-3 h-7 data-[state=active]:bg-white dark:data-[state=active]:bg-slate-950 shadow-sm transition-all">
+                                <FileCode className="h-3.5 w-3.5" />
                                 Python
                             </TabsTrigger>
                         </TabsList>
@@ -162,17 +162,17 @@ print(data['url'])  # Screenshot URL`;
                             variant="ghost"
                             size="sm"
                             onClick={handleCopy}
-                            className="h-7 gap-1 text-xs"
+                            className="h-8 gap-2 text-xs font-medium hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                         >
                             {copied ? (
                                 <>
-                                    <Check className="h-3 w-3 text-green-500" />
-                                    Copied!
+                                    <Check className="h-3.5 w-3.5 text-green-500" />
+                                    <span className="text-green-600 dark:text-green-400">Copied!</span>
                                 </>
                             ) : (
                                 <>
-                                    <Copy className="h-3 w-3" />
-                                    Copy
+                                    <Copy className="h-3.5 w-3.5 text-slate-500" />
+                                    <span>Copy</span>
                                 </>
                             )}
                         </Button>
@@ -180,12 +180,30 @@ print(data['url'])  # Screenshot URL`;
                 </Tabs>
             </div>
             <CardContent className="p-0">
-                <pre className="bg-slate-950 text-slate-50 p-4 text-xs overflow-x-auto max-h-48 overflow-y-auto">
-                    <code className={activeTab === 'url' ? 'text-blue-400 break-all' : ''}>
-                        {getActiveCode()}
-                    </code>
-                </pre>
+                <div className="bg-slate-950 h-[200px] flex flex-col">
+                    <pre className="p-5 text-[13px] leading-relaxed font-mono flex-1 overflow-auto custom-scrollbar">
+                        <code className={activeTab === 'url' ? 'text-blue-400 break-all whitespace-pre-wrap' : 'text-slate-300'}>
+                            {getActiveCode()}
+                        </code>
+                    </pre>
+                </div>
             </CardContent>
+            <style jsx global>{`
+                .custom-scrollbar::-webkit-scrollbar {
+                    width: 6px;
+                    height: 6px;
+                }
+                .custom-scrollbar::-webkit-scrollbar-track {
+                    background: transparent;
+                }
+                .custom-scrollbar::-webkit-scrollbar-thumb {
+                    background: #334155;
+                    border-radius: 10px;
+                }
+                .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+                    background: #475569;
+                }
+            `}</style>
         </Card>
     );
 }

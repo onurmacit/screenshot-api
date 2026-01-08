@@ -10,9 +10,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, Camera, ChevronRight } from "lucide-react";
+import { Loader2, Camera, ChevronRight, Download, Check, X, ChevronDown } from "lucide-react";
 import { api } from "@/services/api";
 import { CodeSnippet } from "@/components/playground";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 export default function ScreenshotPlaygroundPage() {
     // === ESSENTIALS ===
@@ -51,6 +52,15 @@ export default function ScreenshotPlaygroundPage() {
     const [result, setResult] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [isImageLoaded, setIsImageLoaded] = useState(false);
+
+    // === RESPONSE METADATA ===
+    const [responseMetadata, setResponseMetadata] = useState<{
+        status: number;
+        contentType: string;
+        fileSize: number;
+        headers: Record<string, string>;
+        renderTime?: number;
+    } | null>(null);
 
     // Ref to measure right panel height
     const rightPanelRef = useRef<HTMLDivElement>(null);
@@ -98,6 +108,7 @@ export default function ScreenshotPlaygroundPage() {
         setError(null);
         setResult(null);
         setIsImageLoaded(false);
+        setResponseMetadata(null);
 
         try {
             const requestBody: Record<string, unknown> = {
@@ -144,6 +155,18 @@ export default function ScreenshotPlaygroundPage() {
 
             if (response.data.status === "completed" && response.data.url) {
                 setResult(response.data.url);
+                // Capture response metadata
+                setResponseMetadata({
+                    status: 200,
+                    contentType: `image/${format}`,
+                    fileSize: response.data.file_size || 0,
+                    headers: {
+                        'content-type': `image/${format}`,
+                        'cache-control': 'private, no-cache',
+                        ...(response.data.headers || {})
+                    },
+                    renderTime: response.data.render_time
+                });
                 // Keep isLoading true - image onLoad will set it to false
             } else if (response.data.id) {
                 setError("Job started asynchronously. Check Jobs page.");
@@ -530,14 +553,100 @@ export default function ScreenshotPlaygroundPage() {
                         <div className="w-28 h-2 bg-gradient-to-b from-gray-600 to-gray-700 rounded-b-lg shadow-md"></div>
                     </div>
 
-                    {/* Code Snippet - Below Monitor */}
-                    <div className="mt-6">
-                        <CodeSnippet
-                            curl={generateCurl()}
-                            apiUrl={`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/v1/renders/screenshot`}
-                            params={getCodeSnippetParams()}
-                            apiKey={apiKey || "YOUR_API_KEY"}
-                        />
+                    {/* Code Snippet + Response Info - Side by Side */}
+                    <div className="mt-6 flex gap-4">
+                        {/* Code Snippet */}
+                        <div className="flex-1 min-w-0">
+                            <CodeSnippet
+                                curl={generateCurl()}
+                                apiUrl={`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/v1/renders/screenshot`}
+                                params={getCodeSnippetParams()}
+                                apiKey={apiKey || "YOUR_API_KEY"}
+                            />
+                        </div>
+
+                        {/* Response Info Panel */}
+                        <div className="w-64 flex-shrink-0">
+                            <div className="border rounded-lg bg-background h-full">
+                                {responseMetadata ? (
+                                    <div className="p-4 space-y-4">
+                                        {/* Status Row */}
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">
+                                                <Check className="h-3 w-3" />
+                                                {responseMetadata.status}
+                                            </span>
+                                            <span className="text-xs text-muted-foreground">
+                                                {responseMetadata.contentType}
+                                            </span>
+                                            <span className="text-xs font-medium">
+                                                {responseMetadata.fileSize > 0
+                                                    ? `${(responseMetadata.fileSize / 1024).toFixed(2)} KB`
+                                                    : '—'
+                                                }
+                                            </span>
+                                        </div>
+
+                                        {/* Render Time */}
+                                        {responseMetadata.renderTime && (
+                                            <div className="text-xs text-muted-foreground">
+                                                Rendered in {responseMetadata.renderTime.toFixed(0)}ms
+                                            </div>
+                                        )}
+
+                                        {/* Actions */}
+                                        <div className="flex gap-2">
+                                            {/* Headers Popover */}
+                                            <Popover>
+                                                <PopoverTrigger asChild>
+                                                    <Button variant="outline" size="sm" className="gap-1">
+                                                        Headers
+                                                        <ChevronDown className="h-3 w-3" />
+                                                    </Button>
+                                                </PopoverTrigger>
+                                                <PopoverContent className="w-80 p-0" align="start">
+                                                    <div className="p-3 border-b">
+                                                        <h4 className="font-medium text-sm">Response Headers</h4>
+                                                    </div>
+                                                    <div className="p-3 space-y-1.5 max-h-48 overflow-y-auto">
+                                                        {Object.entries(responseMetadata.headers).map(([key, value]) => (
+                                                            <div key={key} className="text-xs">
+                                                                <span className="text-muted-foreground">{key}:</span>{' '}
+                                                                <span className="font-mono">{value}</span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </PopoverContent>
+                                            </Popover>
+
+                                            {/* Download Button */}
+                                            {result && (
+                                                <Button
+                                                    size="sm"
+                                                    className="gap-1"
+                                                    onClick={() => {
+                                                        const link = document.createElement('a');
+                                                        link.href = result;
+                                                        link.download = `screenshot-${Date.now()}.${format}`;
+                                                        link.target = '_blank';
+                                                        link.click();
+                                                    }}
+                                                >
+                                                    <Download className="h-3 w-3" />
+                                                    Download
+                                                </Button>
+                                            )}
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="p-4 h-full flex items-center justify-center">
+                                        <p className="text-xs text-muted-foreground text-center">
+                                            Response details will appear after rendering
+                                        </p>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
                     </div>
 
                 </div>

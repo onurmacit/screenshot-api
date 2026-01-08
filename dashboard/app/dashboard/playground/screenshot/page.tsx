@@ -211,9 +211,9 @@ export default function ScreenshotPlaygroundPage() {
 
     return (
         <>
-            {/* Grid Layout - Left panel matches right panel height */}
-            <div className="grid grid-cols-1 lg:grid-cols-[384px_1fr] gap-6">
-                {/* Left Panel - Fixed height matching right panel */}
+            {/* Grid Layout - Left panel matches right panel height exactly */}
+            <div className="grid grid-cols-1 lg:grid-cols-[384px_1fr] gap-6 lg:items-start">
+                {/* Left Panel - Height synced with right panel */}
                 <div
                     className="border rounded-xl bg-background overflow-hidden"
                     style={{ height: rightPanelHeight ? `${rightPanelHeight}px` : 'auto' }}

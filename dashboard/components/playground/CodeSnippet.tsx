@@ -83,7 +83,7 @@ print(data['url'])  # Screenshot URL`;
     };
 
     return (
-        <div className="w-[480px] rounded-lg overflow-hidden shadow-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
+        <div className="w-full rounded-lg overflow-hidden shadow-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
             {/* Header - Fixed height */}
             <div className="h-12 px-3 flex items-center justify-between border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50">
                 {/* Tabs */}

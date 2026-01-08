@@ -1,24 +1,26 @@
 "use client";
 
-import { useState } from "react";
-import { Loader2, Camera, Settings2, Shield, Maximize, Sliders, Copy, Check, Link, Terminal, Code, FileCode } from "lucide-react";
+import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Loader2, Camera, ChevronRight } from "lucide-react";
 import { api } from "@/services/api";
-
-type TabType = "url" | "curl" | "javascript" | "python";
-
-const CODE_TABS: { id: TabType; label: string; icon: typeof Link }[] = [
-    { id: "url", label: "URL", icon: Link },
-    { id: "curl", label: "cURL", icon: Terminal },
-    { id: "javascript", label: "JS", icon: Code },
-    { id: "python", label: "Python", icon: FileCode },
-];
+import { CodeSnippet } from "@/components/playground";
 
 export default function ScreenshotPlaygroundPage() {
-    // === SOURCE ===
+    // === ESSENTIALS ===
     const [sourceType, setSourceType] = useState<"url" | "html" | "markdown">("url");
-    const [url, setUrl] = useState("stripe.com");
-    const [htmlContent, setHtmlContent] = useState("<h1>Hello World</h1>\n<p>This is a test page.</p>");
-    const [markdownContent, setMarkdownContent] = useState("# Hello World\n\nThis is a **test page**.");
+    const [url, setUrl] = useState("https://stripe.com");
+    const [htmlContent, setHtmlContent] = useState("<h1>Hello World</h1>\n<p>This is a test page rendered from HTML.</p>");
+    const [markdownContent, setMarkdownContent] = useState("# Hello World\n\nThis is a **test page** rendered from Markdown.");
     const [selector, setSelector] = useState("");
 
     // === VIEWPORT & DISPLAY ===
@@ -31,25 +33,37 @@ export default function ScreenshotPlaygroundPage() {
     // === BLOCKING ===
     const [blockAds, setBlockAds] = useState(false);
     const [blockCookieBanners, setBlockCookieBanners] = useState(false);
+    const [blockTrackers, setBlockTrackers] = useState(false);
+    const [blockChatWidgets, setBlockChatWidgets] = useState(false);
 
-    // === FULL PAGE ===
+    // === FULL PAGE & CLIP ===
     const [fullPage, setFullPage] = useState(false);
+    const [scrollIntoView, setScrollIntoView] = useState("");
+    const [scrollAdjustTop, setScrollAdjustTop] = useState(0);
 
     // === ADVANCED ===
     const [delay, setDelay] = useState(0);
+    const [timeout, setTimeout] = useState(30000);
+    const [userAgent, setUserAgent] = useState("");
 
     // === STATE ===
     const [apiKey, setApiKey] = useState("");
     const [isLoading, setIsLoading] = useState(false);
     const [result, setResult] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const [isImageLoaded, setIsImageLoaded] = useState(false);
 
-    // === CODE SNIPPET ===
-    const [activeCodeTab, setActiveCodeTab] = useState<TabType>("curl");
-    const [copied, setCopied] = useState(false);
+    // Portal container for Code Snippet in header
+    const [headerSlot, setHeaderSlot] = useState<HTMLElement | null>(null);
+    useEffect(() => {
+        const slot = document.getElementById('header-right-slot');
+        if (slot) setHeaderSlot(slot);
+    }, []);
 
-    // === ADVANCED OPTIONS PANEL ===
-    const [showAdvanced, setShowAdvanced] = useState(false);
+    // Count active options per category
+    const blockingCount = [blockAds, blockCookieBanners, blockTrackers, blockChatWidgets].filter(Boolean).length;
+    const fullPageCount = [fullPage, scrollIntoView].filter(Boolean).length;
+    const advancedCount = [delay > 0, userAgent].filter(Boolean).length;
 
     const handleRender = async () => {
         if (!apiKey) {
@@ -57,37 +71,62 @@ export default function ScreenshotPlaygroundPage() {
             return;
         }
 
-        const source = sourceType === "url" ? url : sourceType === "html" ? htmlContent : markdownContent;
-        if (!source.trim()) {
-            setError(`Please enter ${sourceType.toUpperCase()} content`);
+        if (sourceType === "url" && !url.trim()) {
+            setError("Please enter a URL");
+            return;
+        }
+        if (sourceType === "html" && !htmlContent.trim()) {
+            setError("Please enter HTML content");
+            return;
+        }
+        if (sourceType === "markdown" && !markdownContent.trim()) {
+            setError("Please enter Markdown content");
             return;
         }
 
         setIsLoading(true);
         setError(null);
         setResult(null);
+        setIsImageLoaded(false);
 
         try {
-            const requestBody: Record<string, unknown> = { format, width, height, full_page: fullPage };
+            const requestBody: Record<string, unknown> = {
+                format,
+                width,
+                height,
+                full_page: fullPage,
+            };
 
+            // Source
             if (sourceType === "url") {
-                let targetUrl = url.trim();
-                if (!targetUrl.startsWith("http://") && !targetUrl.startsWith("https://")) {
-                    targetUrl = "https://" + targetUrl;
-                }
-                requestBody.url = targetUrl;
+                requestBody.url = url;
             } else if (sourceType === "html") {
                 requestBody.html = htmlContent;
-            } else {
+            } else if (sourceType === "markdown") {
                 requestBody.markdown = markdownContent;
             }
 
+            // Essentials
             if (selector.trim()) requestBody.selector = selector.trim();
+
+            // Viewport
             if (deviceScale !== 1) requestBody.device_scale = deviceScale;
             if (darkMode) requestBody.dark_mode = darkMode;
+
+            // Blocking
             if (blockAds) requestBody.block_ads = blockAds;
             if (blockCookieBanners) requestBody.block_cookie_banners = blockCookieBanners;
+            if (blockTrackers) requestBody.block_trackers = blockTrackers;
+            if (blockChatWidgets) requestBody.block_chat_widgets = blockChatWidgets;
+
+            // Full Page
+            if (scrollIntoView.trim()) requestBody.scroll_into_view = scrollIntoView.trim();
+            if (scrollAdjustTop !== 0) requestBody.scroll_adjust_top = scrollAdjustTop;
+
+            // Advanced
             if (delay > 0) requestBody.delay = delay;
+            if (timeout !== 30000) requestBody.timeout = timeout;
+            if (userAgent.trim()) requestBody.user_agent = userAgent.trim();
 
             const response = await api.post("/api/v1/renders/screenshot", requestBody, {
                 headers: { "X-API-Key": apiKey }
@@ -95,364 +134,302 @@ export default function ScreenshotPlaygroundPage() {
 
             if (response.data.status === "completed" && response.data.url) {
                 setResult(response.data.url);
+                // Keep isLoading true - image onLoad will set it to false
             } else if (response.data.id) {
                 setError("Job started asynchronously. Check Jobs page.");
+                setIsLoading(false);
             } else {
                 setError("Failed to generate screenshot");
+                setIsLoading(false);
             }
         } catch (err: any) {
+            console.error(err);
             setError(err.response?.data?.message || err.message || "An error occurred");
-        } finally {
             setIsLoading(false);
         }
     };
 
-    // Generate code snippets
-    const getUrlCode = () => {
-        let targetUrl = url.trim();
-        if (!targetUrl.startsWith("http://") && !targetUrl.startsWith("https://")) {
-            targetUrl = "https://" + targetUrl;
-        }
-        const params = new URLSearchParams();
-        params.set("api_key", apiKey || "YOUR_API_KEY");
-        params.set("url", targetUrl);
-        params.set("width", width.toString());
-        params.set("height", height.toString());
-        params.set("format", format);
-        return `${process.env.NEXT_PUBLIC_API_URL || "https://api.screenshotbeam.com"}/api/v1/renders/screenshot?${params.toString()}`;
-    };
+    const generateCurl = () => {
+        const sourceField = sourceType === "url"
+            ? `"url": "${url}"`
+            : sourceType === "html"
+                ? `"html": "${htmlContent.replace(/"/g, '\\"').replace(/\n/g, '\\n')}"`
+                : `"markdown": "${markdownContent.replace(/"/g, '\\"').replace(/\n/g, '\\n')}"`;
 
-    const getCurlCode = () => {
-        let targetUrl = url.trim();
-        if (!targetUrl.startsWith("http://") && !targetUrl.startsWith("https://")) {
-            targetUrl = "https://" + targetUrl;
-        }
-        return `curl -X POST ${process.env.NEXT_PUBLIC_API_URL || "https://api.screenshotbeam.com"}/api/v1/renders/screenshot \\
+        let extras = "";
+        if (selector.trim()) extras += `,\n    "selector": "${selector}"`;
+        if (blockAds) extras += `,\n    "block_ads": true`;
+        if (blockCookieBanners) extras += `,\n    "block_cookie_banners": true`;
+        if (fullPage) extras += `,\n    "full_page": true`;
+        if (darkMode) extras += `,\n    "dark_mode": true`;
+        if (delay > 0) extras += `,\n    "delay": ${delay}`;
+
+        return `curl -X POST ${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/v1/renders/screenshot \\
   -H "X-API-Key: ${apiKey || "YOUR_API_KEY"}" \\
   -H "Content-Type: application/json" \\
   -d '{
-    "url": "${targetUrl}",
+    ${sourceField},
     "width": ${width},
     "height": ${height},
-    "format": "${format}"
+    "format": "${format}"${extras}
   }'`;
     };
 
-    const getJsCode = () => {
-        let targetUrl = url.trim();
-        if (!targetUrl.startsWith("http://") && !targetUrl.startsWith("https://")) {
-            targetUrl = "https://" + targetUrl;
-        }
-        return `const response = await fetch('${process.env.NEXT_PUBLIC_API_URL || "https://api.screenshotbeam.com"}/api/v1/renders/screenshot', {
-  method: 'POST',
-  headers: {
-    'Content-Type': 'application/json',
-    'X-API-Key': '${apiKey || "YOUR_API_KEY"}'
-  },
-  body: JSON.stringify({
-    url: '${targetUrl}',
-    width: ${width},
-    height: ${height},
-    format: '${format}'
-  })
-});
+    // Get params for CodeSnippet
+    const getCodeSnippetParams = (): Record<string, string | number | boolean> => {
+        const params: Record<string, string | number | boolean> = {
+            width,
+            height,
+            format,
+        };
 
-const data = await response.json();
-console.log(data.url);`;
-    };
+        if (sourceType === "url") params.url = url;
+        else if (sourceType === "html") params.html = htmlContent;
+        else params.markdown = markdownContent;
 
-    const getPythonCode = () => {
-        let targetUrl = url.trim();
-        if (!targetUrl.startsWith("http://") && !targetUrl.startsWith("https://")) {
-            targetUrl = "https://" + targetUrl;
-        }
-        return `import requests
+        if (selector.trim()) params.selector = selector;
+        if (blockAds) params.block_ads = true;
+        if (blockCookieBanners) params.block_cookie_banners = true;
+        if (blockTrackers) params.block_trackers = true;
+        if (blockChatWidgets) params.block_chat_widgets = true;
+        if (fullPage) params.full_page = true;
+        if (darkMode) params.dark_mode = true;
+        if (delay > 0) params.delay = delay;
 
-response = requests.post(
-    '${process.env.NEXT_PUBLIC_API_URL || "https://api.screenshotbeam.com"}/api/v1/renders/screenshot',
-    headers={
-        'Content-Type': 'application/json',
-        'X-API-Key': '${apiKey || "YOUR_API_KEY"}'
-    },
-    json={
-        'url': '${targetUrl}',
-        'width': ${width},
-        'height': ${height},
-        'format': '${format}'
-    }
-)
-
-data = response.json()
-print(data['url'])`;
-    };
-
-    const getActiveCode = () => {
-        switch (activeCodeTab) {
-            case "url": return getUrlCode();
-            case "curl": return getCurlCode();
-            case "javascript": return getJsCode();
-            case "python": return getPythonCode();
-            default: return getCurlCode();
-        }
-    };
-
-    const handleCopy = async () => {
-        await navigator.clipboard.writeText(getActiveCode());
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
+        return params;
     };
 
     return (
-        <div className="flex gap-6 h-[calc(100vh-160px)]">
-            {/* Left Panel */}
-            <div className="w-[400px] flex-shrink-0 flex flex-col gap-4 overflow-y-auto dark-scrollbar pr-2">
+        <>
+            <div className="flex flex-col lg:flex-row gap-6 h-[calc(100vh-280px)]">
+                {/* Controls Panel */}
+                <div className="w-full lg:w-96 flex-shrink-0 flex flex-col">
+                    {/* Scrollable Options */}
+                    <div className="flex-1 space-y-4 overflow-y-auto pr-2">
+                        {/* API Key - Always visible */}
+                        <Card>
+                            <CardContent className="pt-4">
+                                <div className="space-y-2">
+                                    <Label>API Key</Label>
+                                    <Input
+                                        type="password"
+                                        placeholder="Enter your API Key"
+                                        value={apiKey}
+                                        onChange={(e) => setApiKey(e.target.value)}
+                                    />
+                                </div>
+                            </CardContent>
+                        </Card>
 
-                {/* Main Input Card */}
-                <div className="rounded-2xl p-px bg-gradient-to-b from-[#6155f5]/20 to-transparent">
-                    <div className="bg-[#0a0a0f] rounded-2xl p-5 space-y-4">
-                        {/* Source Type */}
-                        <div className="flex items-center gap-2">
-                            <span className="text-xs text-slate-500 mr-2">Source:</span>
-                            {(["url", "html", "markdown"] as const).map((type) => (
-                                <button
-                                    key={type}
-                                    onClick={() => setSourceType(type)}
-                                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all uppercase ${sourceType === type
-                                            ? "bg-[#6155f5]/20 border border-[#6155f5]/50 text-white"
-                                            : "bg-white/5 border border-white/10 text-slate-400 hover:text-white hover:border-white/20"
-                                        }`}
-                                >
-                                    {type}
-                                </button>
-                            ))}
-                        </div>
+                        {/* Accordion Options */}
+                        <Accordion type="multiple" defaultValue={["essentials", "viewport"]} className="space-y-2">
+                            {/* ESSENTIALS - Always expanded by default */}
+                            <AccordionItem value="essentials" className="border rounded-lg px-4">
+                                <AccordionTrigger className="hover:no-underline">
+                                    <div className="flex items-center gap-2">
+                                        <Camera className="h-4 w-4" />
+                                        <span className="font-medium">Essentials</span>
+                                    </div>
+                                </AccordionTrigger>
+                                <AccordionContent className="space-y-4 pb-4">
+                                    {/* Source Type */}
+                                    <div className="space-y-2">
+                                        <Label>Source</Label>
+                                        <Tabs value={sourceType} onValueChange={(v) => setSourceType(v as "url" | "html" | "markdown")} className="w-full">
+                                            <TabsList className="grid w-full grid-cols-3">
+                                                <TabsTrigger value="url">URL</TabsTrigger>
+                                                <TabsTrigger value="html">HTML</TabsTrigger>
+                                                <TabsTrigger value="markdown">Markdown</TabsTrigger>
+                                            </TabsList>
+                                        </Tabs>
+                                    </div>
 
-                        {/* Source Input */}
-                        {sourceType === "url" && (
-                            <input
-                                type="text"
-                                value={url}
-                                onChange={(e) => setUrl(e.target.value)}
-                                onKeyDown={(e) => e.key === "Enter" && handleRender()}
-                                placeholder="Enter URL (e.g., stripe.com)"
-                                className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-slate-500 focus:outline-none focus:border-[#6155f5]/50 focus:ring-2 focus:ring-[#6155f5]/20 transition-all font-mono text-sm"
-                            />
-                        )}
-                        {sourceType === "html" && (
-                            <textarea
-                                value={htmlContent}
-                                onChange={(e) => setHtmlContent(e.target.value)}
-                                placeholder="<h1>Hello World</h1>"
-                                rows={3}
-                                className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-slate-500 focus:outline-none focus:border-[#6155f5]/50 focus:ring-2 focus:ring-[#6155f5]/20 transition-all font-mono text-sm resize-none"
-                            />
-                        )}
-                        {sourceType === "markdown" && (
-                            <textarea
-                                value={markdownContent}
-                                onChange={(e) => setMarkdownContent(e.target.value)}
-                                placeholder="# Hello World"
-                                rows={3}
-                                className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-slate-500 focus:outline-none focus:border-[#6155f5]/50 focus:ring-2 focus:ring-[#6155f5]/20 transition-all font-mono text-sm resize-none"
-                            />
-                        )}
+                                    {/* Source Input */}
+                                    {sourceType === "url" && (
+                                        <div className="space-y-2">
+                                            <Label>URL</Label>
+                                            <Input placeholder="https://example.com" value={url} onChange={(e) => setUrl(e.target.value)} />
+                                        </div>
+                                    )}
+                                    {sourceType === "html" && (
+                                        <div className="space-y-2">
+                                            <Label>HTML Content</Label>
+                                            <Textarea placeholder="<h1>Hello</h1>" value={htmlContent} onChange={(e) => setHtmlContent(e.target.value)} rows={4} />
+                                        </div>
+                                    )}
+                                    {sourceType === "markdown" && (
+                                        <div className="space-y-2">
+                                            <Label>Markdown Content</Label>
+                                            <Textarea placeholder="# Hello" value={markdownContent} onChange={(e) => setMarkdownContent(e.target.value)} rows={4} />
+                                        </div>
+                                    )}
 
-                        {/* API Key */}
-                        <input
-                            type="password"
-                            value={apiKey}
-                            onChange={(e) => setApiKey(e.target.value)}
-                            placeholder="API Key (sk_live_...)"
-                            className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-slate-500 focus:outline-none focus:border-[#6155f5]/50 focus:ring-2 focus:ring-[#6155f5]/20 transition-all font-mono text-sm"
-                        />
+                                    {/* Selector */}
+                                    <div className="space-y-2">
+                                        <Label>Element Selector <span className="text-muted-foreground text-xs">(optional)</span></Label>
+                                        <Input placeholder=".hero, #main" value={selector} onChange={(e) => setSelector(e.target.value)} />
+                                    </div>
+                                </AccordionContent>
+                            </AccordionItem>
 
-                        {/* Capture Button */}
-                        <button
+                            {/* VIEWPORT & DISPLAY */}
+                            <AccordionItem value="viewport" className="border rounded-lg px-4">
+                                <AccordionTrigger className="hover:no-underline">
+                                    <div className="flex items-center gap-2">
+                                        <span className="font-medium">Viewport & Display</span>
+                                    </div>
+                                </AccordionTrigger>
+                                <AccordionContent className="space-y-4 pb-4">
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="space-y-2">
+                                            <Label>Width</Label>
+                                            <Input type="number" value={width} onChange={(e) => setWidth(Number(e.target.value))} />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label>Height</Label>
+                                            <Input type="number" value={height} onChange={(e) => setHeight(Number(e.target.value))} />
+                                        </div>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label>Format</Label>
+                                        <Select value={format} onValueChange={setFormat}>
+                                            <SelectTrigger><SelectValue /></SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="png">PNG</SelectItem>
+                                                <SelectItem value="jpeg">JPEG</SelectItem>
+                                                <SelectItem value="webp">WebP</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label>Device Scale</Label>
+                                        <Select value={deviceScale.toString()} onValueChange={(v) => setDeviceScale(Number(v))}>
+                                            <SelectTrigger><SelectValue /></SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="1">1x</SelectItem>
+                                                <SelectItem value="2">2x (Retina)</SelectItem>
+                                                <SelectItem value="3">3x</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    <div className="flex items-center justify-between">
+                                        <Label>Dark Mode</Label>
+                                        <Switch checked={darkMode} onCheckedChange={setDarkMode} />
+                                    </div>
+                                </AccordionContent>
+                            </AccordionItem>
+
+                            {/* BLOCKING */}
+                            <AccordionItem value="blocking" className="border rounded-lg px-4">
+                                <AccordionTrigger className="hover:no-underline">
+                                    <div className="flex items-center gap-2">
+                                        <span className="font-medium">Blocking</span>
+                                        {blockingCount > 0 && (
+                                            <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">{blockingCount} active</span>
+                                        )}
+                                    </div>
+                                </AccordionTrigger>
+                                <AccordionContent className="space-y-3 pb-4">
+                                    <div className="flex items-center justify-between">
+                                        <Label>Block Ads</Label>
+                                        <Switch checked={blockAds} onCheckedChange={setBlockAds} />
+                                    </div>
+                                    <div className="flex items-center justify-between">
+                                        <Label>Block Cookie Banners</Label>
+                                        <Switch checked={blockCookieBanners} onCheckedChange={setBlockCookieBanners} />
+                                    </div>
+                                    <div className="flex items-center justify-between">
+                                        <Label>Block Trackers</Label>
+                                        <Switch checked={blockTrackers} onCheckedChange={setBlockTrackers} />
+                                    </div>
+                                    <div className="flex items-center justify-between">
+                                        <Label>Block Chat Widgets</Label>
+                                        <Switch checked={blockChatWidgets} onCheckedChange={setBlockChatWidgets} />
+                                    </div>
+                                </AccordionContent>
+                            </AccordionItem>
+
+                            {/* FULL PAGE & CLIP */}
+                            <AccordionItem value="fullpage" className="border rounded-lg px-4">
+                                <AccordionTrigger className="hover:no-underline">
+                                    <div className="flex items-center gap-2">
+                                        <span className="font-medium">Full Page & Scroll</span>
+                                        {fullPageCount > 0 && (
+                                            <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">{fullPageCount} active</span>
+                                        )}
+                                    </div>
+                                </AccordionTrigger>
+                                <AccordionContent className="space-y-4 pb-4">
+                                    <div className="flex items-center justify-between">
+                                        <Label>Full Page Screenshot</Label>
+                                        <Switch checked={fullPage} onCheckedChange={setFullPage} />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label>Scroll Into View <span className="text-muted-foreground text-xs">(selector)</span></Label>
+                                        <Input placeholder="#section, .element" value={scrollIntoView} onChange={(e) => setScrollIntoView(e.target.value)} />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label>Scroll Adjust Top <span className="text-muted-foreground text-xs">(pixels)</span></Label>
+                                        <Input type="number" value={scrollAdjustTop} onChange={(e) => setScrollAdjustTop(Number(e.target.value))} />
+                                    </div>
+                                </AccordionContent>
+                            </AccordionItem>
+
+                            {/* ADVANCED */}
+                            <AccordionItem value="advanced" className="border rounded-lg px-4">
+                                <AccordionTrigger className="hover:no-underline">
+                                    <div className="flex items-center gap-2">
+                                        <span className="font-medium">Advanced</span>
+                                        {advancedCount > 0 && (
+                                            <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">{advancedCount} active</span>
+                                        )}
+                                    </div>
+                                </AccordionTrigger>
+                                <AccordionContent className="space-y-4 pb-4">
+                                    <div className="space-y-2">
+                                        <Label>Delay <span className="text-muted-foreground text-xs">(ms)</span></Label>
+                                        <Input type="number" value={delay} onChange={(e) => setDelay(Number(e.target.value))} placeholder="0" />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label>Timeout <span className="text-muted-foreground text-xs">(ms)</span></Label>
+                                        <Input type="number" value={timeout} onChange={(e) => setTimeout(Number(e.target.value))} />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label>User Agent</Label>
+                                        <Input placeholder="Custom user agent string" value={userAgent} onChange={(e) => setUserAgent(e.target.value)} />
+                                    </div>
+                                </AccordionContent>
+                            </AccordionItem>
+                        </Accordion>
+                    </div>
+
+                    {/* Sticky Button Area - Always visible */}
+                    <div className="pt-4 border-t bg-background space-y-3">
+                        <Button
+                            className="w-full"
+                            size="lg"
                             onClick={handleRender}
                             disabled={isLoading}
-                            className="w-full brand-gradient text-white rounded-xl px-6 py-3 font-bold flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:opacity-90"
                         >
                             {isLoading ? (
                                 <>
-                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                    Capturing...
+                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                    Rendering...
                                 </>
                             ) : (
                                 <>
-                                    <Camera className="h-4 w-4" />
-                                    Capture Screenshot
+                                    <Camera className="mr-2 h-4 w-4" />
+                                    Render Screenshot
                                 </>
                             )}
-                        </button>
-                    </div>
-                </div>
+                        </Button>
 
-                {/* Code Snippet */}
-                <div className="rounded-2xl border border-white/10 overflow-hidden">
-                    {/* Header */}
-                    <div className="bg-white/5 px-4 py-3 flex items-center justify-between">
-                        <div className="flex items-center gap-1">
-                            {CODE_TABS.map((tab) => {
-                                const Icon = tab.icon;
-                                const isActive = activeCodeTab === tab.id;
-                                return (
-                                    <button
-                                        key={tab.id}
-                                        onClick={() => setActiveCodeTab(tab.id)}
-                                        className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all ${isActive
-                                                ? "bg-[#6155f5]/20 border border-[#6155f5]/50 text-white"
-                                                : "text-slate-400 hover:text-white"
-                                            }`}
-                                    >
-                                        <Icon className="w-3 h-3" />
-                                        {tab.label}
-                                    </button>
-                                );
-                            })}
-                        </div>
-                        <button
-                            onClick={handleCopy}
-                            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-white transition-all"
-                        >
-                            {copied ? (
-                                <>
-                                    <Check className="w-3 h-3 text-emerald-400" />
-                                    <span className="text-emerald-400">Copied!</span>
-                                </>
-                            ) : (
-                                <>
-                                    <Copy className="w-3 h-3" />
-                                    Copy
-                                </>
-                            )}
-                        </button>
-                    </div>
-                    {/* Code Area */}
-                    <div className="bg-black/60 h-48 overflow-auto p-4 dark-scrollbar">
-                        <pre className="text-xs font-mono leading-relaxed whitespace-pre text-slate-300">
-                            {getActiveCode()}
-                        </pre>
-                    </div>
-                </div>
-
-                {/* Advanced Options Toggle */}
-                <button
-                    onClick={() => setShowAdvanced(!showAdvanced)}
-                    className="flex items-center gap-2 px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-slate-400 hover:text-white hover:border-white/20 transition-all text-sm"
-                >
-                    <Settings2 className="h-4 w-4" />
-                    <span>Advanced Options</span>
-                    <span className={`ml-auto transition-transform ${showAdvanced ? 'rotate-180' : ''}`}>▼</span>
-                </button>
-
-                {/* Advanced Options Panel */}
-                {showAdvanced && (
-                    <div className="rounded-2xl border border-white/10 p-4 space-y-4">
-                        {/* Viewport */}
-                        <div className="grid grid-cols-3 gap-3">
-                            <div className="space-y-1">
-                                <label className="text-xs text-slate-500">Width</label>
-                                <input
-                                    type="number"
-                                    value={width}
-                                    onChange={(e) => setWidth(Number(e.target.value))}
-                                    className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-[#6155f5]/50"
-                                />
-                            </div>
-                            <div className="space-y-1">
-                                <label className="text-xs text-slate-500">Height</label>
-                                <input
-                                    type="number"
-                                    value={height}
-                                    onChange={(e) => setHeight(Number(e.target.value))}
-                                    className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-[#6155f5]/50"
-                                />
-                            </div>
-                            <div className="space-y-1">
-                                <label className="text-xs text-slate-500">Format</label>
-                                <select
-                                    value={format}
-                                    onChange={(e) => setFormat(e.target.value)}
-                                    className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-[#6155f5]/50"
-                                >
-                                    <option value="png">PNG</option>
-                                    <option value="jpeg">JPEG</option>
-                                    <option value="webp">WebP</option>
-                                </select>
-                            </div>
-                        </div>
-
-                        {/* Selector */}
-                        <div className="space-y-1">
-                            <label className="text-xs text-slate-500">Element Selector (optional)</label>
-                            <input
-                                type="text"
-                                value={selector}
-                                onChange={(e) => setSelector(e.target.value)}
-                                placeholder=".hero, #main"
-                                className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-white text-sm placeholder:text-slate-600 focus:outline-none focus:border-[#6155f5]/50 font-mono"
-                            />
-                        </div>
-
-                        {/* Toggles */}
-                        <div className="grid grid-cols-2 gap-3">
-                            <label className="flex items-center gap-2 text-sm text-slate-400 cursor-pointer">
-                                <input
-                                    type="checkbox"
-                                    checked={blockAds}
-                                    onChange={(e) => setBlockAds(e.target.checked)}
-                                    className="rounded border-white/20 bg-black/40 text-[#6155f5] focus:ring-[#6155f5]/20"
-                                />
-                                Block Ads
-                            </label>
-                            <label className="flex items-center gap-2 text-sm text-slate-400 cursor-pointer">
-                                <input
-                                    type="checkbox"
-                                    checked={blockCookieBanners}
-                                    onChange={(e) => setBlockCookieBanners(e.target.checked)}
-                                    className="rounded border-white/20 bg-black/40 text-[#6155f5] focus:ring-[#6155f5]/20"
-                                />
-                                Block Cookies
-                            </label>
-                            <label className="flex items-center gap-2 text-sm text-slate-400 cursor-pointer">
-                                <input
-                                    type="checkbox"
-                                    checked={fullPage}
-                                    onChange={(e) => setFullPage(e.target.checked)}
-                                    className="rounded border-white/20 bg-black/40 text-[#6155f5] focus:ring-[#6155f5]/20"
-                                />
-                                Full Page
-                            </label>
-                            <label className="flex items-center gap-2 text-sm text-slate-400 cursor-pointer">
-                                <input
-                                    type="checkbox"
-                                    checked={darkMode}
-                                    onChange={(e) => setDarkMode(e.target.checked)}
-                                    className="rounded border-white/20 bg-black/40 text-[#6155f5] focus:ring-[#6155f5]/20"
-                                />
-                                Dark Mode
-                            </label>
-                        </div>
-                    </div>
-                )}
-            </div>
-
-            {/* Right Panel - Preview */}
-            <div className="flex-1 flex flex-col min-w-0">
-                {/* Browser Frame */}
-                <div className="rounded-2xl border border-white/10 overflow-hidden flex-1 flex flex-col">
-                    {/* Browser Header */}
-                    <div className="bg-white/5 border-b border-white/10 px-4 py-3 flex items-center justify-between">
-                        <div className="flex gap-1.5">
-                            <div className="w-3 h-3 rounded-full bg-red-500/50" />
-                            <div className="w-3 h-3 rounded-full bg-yellow-500/50" />
-                            <div className="w-3 h-3 rounded-full bg-green-500/50" />
-                        </div>
-                        <div className="bg-black/40 border border-white/10 rounded-lg px-4 py-1.5 text-xs text-slate-500 font-mono flex-1 mx-8 text-center truncate">
-                            {sourceType === "url" ? (url.startsWith("http") ? url : `https://${url}`) : `[${sourceType.toUpperCase()} Content]`}
-                        </div>
+                        {/* Download Button - Only shows when result exists */}
                         {result && !isLoading && (
-                            <button
+                            <Button
+                                variant="outline"
+                                className="w-full"
+                                size="lg"
                                 onClick={() => {
                                     const link = document.createElement('a');
                                     link.href = result;
@@ -460,45 +437,104 @@ print(data['url'])`;
                                     link.target = '_blank';
                                     link.click();
                                 }}
-                                className="text-xs text-[#6155f5] hover:text-white font-medium transition-colors"
                             >
-                                Download
-                            </button>
-                        )}
-                    </div>
-
-                    {/* Preview Content */}
-                    <div className="bg-black/60 flex-1 flex items-center justify-center p-6">
-                        {isLoading ? (
-                            <div className="flex flex-col items-center gap-4">
-                                <Loader2 className="h-12 w-12 text-[#6155f5] animate-spin" />
-                                <p className="text-slate-400 text-sm">Capturing screenshot...</p>
-                            </div>
-                        ) : error ? (
-                            <div className="flex flex-col items-center gap-4 text-center max-w-md">
-                                <div className="w-12 h-12 rounded-full bg-red-500/20 flex items-center justify-center">
-                                    <span className="text-red-400 text-xl">!</span>
-                                </div>
-                                <p className="text-red-400 text-sm">{error}</p>
-                            </div>
-                        ) : result ? (
-                            <img
-                                src={result}
-                                alt="Screenshot"
-                                className="max-w-full max-h-full object-contain rounded-lg shadow-2xl border border-white/10"
-                            />
-                        ) : (
-                            <div className="flex flex-col items-center gap-4 text-center max-w-md">
-                                <div className="w-20 h-20 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center">
-                                    <Camera className="h-8 w-8 text-slate-600" />
-                                </div>
-                                <p className="text-slate-400 text-sm">Enter a URL above and click Capture</p>
-                                <p className="text-slate-500 text-xs">Your screenshot will appear here</p>
-                            </div>
+                                <svg className="mr-2 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                </svg>
+                                Download {format.toUpperCase()}
+                            </Button>
                         )}
                     </div>
                 </div>
+
+                {/* Preview Panel */}
+                <div className="flex-1 flex flex-col min-w-0">
+
+                    {/* Monitor Frame */}
+                    <div className="bg-gradient-to-b from-gray-700 to-gray-900 rounded-2xl p-3 shadow-2xl flex-1 flex flex-col">
+                        {/* Browser Chrome */}
+                        <div className="bg-gray-800 rounded-xl px-4 py-2.5 flex items-center gap-3">
+                            <div className="flex gap-2">
+                                <div className="w-3 h-3 rounded-full bg-red-500 hover:bg-red-400 transition-colors cursor-pointer"></div>
+                                <div className="w-3 h-3 rounded-full bg-yellow-500 hover:bg-yellow-400 transition-colors cursor-pointer"></div>
+                                <div className="w-3 h-3 rounded-full bg-green-500 hover:bg-green-400 transition-colors cursor-pointer"></div>
+                            </div>
+                            <div className="flex-1 mx-4">
+                                <div className="bg-gray-700 rounded-lg px-4 py-1.5 text-sm text-gray-300 truncate">
+                                    {sourceType === "url" ? url : sourceType === "html" ? "[HTML Content]" : "[Markdown Content]"}
+                                </div>
+                            </div>
+                        </div>
+                        {/* Screenshot Content Area - 16:9 aspect ratio */}
+                        <div className="bg-white rounded-xl mt-2 overflow-hidden aspect-video flex items-center justify-center relative">
+                            {/* Loading Overlay - shows during API call and image loading */}
+                            {isLoading && (
+                                <div className="absolute inset-0 flex items-center justify-center bg-white z-10">
+                                    <div className="text-center text-gray-400">
+                                        <Loader2 className="h-10 w-10 mx-auto mb-3 animate-spin text-blue-500" />
+                                        <p className="text-sm font-medium">Rendering screenshot...</p>
+                                        <p className="text-xs mt-1 text-gray-300">This may take a few seconds</p>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Error State */}
+                            {error && !isLoading && (
+                                <div className="text-center max-w-sm py-12 px-4">
+                                    <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-3">
+                                        <span className="text-red-500 text-xl">!</span>
+                                    </div>
+                                    <p className="font-medium text-gray-800 mb-1">Rendering Failed</p>
+                                    <p className="text-sm text-gray-500">{error}</p>
+                                </div>
+                            )}
+
+                            {/* Image - renders hidden during loading, visible when ready */}
+                            {result && (
+                                <img
+                                    src={result}
+                                    alt="Screenshot Preview"
+                                    className={`w-full h-full object-cover transition-opacity duration-300 ${isLoading ? 'opacity-0' : 'opacity-100'}`}
+                                    onLoad={() => {
+                                        setIsImageLoaded(true);
+                                        setIsLoading(false);
+                                    }}
+                                />
+                            )}
+
+                            {/* Empty State */}
+                            {!result && !error && !isLoading && (
+                                <div className="text-center text-gray-400 py-16">
+                                    <Camera className="h-10 w-10 mx-auto mb-3 opacity-40" />
+                                    <p className="text-sm font-medium">No screenshot yet</p>
+                                    <p className="text-xs mt-1 text-gray-300">Click "Render Screenshot" to generate</p>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                    {/* Monitor Stand */}
+                    <div className="flex justify-center">
+                        <div className="w-16 h-5 bg-gradient-to-b from-gray-700 to-gray-800 rounded-b-sm"></div>
+                    </div>
+                    <div className="flex justify-center">
+                        <div className="w-28 h-2 bg-gradient-to-b from-gray-600 to-gray-700 rounded-b-lg shadow-md"></div>
+                    </div>
+
+                </div>
             </div>
-        </div>
+
+            {/* Portal: Code Snippet in header */}
+            {
+                headerSlot && createPortal(
+                    <CodeSnippet
+                        curl={generateCurl()}
+                        apiUrl={`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/v1/renders/screenshot`}
+                        params={getCodeSnippetParams()}
+                        apiKey={apiKey || "YOUR_API_KEY"}
+                    />,
+                    headerSlot
+                )
+            }
+        </>
     );
 }

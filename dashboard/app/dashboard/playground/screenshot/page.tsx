@@ -195,11 +195,12 @@ export default function ScreenshotPlaygroundPage() {
 
     return (
         <>
-            <div className="flex flex-col lg:flex-row gap-6 lg:items-stretch">
-                {/* Controls Panel - Matches right panel height */}
-                <div className="w-full lg:w-96 flex-shrink-0 flex flex-col">
-                    {/* Scrollable inner container */}
-                    <div className="flex-1 overflow-y-auto space-y-4 pb-4">
+            {/* CSS Grid Layout - Both columns automatically same height */}
+            <div className="grid grid-cols-1 lg:grid-cols-[384px_1fr] gap-6">
+                {/* Left Panel - Options */}
+                <div className="border rounded-xl overflow-hidden bg-background">
+                    {/* Scrollable content area */}
+                    <div className="h-full overflow-y-auto p-4 space-y-4">
                         {/* API Key + Render Button */}
                         <Card>
                             <CardContent className="pt-4 space-y-4">
@@ -437,8 +438,8 @@ export default function ScreenshotPlaygroundPage() {
                     </div>
                 </div>
 
-                {/* Preview Panel - Fixed layout */}
-                <div className="flex-1 flex flex-col min-w-0">
+                {/* Right Panel - Preview */}
+                <div className="flex flex-col min-w-0">
 
                     {/* Monitor Frame - Fixed size, doesn't stretch */}
                     <div className="bg-gradient-to-b from-gray-700 to-gray-900 rounded-2xl p-3 shadow-2xl">

@@ -1,0 +1,45 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'app/**'
+      - 'requirements.txt'
+      - 'docker/**'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    
+    steps:
+      - name: Deploy to DigitalOcean
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.SERVER_IP }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            cd /opt/screenshot-api
+            
+            echo "📥 Pulling latest code..."
+            git pull origin main
+            
+            echo "🔨 Building Docker image..."
+            docker compose -f docker-compose.api.yml build api
+            
+            echo "🔄 Restarting container..."
+            docker compose -f docker-compose.api.yml up -d api
+            
+            echo "⏳ Waiting for startup..."
+            sleep 15
+            
+            echo "🏥 Health check..."
+            curl -sf http://localhost:8080/api/v1/health || exit 1
+            
+            echo "✅ Deployment successful!"
+
+      - name: Notify on failure
+        if: failure()
+        run: echo "::error::Deployment failed! Check the logs."

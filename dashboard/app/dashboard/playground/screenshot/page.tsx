@@ -215,11 +215,11 @@ export default function ScreenshotPlaygroundPage() {
             <div className="grid grid-cols-1 lg:grid-cols-[384px_1fr] gap-6 lg:items-start">
                 {/* Left Panel - Height synced with right panel */}
                 <div
-                    className="border rounded-xl bg-background overflow-hidden"
+                    className="border rounded-xl bg-white dark:bg-background"
                     style={{ height: rightPanelHeight ? `${rightPanelHeight}px` : 'auto' }}
                 >
-                    {/* Scrollable content area - pb-8 prevents bottom cutoff */}
-                    <div className="h-full overflow-y-auto p-4 pb-8 space-y-4">
+                    {/* Scrollable content area - custom scroll to prevent macOS fade */}
+                    <div className="h-full overflow-y-auto p-4 pb-8 space-y-4 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb]:bg-gray-300 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-track]:bg-transparent">
                         {/* API Key + Render Button */}
                         <Card>
                             <CardContent className="pt-4 space-y-4">

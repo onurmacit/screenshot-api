@@ -424,16 +424,19 @@ export default function ScreenshotPlaygroundPage() {
                             </div>
                         ) : result ? (
                             <>
+                                {/* Show loading while image loads in background */}
                                 {!isImageLoaded && (
                                     <div className="text-center text-gray-400 py-16">
                                         <Loader2 className="h-10 w-10 mx-auto mb-3 animate-spin text-blue-500" />
-                                        <p className="text-sm font-medium">Loading image...</p>
+                                        <p className="text-sm font-medium">Rendering screenshot...</p>
+                                        <p className="text-xs mt-1 text-gray-300">This may take a few seconds</p>
                                     </div>
                                 )}
+                                {/* Image loads in background, becomes visible when ready */}
                                 <img
                                     src={result}
                                     alt="Screenshot Preview"
-                                    className={`w-full h-full object-contain transition-opacity duration-200 ${isImageLoaded ? 'opacity-100' : 'opacity-0 absolute'}`}
+                                    className={`w-full h-full object-contain transition-opacity duration-300 ${isImageLoaded ? 'opacity-100' : 'opacity-0 absolute'}`}
                                     onLoad={() => setIsImageLoaded(true)}
                                 />
                             </>

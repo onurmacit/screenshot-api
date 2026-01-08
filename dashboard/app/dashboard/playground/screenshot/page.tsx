@@ -368,13 +368,10 @@ export default function ScreenshotPlaygroundPage() {
                             </AccordionContent>
                         </AccordionItem>
                     </Accordion>
-
-                    {/* Code Snippet */}
-                    <CodeSnippet code={generateCurl()} />
                 </div>
 
-                {/* Sticky Render Button - Always visible */}
-                <div className="pt-4 border-t bg-background sticky bottom-0">
+                {/* Sticky Button Area - Always visible */}
+                <div className="pt-4 border-t bg-background space-y-3">
                     <Button
                         className="w-full"
                         size="lg"
@@ -393,6 +390,30 @@ export default function ScreenshotPlaygroundPage() {
                             </>
                         )}
                     </Button>
+
+                    {/* Download Button - Only shows when result exists */}
+                    {result && !isLoading && (
+                        <Button
+                            variant="outline"
+                            className="w-full"
+                            size="lg"
+                            onClick={() => {
+                                const link = document.createElement('a');
+                                link.href = result;
+                                link.download = `screenshot-${Date.now()}.${format}`;
+                                link.target = '_blank';
+                                link.click();
+                            }}
+                        >
+                            <svg className="mr-2 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                            </svg>
+                            Download {format.toUpperCase()}
+                        </Button>
+                    )}
+
+                    {/* Code Snippet */}
+                    <CodeSnippet code={generateCurl()} />
                 </div>
             </div>
 
@@ -468,26 +489,6 @@ export default function ScreenshotPlaygroundPage() {
                     <div className="w-28 h-2 bg-gradient-to-b from-gray-600 to-gray-700 rounded-b-lg shadow-md"></div>
                 </div>
 
-                {/* Download Button */}
-                {result && (
-                    <div className="mt-4 flex justify-end">
-                        <button
-                            onClick={() => {
-                                const link = document.createElement('a');
-                                link.href = result;
-                                link.download = `screenshot-${Date.now()}.${format}`;
-                                link.target = '_blank';
-                                link.click();
-                            }}
-                            className="inline-flex items-center gap-2 px-5 py-2.5 bg-gray-900 hover:bg-gray-800 text-white rounded-lg font-medium text-sm transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5"
-                        >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                            </svg>
-                            Download {format.toUpperCase()}
-                        </button>
-                    </div>
-                )}
             </div>
         </div>
     );

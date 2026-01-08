@@ -200,9 +200,9 @@ export default function ScreenshotPlaygroundPage() {
                 <div className="w-full lg:w-96 flex-shrink-0 flex flex-col">
                     {/* Scrollable Options */}
                     <div className="flex-1 space-y-4 overflow-y-auto pr-2">
-                        {/* API Key - Always visible */}
+                        {/* API Key + Render Button */}
                         <Card>
-                            <CardContent className="pt-4">
+                            <CardContent className="pt-4 space-y-4">
                                 <div className="space-y-2">
                                     <Label>API Key</Label>
                                     <Input
@@ -212,6 +212,24 @@ export default function ScreenshotPlaygroundPage() {
                                         onChange={(e) => setApiKey(e.target.value)}
                                     />
                                 </div>
+                                <Button
+                                    className="w-full"
+                                    size="lg"
+                                    onClick={handleRender}
+                                    disabled={isLoading}
+                                >
+                                    {isLoading ? (
+                                        <>
+                                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                            Rendering...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Camera className="mr-2 h-4 w-4" />
+                                            Render Screenshot
+                                        </>
+                                    )}
+                                </Button>
                             </CardContent>
                         </Card>
 
@@ -395,30 +413,8 @@ export default function ScreenshotPlaygroundPage() {
                                 </AccordionContent>
                             </AccordionItem>
                         </Accordion>
-                    </div>
 
-                    {/* Sticky Button Area - Always visible */}
-                    <div className="pt-4 border-t bg-background space-y-3">
-                        <Button
-                            className="w-full"
-                            size="lg"
-                            onClick={handleRender}
-                            disabled={isLoading}
-                        >
-                            {isLoading ? (
-                                <>
-                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                    Rendering...
-                                </>
-                            ) : (
-                                <>
-                                    <Camera className="mr-2 h-4 w-4" />
-                                    Render Screenshot
-                                </>
-                            )}
-                        </Button>
-
-                        {/* Download Button - Only shows when result exists */}
+                        {/* Download Button - Shows when result exists */}
                         {result && !isLoading && (
                             <Button
                                 variant="outline"

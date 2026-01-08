@@ -28,35 +28,35 @@ from app.utils.logger import logger
 # =============================================================================
 class RateLimitCache:
     """Thread-safe LRU cache for rate limit results."""
-    
+
     def __init__(self, max_size: int = 1000, ttl_seconds: float = 1.0):
         self._cache: OrderedDict[str, tuple[int, int, float]] = OrderedDict()
         self._max_size = max_size
         self._ttl = ttl_seconds
         self._lock = Lock()
-    
+
     def get(self, key: str) -> tuple[int, int] | None:
         """Get cached count and remaining for a key."""
         with self._lock:
             if key not in self._cache:
                 return None
-            
+
             count, remaining, expires = self._cache[key]
             if time.time() > expires:
                 del self._cache[key]
                 return None
-            
+
             # Move to end (most recently used)
             self._cache.move_to_end(key)
             return count, remaining
-    
+
     def set(self, key: str, count: int, remaining: int) -> None:
         """Cache rate limit result."""
         with self._lock:
             # Remove oldest if at capacity
             while len(self._cache) >= self._max_size:
                 self._cache.popitem(last=False)
-            
+
             self._cache[key] = (count, remaining, time.time() + self._ttl)
 
 
@@ -67,11 +67,11 @@ _rate_limit_cache = RateLimitCache(max_size=1000, ttl_seconds=5.0)
 def is_ip_in_networks(ip: str, networks: list[str]) -> bool:
     """
     Check if an IP address is in any of the given networks.
-    
+
     Args:
         ip: IP address to check
         networks: List of IP addresses or CIDR ranges
-        
+
     Returns:
         True if IP is in any network
     """
@@ -100,15 +100,15 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
     This middleware applies basic IP-based rate limiting before authentication.
     User-based rate limiting is applied in the API dependencies after auth.
-    
+
     Security: Only trusts X-Forwarded-For from configured TRUSTED_PROXIES.
-    
+
     Endpoint-specific limits:
     - Render endpoints (/renders/): Lower limit (resource intensive)
     - Auth endpoints (/auth/): Medium limit (prevent brute force)
     - Other endpoints: Higher limit (lightweight operations)
     """
-    
+
     # Endpoint-specific rate limits (per minute per IP)
     RATE_LIMITS = {
         "render": 30,    # Screenshot/PDF renders - resource intensive
@@ -121,7 +121,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         super().__init__(app)
         self.default_limit = settings.IP_RATE_LIMIT_PER_MINUTE
         self.trusted_proxies = settings.TRUSTED_PROXIES
-    
+
     def _get_endpoint_type(self, path: str) -> str:
         """Determine endpoint type based on URL path."""
         path_lower = path.lower()
@@ -132,7 +132,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         elif "/admin/" in path_lower:
             return "admin"
         return "default"
-    
+
     def _get_rate_limit(self, endpoint_type: str) -> int:
         """Get rate limit for endpoint type."""
         return self.RATE_LIMITS.get(endpoint_type, self.default_limit)
@@ -154,7 +154,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
         # Get client IP (with spoofing protection)
         client_ip = self._get_client_ip(request)
-        
+
         # Get endpoint-specific rate limit
         endpoint_type = self._get_endpoint_type(request.url.path)
         limit_per_minute = self._get_rate_limit(endpoint_type)
@@ -210,13 +210,13 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
     def _get_client_ip(self, request: Request) -> str:
         """
         Extract client IP from request with spoofing protection.
-        
+
         Only trusts X-Forwarded-For headers if the direct connection
         is from a trusted proxy.
-        
+
         Args:
             request: FastAPI request object
-            
+
         Returns:
             Client IP address string
         """
@@ -269,7 +269,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
     ) -> tuple[bool, int, int]:
         """
         Check if request is within rate limit using atomic Redis operation.
-        
+
         **Optimized:** Uses local LRU cache to reduce Redis commands.
         Same IP within 1 second uses cached result (incremented locally).
 
@@ -294,10 +294,10 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             new_count = count + 1
             new_remaining = max(0, remaining - 1)
             is_allowed = new_count <= limit_per_minute
-            
+
             # Update cache
             _rate_limit_cache.set(key, new_count, new_remaining)
-            
+
             return is_allowed, new_remaining, reset_at
 
         # Cache miss - hit Redis
@@ -305,15 +305,15 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         lua_script = """
         local key = KEYS[1]
         local limit = tonumber(ARGV[1])
-        
+
         -- Increment counter
         local current = redis.call('INCR', key)
-        
+
         -- Set expiry on first increment
         if current == 1 then
             redis.call('EXPIRE', key, 60)
         end
-        
+
         -- Check limit
         if current <= limit then
             return {1, limit - current, current}  -- allowed, remaining, count

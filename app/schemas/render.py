@@ -16,7 +16,7 @@ class ScreenshotRequest(BaseModel):
     url: str | None = Field(None, description="URL to capture")
     html: str | None = Field(None, description="HTML content to render directly")
     markdown: str | None = Field(None, description="Markdown content to render")
-    
+
     async_mode: bool = Field(
         default=False,
         alias="async",

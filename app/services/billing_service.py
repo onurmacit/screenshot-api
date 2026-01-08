@@ -46,7 +46,7 @@ class BillingService:
         """
         query = select(Plan).order_by(Plan.price_monthly)
         if active_only:
-            query = query.where(Plan.is_active == True)
+            query = query.where(Plan.is_active)
 
         result = await self.db.execute(query)
         return list(result.scalars().all())

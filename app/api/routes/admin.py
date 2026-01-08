@@ -307,26 +307,26 @@ async def get_demo_activity(
 ) -> dict:
     """
     Get demo activity statistics and recent captures.
-    
+
     Returns demo usage metrics including:
     - Total requests (today/week/all-time)
     - Recent demo captures with IP and URL
     - Top captured URLs
     """
     from app.services.cache_service import cache_service
-    
+
     # Get demo stats from cache service
     stats = await cache_service.get_demo_stats()
-    
+
     # Get recent captures (last 50)
     recent_captures = await cache_service.get_recent_demo_captures(limit=50)
-    
+
     # Convert timestamps to ISO format for frontend
     for capture in recent_captures:
         if "timestamp" in capture:
             from datetime import datetime
             capture["timestamp"] = datetime.fromtimestamp(capture["timestamp"]).isoformat()
-    
+
     return {
         **stats,
         "recent_captures": recent_captures,

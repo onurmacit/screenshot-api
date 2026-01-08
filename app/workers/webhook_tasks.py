@@ -32,11 +32,11 @@ WEBHOOK_MAX_RETRIES = 5
 def generate_webhook_signature(payload: str, secret: str) -> str:
     """
     Generate HMAC-SHA256 signature for webhook payload.
-    
+
     Args:
         payload: JSON payload string
         secret: Webhook secret key
-        
+
     Returns:
         Hex-encoded HMAC signature
     """
@@ -50,12 +50,12 @@ def generate_webhook_signature(payload: str, secret: str) -> str:
 def verify_webhook_signature(payload: str, signature: str, secret: str) -> bool:
     """
     Verify HMAC-SHA256 signature of webhook payload.
-    
+
     Args:
         payload: JSON payload string
         signature: Received signature
         secret: Webhook secret key
-        
+
     Returns:
         True if signature is valid
     """
@@ -66,7 +66,7 @@ def verify_webhook_signature(payload: str, signature: str, secret: str) -> bool:
 def generate_webhook_secret() -> str:
     """
     Generate a secure random webhook secret.
-    
+
     Returns:
         64-character hex string
     """
@@ -417,7 +417,7 @@ async def _trigger_event_webhooks_async(
         result = await db.execute(
             select(Webhook).where(
                 Webhook.user_id == UUID(user_id),
-                Webhook.is_active == True,
+                Webhook.is_active,
                 Webhook.events.contains([event]),
             )
         )

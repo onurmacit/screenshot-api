@@ -69,12 +69,12 @@ def is_valid_url(
 ) -> bool:
     """
     Validate URL for screenshot/PDF rendering.
-    
+
     Args:
         url: URL to validate
         allow_localhost: Whether to allow localhost URLs
         allow_private_ip: Whether to allow private IP addresses
-    
+
     Returns:
         True if URL is valid, False otherwise
     """
@@ -85,9 +85,7 @@ def is_valid_url(
         "metadata.google.internal",
         "metadata.gke-metadata-server.svc.cluster.local",
         # Azure metadata
-        "169.254.169.254",
-        # DigitalOcean metadata  
-        "169.254.169.254",
+        # DigitalOcean metadata
         # Kubernetes
         "kubernetes.default.svc",
         "kubernetes.default",
@@ -97,7 +95,7 @@ def is_valid_url(
         "[::0]",
         "[::]",
     }
-    
+
     # Dangerous hostname patterns
     DANGEROUS_PATTERNS = [
         "metadata",
@@ -106,7 +104,7 @@ def is_valid_url(
         ".internal",
         ".svc",
     ]
-    
+
     try:
         parsed = urlparse(url)
 
@@ -121,13 +119,13 @@ def is_valid_url(
         hostname = parsed.hostname
         if not hostname:
             return False
-        
+
         hostname_lower = hostname.lower()
 
         # Block known dangerous hostnames (cloud metadata, etc.)
         if hostname_lower in BLOCKED_HOSTNAMES:
             return False
-        
+
         # Block dangerous patterns (metadata, internal, etc.)
         for pattern in DANGEROUS_PATTERNS:
             if pattern in hostname_lower:
@@ -175,12 +173,12 @@ def validate_url(
 ) -> tuple[bool, str | None]:
     """
     Validate a URL and return validation result with error message.
-    
+
     Args:
         url: URL to validate
         allow_localhost: Whether to allow localhost URLs
         require_https: Whether to require HTTPS (default: False)
-    
+
     Returns:
         Tuple of (is_valid, error_message or None)
     """
@@ -204,10 +202,10 @@ def validate_url(
 def sanitize_url(url: str) -> str:
     """
     Sanitize and normalize URL.
-    
+
     Args:
         url: URL to sanitize
-    
+
     Returns:
         Sanitized URL
     """
@@ -225,10 +223,10 @@ def sanitize_url(url: str) -> str:
 def is_valid_email(email: str) -> bool:
     """
     Validate email address format.
-    
+
     Args:
         email: Email address to validate
-    
+
     Returns:
         True if email is valid, False otherwise
     """
@@ -240,10 +238,10 @@ def is_valid_email(email: str) -> bool:
 def is_valid_password(password: str) -> tuple[bool, list[str]]:
     """
     Validate password strength.
-    
+
     Args:
         password: Password to validate
-    
+
     Returns:
         Tuple of (is_valid, list of error messages)
     """
@@ -276,13 +274,13 @@ def validate_screenshot_options(
 ) -> tuple[bool, list[str]]:
     """
     Validate screenshot options.
-    
+
     Args:
         options: Screenshot options to validate
         max_width: Maximum allowed width
         max_height: Maximum allowed height
         apply_defaults: Whether to apply default values for missing options
-    
+
     Returns:
         Tuple of (is_valid, list of error messages)
     """
@@ -333,11 +331,11 @@ def validate_pdf_options(
 ) -> tuple[bool, list[str]]:
     """
     Validate PDF generation options.
-    
+
     Args:
         options: PDF options to validate
         apply_defaults: Whether to apply default values for missing options
-    
+
     Returns:
         Tuple of (is_valid, list of error messages)
     """
@@ -384,14 +382,14 @@ def validate_render_options(
 ) -> tuple[bool, list[str]]:
     """
     Validate render options based on type.
-    
+
     Args:
         render_type: Type of render ('screenshot' or 'pdf')
         options: Options to validate
         max_width: Maximum width (for screenshots)
         max_height: Maximum height (for screenshots)
         apply_defaults: Whether to apply defaults
-    
+
     Returns:
         Tuple of (is_valid, list of error messages)
     """

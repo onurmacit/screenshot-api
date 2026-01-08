@@ -254,7 +254,7 @@ async def _refresh_expired_tokens_async() -> dict[str, Any]:
         # Delete expired and revoked tokens
         result = await db.execute(
             delete(RefreshToken).where(
-                (RefreshToken.expires_at < now) | (RefreshToken.is_revoked == True)
+                (RefreshToken.expires_at < now) | (RefreshToken.is_revoked)
             )
         )
         deleted_count = result.rowcount

@@ -27,7 +27,7 @@ class Settings(BaseSettings):
     APP_ENV: str = "development"
     DEBUG: bool = True
     LOG_LEVEL: str = "DEBUG"
-    
+
     # Admin emails (comma-separated in env)
     ADMIN_EMAILS: list[str] = ["onurmaciit@gmail.com"]
 

@@ -77,15 +77,15 @@ class Base(DeclarativeBase):
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
     """
     Dependency for getting async database sessions.
-    
+
     IMPORTANT: This dependency does NOT auto-commit.
     You must explicitly call `await session.commit()` to persist changes.
-    
+
     On exception, the session is automatically rolled back.
 
     Yields:
         AsyncSession: Database session
-        
+
     Example:
         async def create_user(db: AsyncSession, user_data: dict):
             user = User(**user_data)
@@ -109,15 +109,15 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 async def get_db_context() -> AsyncGenerator[AsyncSession, None]:
     """
     Context manager for getting async database sessions.
-    
+
     IMPORTANT: This context manager does NOT auto-commit.
     You must explicitly call `await session.commit()` to persist changes.
-    
+
     On exception, the session is automatically rolled back.
 
     Yields:
         AsyncSession: Database session
-        
+
     Example:
         async with get_db_context() as db:
             user = User(**user_data)
@@ -139,13 +139,13 @@ async def get_db_context() -> AsyncGenerator[AsyncSession, None]:
 async def transaction_context() -> AsyncGenerator[AsyncSession, None]:
     """
     Context manager for database transactions with auto-commit on success.
-    
+
     Use this when you want automatic commit on successful completion.
     On exception, the transaction is rolled back.
-    
+
     Yields:
         AsyncSession: Database session
-        
+
     Example:
         async with transaction_context() as db:
             user = User(**user_data)
@@ -181,12 +181,12 @@ async def close_db() -> None:
 def get_pool_stats() -> dict:
     """
     Get database connection pool statistics.
-    
+
     Returns:
         Dict with pool stats:
         - pool_size: Configured pool size
         - checked_in: Available connections
-        - checked_out: Active connections  
+        - checked_out: Active connections
         - overflow: Overflow connections in use
         - invalidated: Invalid connections
     """

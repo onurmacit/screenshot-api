@@ -22,6 +22,7 @@ from app.core.security import (
     verify_refresh_token,
 )
 from app.models import APIKey, Plan, RefreshToken, User
+from app.services.cache_service import cache_service
 from app.utils.exceptions import (
     AuthenticationError,
     ConflictError,
@@ -29,7 +30,6 @@ from app.utils.exceptions import (
     ValidationError,
 )
 from app.utils.helpers import hash_string, utc_now
-from app.services.cache_service import cache_service
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -127,8 +127,8 @@ class AuthService:
 
         if not user or not verify_password(password, user.password_hash):
             logger.warning(
-                "Failed login attempt", 
-                email=email, 
+                "Failed login attempt",
+                email=email,
                 ip_address=ip_address,
                 device_info=device_info
             )
@@ -163,11 +163,11 @@ class AuthService:
         Authenticate user via social provider and return tokens.
         """
         email = None
-        
+
         # NOTE: This is where we would verify the token with the provider
         # For Google: verify ID token
         # For GitHub: call /user endpoint with access token
-        
+
         if provider == "google":
             async with httpx.AsyncClient() as client:
                 res = await client.get(f"https://oauth2.googleapis.com/tokeninfo?id_token={token}")
@@ -268,7 +268,7 @@ class AuthService:
             select(RefreshToken).where(
                 RefreshToken.token_hash == token_hash,
                 RefreshToken.user_id == UUID(user_id),
-                RefreshToken.is_revoked == False,
+                not RefreshToken.is_revoked,
             )
         )
         db_token = result.scalar_one_or_none()
@@ -352,7 +352,7 @@ class AuthService:
         result = await self.db.execute(
             select(APIKey).where(
                 APIKey.user_id == user_id,
-                APIKey.is_active == True,
+                APIKey.is_active,
             )
         )
         existing_keys = result.scalars().all()
@@ -524,7 +524,7 @@ class AuthService:
     ) -> str:
         """Create and store refresh token with retry logic for hash collisions."""
         from sqlalchemy.exc import IntegrityError
-        
+
         for attempt in range(max_retries):
             token = create_refresh_token(subject=str(user.id))
             token_hash = hash_string(token)
@@ -584,7 +584,7 @@ class AuthService:
         cached_plan = await cache_service.get_plan_cache(name)
         if cached_plan:
             # We return a Plan object but be aware it's not attached to the session
-            # For read-only purposes this is fine. 
+            # For read-only purposes this is fine.
             # If we need it attached, we'd need to merge it.
             return Plan(**cached_plan)
 

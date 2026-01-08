@@ -69,14 +69,14 @@ async def demo_screenshot(
 ) -> Response:
     """
     Public demo endpoint for the landing page.
-    
+
     **No API key required** - perfect for trying out the service.
-    
+
     **Rate limits:**
     - 5 requests per minute per IP
     - Maximum viewport: 1920x1080
     - Always includes watermark
-    
+
     **Example:**
     ```
     GET /api/v1/renders/demo?url=https://stripe.com
@@ -84,14 +84,14 @@ async def demo_screenshot(
     """
     import time
     start_time = time.perf_counter()
-    
+
     # Get client IP for rate limiting
     # Use X-Real-IP (set by nginx, trusted) instead of X-Forwarded-For (can be spoofed)
     client_ip = request.headers.get("X-Real-IP")
     if not client_ip:
         # Fallback to direct connection (local dev or misconfigured proxy)
         client_ip = request.client.host if request.client else "unknown"
-    
+
     # Check IP-based rate limit (5 per minute)
     is_limited = await rate_limit_service.check_demo_rate_limit(client_ip)
     if is_limited:
@@ -104,16 +104,16 @@ async def demo_screenshot(
             },
             headers={"Retry-After": "60"},
         )
-    
+
     # Validate URL
     is_valid, error_message = validate_url(url, require_https=False)
     if not is_valid:
         raise ValidationError(error_message or "Invalid URL")
-    
+
     # Clamp dimensions for demo
     width = min(width, 1920)
     height = min(height, 1080)
-    
+
     # Build options (limited for demo)
     options = {
         "width": width,
@@ -127,7 +127,7 @@ async def demo_screenshot(
         "block_trackers": True,
         "block_cookie_banners": True,
     }
-    
+
     # DEMO: No cache - always fresh render to show real performance
     # Render screenshot
     image_bytes, metadata = await render_service.capture_screenshot(
@@ -135,19 +135,19 @@ async def demo_screenshot(
         options=options,
         user_plan={"watermark": True},  # Always apply watermark for demo
     )
-    
+
     # Always apply watermark for demo
     image_bytes = render_service.inject_watermark(
         image_bytes,
         format=format,
     )
-    
+
     # Increment demo usage counter
     await rate_limit_service.increment_demo_usage(client_ip)
-    
+
     # Calculate elapsed time
     elapsed = time.perf_counter() - start_time
-    
+
     # Log demo capture for analytics/admin dashboard
     try:
         await cache_service.log_demo_capture(
@@ -158,7 +158,7 @@ async def demo_screenshot(
         )
     except Exception as e:
         logger.warning("Failed to log demo capture", error=str(e))
-    
+
     logger.info(
         "Demo screenshot rendered",
         url=url[:50],
@@ -166,14 +166,14 @@ async def demo_screenshot(
         elapsed=f"{elapsed:.3f}s",
         size=len(image_bytes),
     )
-    
+
     content_types = {
         "png": "image/png",
         "jpeg": "image/jpeg",
         "webp": "image/webp",
     }
     content_type = content_types.get(format, "image/jpeg")
-    
+
     return Response(
         content=image_bytes,
         media_type=content_type,
@@ -230,31 +230,31 @@ async def take_screenshot(
 ) -> Response:
     """
     Take a screenshot and return the image directly.
-    
+
     **This is the fastest endpoint** - no S3 upload, no JSON response.
     Just pure image data returned directly.
-    
+
     **Source options (one required):**
     - `url`: URL to capture
     - `html`: HTML content to render directly
     - `markdown`: Markdown content to render
-    
+
     **Selector options:**
     - `selector`: CSS selector to capture specific element
     - `scroll_into_view`: Scroll to this element before capture
     - `scroll_adjust_top`: Pixel offset after scrolling
-    
+
     **Example:**
     ```
     GET /api/v1/renders/take?url=https://stripe.com&format=jpeg&quality=80
     GET /api/v1/renders/take?html=<h1>Hello</h1>&format=png
     ```
-    
+
     Returns: Binary image data with appropriate Content-Type header.
     """
     import time
     start_time = time.perf_counter()
-    
+
     # Validate source - at least one required
     sources = [url, html, markdown]
     provided = [s for s in sources if s is not None]
@@ -262,13 +262,13 @@ async def take_screenshot(
         raise ValidationError("At least one source required: url, html, or markdown")
     if len(provided) > 1:
         raise ValidationError("Only one source allowed: url, html, or markdown")
-    
+
     # Validate URL if provided
     if url:
         is_valid, error_message = validate_url(url, require_https=False)
         if not is_valid:
             raise ValidationError(error_message or "Invalid URL")
-    
+
     # Build options
     options = {
         "width": width,
@@ -288,7 +288,7 @@ async def take_screenshot(
         "scroll_into_view": scroll_into_view,
         "scroll_adjust_top": scroll_adjust_top,
     }
-    
+
     # =========================================================================
     # CACHE CHECK - Return instantly if cached
     # =========================================================================
@@ -303,7 +303,7 @@ async def take_screenshot(
                 elapsed=f"{elapsed:.3f}s",
                 size=len(image_bytes),
             )
-            
+
             # Determine content type
             content_types = {
                 "png": "image/png",
@@ -311,7 +311,7 @@ async def take_screenshot(
                 "webp": "image/webp",
             }
             content_type = content_types.get(format, "image/png")
-            
+
             return Response(
                 content=image_bytes,
                 media_type=content_type,
@@ -323,7 +323,7 @@ async def take_screenshot(
             )
     except Exception as e:
         logger.warning("Cache check failed", error=str(e))
-    
+
     # =========================================================================
     # RENDER - Capture new screenshot
     # =========================================================================
@@ -332,14 +332,14 @@ async def take_screenshot(
         options=options,
         user_plan=current_user.plan_features,
     )
-    
+
     # Apply watermark for free tier
     if current_user.plan_features.get("watermark", True):
         image_bytes = render_service.inject_watermark(
             image_bytes,
             format=format,
         )
-    
+
     # =========================================================================
     # CACHE SET - Store for future requests
     # =========================================================================
@@ -353,10 +353,10 @@ async def take_screenshot(
         )
     except Exception as e:
         logger.warning("Cache set failed", error=str(e))
-    
+
     # Increment usage
     await rate_limit_service.increment_usage(current_user.user_id)
-    
+
     elapsed = time.perf_counter() - start_time
     logger.info(
         "Screenshot rendered",
@@ -364,7 +364,7 @@ async def take_screenshot(
         elapsed=f"{elapsed:.3f}s",
         size=len(image_bytes),
     )
-    
+
     # Determine content type
     content_types = {
         "png": "image/png",
@@ -373,7 +373,7 @@ async def take_screenshot(
         "webp": "image/webp",
     }
     content_type = content_types.get(format, "image/png")
-    
+
     # Return image directly
     return Response(
         content=image_bytes,
@@ -513,7 +513,7 @@ async def create_screenshot(
     # Sync mode - process immediately
     import time
     start_time = time.perf_counter()
-    
+
     try:
         render_job.status = "processing"
         render_job.started_at = utc_now()
@@ -530,7 +530,7 @@ async def create_screenshot(
             "full_page": options["full_page"],
             "device_scale_factor": options["device_scale_factor"],
         }
-        
+
         try:
             # Only check cache for URL-based requests
             cached_result = None
@@ -543,7 +543,7 @@ async def create_screenshot(
                     url=source_label[:50],
                     elapsed=f"{elapsed:.3f}s",
                 )
-                
+
                 # Update job with cached data
                 render_job.status = "completed"
                 render_job.completed_at = utc_now()
@@ -553,7 +553,7 @@ async def create_screenshot(
                 render_job.processing_time_ms = int(elapsed * 1000)
                 render_job.result = cached_result.get("metadata", {})
                 await db.commit()
-                
+
                 return RenderJobResponse(
                     job_id=render_job.id,
                     type="screenshot",
@@ -635,7 +635,7 @@ async def create_screenshot(
 
         # Increment usage
         await rate_limit_service.increment_usage(current_user.user_id)
-        
+
         elapsed = time.perf_counter() - start_time
         logger.info(
             "Screenshot endpoint completed",

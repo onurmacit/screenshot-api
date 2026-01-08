@@ -10,7 +10,7 @@ import time
 from datetime import UTC, datetime
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, HTTPException, Request, status
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
 
@@ -39,7 +39,7 @@ def _format_uptime(seconds: float) -> str:
     days, remainder = divmod(int(seconds), 86400)
     hours, remainder = divmod(remainder, 3600)
     minutes, secs = divmod(remainder, 60)
-    
+
     if days > 0:
         return f"{days}d {hours}h {minutes}m"
     elif hours > 0:
@@ -97,7 +97,7 @@ async def health_check() -> dict:
 
     Returns basic status of service (no sensitive details).
     For detailed metrics, use /health/stats (admin-only).
-    
+
     **Optimized:** Results are cached for 10 seconds to reduce Redis commands.
     """
     # Check cache first - avoid Redis hit on every request
@@ -111,7 +111,7 @@ async def health_check() -> dict:
                 "timestamp": datetime.now(UTC).isoformat(),
             },
         )
-    
+
     services = {}
     status_code = status.HTTP_200_OK
 
@@ -159,14 +159,14 @@ async def health_check() -> dict:
 
     # Get uptime and pool stats for internal cache (used by /stats endpoint)
     uptime_seconds = _get_uptime_seconds()
-    
+
     from app.core.database import get_pool_stats
     pool_stats = {}
     try:
         pool_stats = get_pool_stats()
     except Exception:
         pool_stats = {"error": "failed to get pool stats"}
-    
+
     # Full response for cache (used by /stats endpoint)
     full_response_data = {
         "status": overall_status,
@@ -205,46 +205,46 @@ async def health_stats(
 ) -> dict:
     """
     Admin-only detailed health stats endpoint.
-    
+
     Returns:
     - All service health statuses
     - Memory usage (RSS, VMS, percent)
     - Database connection pool stats
     - Uptime information
     - Version and environment info
-    
+
     **Authentication:** Requires X-Admin-Key header with admin secret.
     """
     from app.core.config import settings as app_settings
-    
+
     # For now, use SECRET_KEY as admin key
     admin_secret = app_settings.SECRET_KEY
-    
+
     # Get admin key from header
     x_admin_key = request.headers.get("x-admin-key")
-    
+
     if not x_admin_key or x_admin_key != admin_secret:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or missing X-Admin-Key header",
         )
-    
+
     # Get cached health data (has all the details)
     cached = _get_cached_health()
     if cached:
         return JSONResponse(status_code=status.HTTP_200_OK, content=cached)
-    
+
     # If no cache, trigger a fresh health check
     # This ensures stats are always available
     from app.core.database import get_pool_stats
-    
+
     uptime_seconds = _get_uptime_seconds()
     pool_stats = {}
     try:
         pool_stats = get_pool_stats()
     except Exception:
         pool_stats = {"error": "failed to get pool stats"}
-    
+
     response_data = {
         "status": "unknown",
         "version": settings.APP_VERSION,
@@ -258,7 +258,7 @@ async def health_stats(
         "db_pool": pool_stats,
         "services": {"note": "Call /health first to get service status"},
     }
-    
+
     return JSONResponse(status_code=status.HTTP_200_OK, content=response_data)
 
 
@@ -273,7 +273,7 @@ async def readiness_check() -> dict:
 
     Returns 200 if the service is ready to accept traffic.
     Returns 503 if critical services are unavailable.
-    
+
     **Optimized:** Uses connection pool instead of creating new connections.
     """
     try:
@@ -336,8 +336,7 @@ async def version_info() -> dict:
 async def sentry_debug() -> dict:
     """
     Trigger a test error for Sentry integration verification.
-    
+
     This endpoint intentionally raises a ZeroDivisionError.
     """
-    division_by_zero = 1 / 0
     return {"message": "This will never be returned"}

@@ -34,7 +34,7 @@ class AuditLogMiddleware(BaseHTTPMiddleware):
 
         # Extract request info
         client_ip = self._get_client_ip(request)
-        user_agent = request.headers.get("User-Agent", "")
+        request.headers.get("User-Agent", "")
 
         # Log request start
         logger.info(

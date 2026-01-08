@@ -38,7 +38,7 @@ def get_redis_url(db: int = 0) -> str:
 async def init_redis_pools() -> None:
     """
     Initialize Redis connection pools.
-    
+
     Thread-safe - can be called from multiple threads/coroutines.
     """
     global _main_pool, _cache_pool, _rate_limit_pool, _initialized

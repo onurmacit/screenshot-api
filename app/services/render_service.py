@@ -79,7 +79,7 @@ class BrowserPool:
                         # Security (required)
                         "--no-sandbox",
                         "--disable-setuid-sandbox",
-                        
+
                         # Stable performance optimizations
                         "--single-process",
                         "--disable-dev-shm-usage",
@@ -95,7 +95,7 @@ class BrowserPool:
                         "--mute-audio",
                         "--no-default-browser-check",
                         "--safebrowsing-disable-auto-update",
-                        
+
                         # Safe performance flags
                         "--disable-background-timer-throttling",
                         "--disable-renderer-backgrounding",
@@ -175,10 +175,10 @@ class BrowserPool:
     async def acquire_context(self) -> BrowserContext:
         """
         Acquire a browser context from the pool.
-        
+
         Returns:
             Available browser context
-            
+
         Raises:
             RenderError: If pool is not initialized
         """
@@ -240,7 +240,7 @@ class BrowserPool:
                         self._contexts.remove(context)
                     self._render_counts.pop(context_id, None)
                     self._context_map.pop(context_id, None)
-                
+
                 # Create a fresh context
                 try:
                     context = await self._create_context()
@@ -251,14 +251,14 @@ class BrowserPool:
                         raise RenderError(f"Failed to acquire valid browser context: {str(e)}")
 
         raise RenderError("Failed to acquire valid browser context after max attempts")
-    
+
     async def _reinitialize_pool(self) -> None:
         """Reinitialize the browser pool if browser is disconnected."""
         logger.info("Reinitializing browser pool")
-        
+
         # Close existing resources
         await self._cleanup_on_error()
-        
+
         # Reset state
         self._initialized = False
         self._playwright = None
@@ -267,14 +267,14 @@ class BrowserPool:
         self._available_contexts = None
         self._render_counts = {}
         self._context_map = {}
-        
+
         # Reinitialize
         await self.initialize()
 
     async def release_context(self, context: BrowserContext) -> None:
         """
         Release a browser context back to the pool.
-        
+
         Args:
             context: Browser context to release
         """
@@ -292,10 +292,10 @@ class BrowserPool:
     async def _refresh_context(self, old_context: BrowserContext) -> BrowserContext:
         """
         Refresh a context by closing and recreating it.
-        
+
         Args:
             old_context: Context to refresh
-            
+
         Returns:
             New browser context
         """
@@ -323,7 +323,7 @@ class BrowserPool:
     async def force_refresh_context(self, context: BrowserContext) -> None:
         """
         Force refresh a problematic context and return it to pool.
-        
+
         Args:
             context: Problematic context to refresh
         """
@@ -405,12 +405,12 @@ class RenderService:
     async def _get_page(self, context: BrowserContext):
         """
         Context manager for page lifecycle.
-        
+
         Ensures page is properly closed even on errors.
-        
+
         Args:
             context: Browser context
-            
+
         Yields:
             New page instance
         """
@@ -430,11 +430,11 @@ class RenderService:
     # ==========================================================================
     # PERFORMANCE OPTIMIZATION: Blocked domains and resources
     # ==========================================================================
-    
+
     # ==========================================================================
     # MAXIMUM SPEED: Aggressive blocking lists
     # ==========================================================================
-    
+
     # Domains to block (analytics, ads, tracking, chat, social, monitoring)
     BLOCKED_DOMAINS = frozenset([
         # Analytics & Tracking (HUGE time saver)
@@ -468,7 +468,7 @@ class RenderService:
         # Video players (heavy!)
         "youtube.com/iframe", "player.vimeo", "fast.wistia",
     ])
-    
+
     # Cookie consent/banner domains (separate for optional blocking)
     COOKIE_BANNER_DOMAINS = frozenset([
         "cookiebot", "cookiebot.com", "consentmanager",
@@ -488,7 +488,7 @@ class RenderService:
         "complianz", "complianz.io",
         "moove", "moove.com", "gdpr-cookie",
     ])
-    
+
     # Resource types to block for speed (fonts NOT blocked - needed for screenshots!)
     BLOCKED_RESOURCE_TYPES = frozenset([
         "media",       # video/audio - very heavy
@@ -496,7 +496,7 @@ class RenderService:
         "manifest",    # PWA manifests
         "eventsource", # server-sent events
     ])
-    
+
     # Trusted domains - skip DNS check entirely (MAJOR speed boost)
     TRUSTED_DOMAINS = frozenset([
         # CDNs (always trust)
@@ -516,14 +516,14 @@ class RenderService:
     ])
 
     async def _setup_ssrf_protection(
-        self, 
-        page: Page, 
+        self,
+        page: Page,
         block_resources: bool = True,
         block_cookie_banners: bool = True,
     ):
         """
         MAXIMUM SPEED request interception.
-        
+
         Every millisecond counts:
         - Instant resource type blocking (no string parsing)
         - Fast domain blocking with substring check
@@ -531,30 +531,30 @@ class RenderService:
         - Optional cookie banner blocking
         """
         from urllib.parse import urlparse
-        
+
         # Local references for speed (avoid attribute lookups in hot path)
         _blocked_domains = self.BLOCKED_DOMAINS
         _cookie_domains = self.COOKIE_BANNER_DOMAINS if block_cookie_banners else frozenset()
         _blocked_types = self.BLOCKED_RESOURCE_TYPES
         _trusted = self.TRUSTED_DOMAINS
         _localhost = frozenset(("localhost", "127.0.0.1", "::1", "0.0.0.0"))
-        
+
         async def handle_route(route: Route):
             req = route.request
             rtype = req.resource_type
-            
+
             # INSTANT BLOCK: Heavy resource types (no string ops needed)
             if block_resources and rtype in _blocked_types:
                 await route.abort("blockedbyclient")
                 return
-            
+
             url = req.url
-            
+
             # Quick scheme check (most URLs are http/https)
             if not (url.startswith("http://") or url.startswith("https://")):
                 await route.abort("blockedbyclient")
                 return
-            
+
             # Extract hostname fast (avoid full urlparse when possible)
             try:
                 # Fast path: find hostname between :// and next / or :
@@ -567,32 +567,32 @@ class RenderService:
                 hostname = url[start:end].lower()
             except:
                 hostname = urlparse(url.lower()).hostname or ""
-            
+
             # SSRF: Block localhost
             if hostname in _localhost:
                 await route.abort("blockedbyclient")
                 return
-            
+
             # FAST BLOCK: Analytics/tracking (single pass check)
             if block_resources:
                 for blocked in _blocked_domains:
                     if blocked in hostname:
                         await route.abort("blockedbyclient")
                         return
-            
+
             # Block cookie banner domains
             if block_cookie_banners:
                 for cookie_domain in _cookie_domains:
                     if cookie_domain in hostname:
                         await route.abort("blockedbyclient")
                         return
-            
+
             # SPEED: Skip DNS for trusted domains (covers 90%+ of requests)
             for trusted in _trusted:
                 if trusted in hostname:
                     await route.continue_()
                     return
-            
+
             # Only do expensive DNS check for untrusted domains
             try:
                 loop = asyncio.get_running_loop()
@@ -605,7 +605,7 @@ class RenderService:
                             return
             except:
                 pass
-            
+
             await route.continue_()
 
         await page.route("**/*", handle_route)
@@ -650,7 +650,7 @@ class RenderService:
         try:
             import markdown
             html_content = markdown.markdown(
-                markdown_content, 
+                markdown_content,
                 extensions=['tables', 'fenced_code']
             )
             return html_template.format(content=html_content)
@@ -696,11 +696,11 @@ class RenderService:
         # Overall timeout for entire operation (45 seconds max)
         # This prevents hanging renders from exhausting the browser pool
         OVERALL_TIMEOUT_SECONDS = 45
-        
+
         try:
             async with asyncio.timeout(OVERALL_TIMEOUT_SECONDS):
                 return await self._capture_screenshot_impl(url, options, user_plan, _retry_count)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             logger.error(
                 "Screenshot capture timed out",
                 url=url[:50],
@@ -710,7 +710,7 @@ class RenderService:
                 f"Screenshot capture timed out after {OVERALL_TIMEOUT_SECONDS} seconds",
                 details={"url": url, "timeout": OVERALL_TIMEOUT_SECONDS},
             )
-    
+
     async def _capture_screenshot_impl(
         self,
         url: str,
@@ -721,7 +721,7 @@ class RenderService:
         """Internal implementation of capture_screenshot."""
         MAX_RETRIES = 2
         context = None
-        
+
         try:
             context = await self.pool.acquire_context()
         except Exception as e:
@@ -738,7 +738,7 @@ class RenderService:
                     pass
                 return await self._capture_screenshot_impl(url, options, user_plan, _retry_count + 1)
             raise RenderError(f"Failed to acquire browser context: {str(e)}")
-        
+
         start_time = datetime.now(UTC)
         screenshot_bytes: bytes | None = None
 
@@ -748,10 +748,10 @@ class RenderService:
                 block_ads = options.get("block_ads", True)
                 block_trackers = options.get("block_trackers", True)
                 block_cookie_banners = options.get("block_cookie_banners", True)
-                
+
                 # Enable SSRF protection + resource blocking for SPEED
                 await self._setup_ssrf_protection(
-                    page, 
+                    page,
                     block_resources=(block_ads or block_trackers),
                     block_cookie_banners=block_cookie_banners,
                 )
@@ -759,7 +759,7 @@ class RenderService:
                 # Set viewport (device_scale_factor=1 for SPEED, 2 for quality)
                 width = options.get("width", 1920)
                 height = options.get("height", 1080)
-                device_scale_factor = options.get("device_scale_factor", 1)  # 1x = FAST
+                options.get("device_scale_factor", 1)  # 1x = FAST
                 await page.set_viewport_size({"width": width, "height": height})
 
                 # Set user agent if provided
@@ -785,7 +785,7 @@ class RenderService:
                 # CONTENT LOADING - URL, HTML, or Markdown
                 # =============================================================
                 timeout = options.get("timeout", settings.BROWSER_TIMEOUT_MS)
-                
+
                 # Get source type from options
                 html_content = options.get("html")
                 markdown_content = options.get("markdown")
@@ -806,31 +806,31 @@ class RenderService:
                                 document.head.appendChild(style);
                             });
                         """)
-                    
+
                     if html_content:
                         # Render HTML content directly
                         await page.set_content(html_content, timeout=timeout, wait_until="domcontentloaded")
                         await asyncio.sleep(0.1)  # Brief stabilization
-                        
+
                     elif markdown_content:
                         # Convert Markdown to HTML and render
                         html_from_md = self._markdown_to_html(markdown_content)
                         await page.set_content(html_from_md, timeout=timeout, wait_until="domcontentloaded")
                         await asyncio.sleep(0.1)  # Brief stabilization
-                        
+
                     else:
                         # Standard URL navigation with "commit" - fastest option
                         await page.goto(url, timeout=timeout, wait_until="commit")
-                        
+
                         # Quick wait for DOM to be ready (max 2 seconds)
                         try:
                             await page.wait_for_load_state("domcontentloaded", timeout=2000)
                         except:
                             pass  # Continue even if timeout - page might still be usable
-                        
+
                         # Ultra-minimal stabilization (200ms fixed)
                         await asyncio.sleep(0.2)
-                    
+
                 except Exception as e:
                     source_type = "HTML" if html_content else ("Markdown" if markdown_content else "URL")
                     raise RenderError(
@@ -868,10 +868,10 @@ class RenderService:
                 if screenshot_options["type"] == "png":
                     # PNG is always lossless, but we can ensure no compression
                     screenshot_options["omit_background"] = False
-                
+
                 if screenshot_options["type"] == "jpeg":
                     screenshot_options["quality"] = options.get("quality", 85)  # 85 = fast + good quality
-                
+
                 # WebP is not natively supported by Playwright, capture as PNG and convert
                 convert_to_webp = False
                 webp_quality = options.get("quality", 100)
@@ -884,7 +884,7 @@ class RenderService:
                 # =============================================================
                 scroll_selector = options.get("scroll_into_view")
                 scroll_adjust = options.get("scroll_adjust_top", 0)
-                
+
                 if scroll_selector:
                     try:
                         scroll_element = await page.query_selector(scroll_selector)
@@ -905,13 +905,13 @@ class RenderService:
                 # =============================================================
                 # Use new 'selector' param, fallback to deprecated 'element_selector'
                 capture_selector = options.get("selector") or options.get("element_selector")
-                
+
                 if capture_selector:
                     # Check if element_selector requires pro plan (backward compat)
                     if options.get("element_selector") and not options.get("selector"):
                         if not (user_plan and user_plan.get("element_selector")):
                             raise RenderError("Element selector requires Pro+ plan")
-                    
+
                     try:
                         element = await page.query_selector(capture_selector)
                         if element:
@@ -932,7 +932,7 @@ class RenderService:
                         )
                 else:
                     screenshot_bytes = await page.screenshot(**screenshot_options)
-                
+
                 # Convert to WebP if requested
                 if convert_to_webp:
                     screenshot_bytes = self._convert_to_webp(screenshot_bytes, webp_quality)
@@ -974,7 +974,7 @@ class RenderService:
                 "context has been closed", "page has been closed",
                 "connection closed", "browser disconnected"
             ])
-            
+
             if is_browser_error and _retry_count < MAX_RETRIES:
                 logger.warning(
                     "Browser disconnected during render, reinitializing and retrying",
@@ -993,7 +993,7 @@ class RenderService:
                 except Exception:
                     pass
                 return await self._capture_screenshot_impl(url, options, user_plan, _retry_count + 1)
-            
+
             logger.exception("Screenshot capture failed", url=url, error=error_str)
             raise RenderError(
                 f"Screenshot capture failed: {error_str}",
@@ -1025,11 +1025,11 @@ class RenderService:
         """
         # Overall timeout for PDF generation (60 seconds max - PDFs take longer)
         OVERALL_TIMEOUT_SECONDS = 60
-        
+
         try:
             async with asyncio.timeout(OVERALL_TIMEOUT_SECONDS):
                 return await self._generate_pdf_impl(url, options, user_plan)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             logger.error(
                 "PDF generation timed out",
                 url=url[:50],
@@ -1039,7 +1039,7 @@ class RenderService:
                 f"PDF generation timed out after {OVERALL_TIMEOUT_SECONDS} seconds",
                 details={"url": url, "timeout": OVERALL_TIMEOUT_SECONDS},
             )
-    
+
     async def _generate_pdf_impl(
         self,
         url: str,
@@ -1147,11 +1147,11 @@ class RenderService:
     def _convert_to_webp(self, image_bytes: bytes, quality: int = 100) -> bytes:
         """
         Convert PNG image bytes to WebP format.
-        
+
         Args:
             image_bytes: PNG image data
             quality: WebP quality (1-100)
-            
+
         Returns:
             WebP image bytes
         """
@@ -1160,7 +1160,7 @@ class RenderService:
         try:
             img = Image.open(io.BytesIO(image_bytes))
             output = io.BytesIO()
-            
+
             # Convert to RGB if necessary (WebP doesn't support all modes)
             if img.mode in ('RGBA', 'LA', 'P'):
                 # For transparency support
@@ -1169,7 +1169,7 @@ class RenderService:
                 if img.mode != 'RGB':
                     img = img.convert('RGB')
                 img.save(output, format='WEBP', quality=quality, lossless=(quality == 100))
-            
+
             return output.getvalue()
         except Exception as e:
             logger.warning("Failed to convert to WebP, returning original", error=str(e))
@@ -1183,12 +1183,12 @@ class RenderService:
     def _get_image_dimensions(self, image_bytes: bytes) -> tuple[int, int]:
         """
         Get image dimensions from bytes.
-        
+
         Properly closes PIL Image to prevent memory leaks.
-        
+
         Args:
             image_bytes: Image data
-            
+
         Returns:
             Tuple of (width, height)
         """

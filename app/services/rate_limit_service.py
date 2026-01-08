@@ -317,14 +317,14 @@ class RateLimitService:
         local key = KEYS[1]
         local amount = tonumber(ARGV[1])
         local expire = tonumber(ARGV[2])
-        
+
         local new_value = redis.call('INCRBY', key, amount)
-        
+
         -- Set expiry only if this is a new key (TTL = -1)
         if redis.call('TTL', key) == -1 then
             redis.call('EXPIRE', key, expire)
         end
-        
+
         return new_value
         """
 

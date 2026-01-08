@@ -32,7 +32,7 @@ _cleanup_lock = threading.Lock()
 def get_event_loop() -> asyncio.AbstractEventLoop:
     """
     Get or create event loop for current thread.
-    
+
     Returns:
         Event loop for current thread
     """
@@ -45,12 +45,12 @@ def get_event_loop() -> asyncio.AbstractEventLoop:
 def run_async(coro):
     """
     Run async coroutine in sync context.
-    
+
     Uses thread-local event loop to avoid conflicts.
-    
+
     Args:
         coro: Async coroutine to run
-        
+
     Returns:
         Result of the coroutine
     """
@@ -87,7 +87,7 @@ def cleanup_event_loop():
 def init_worker_process(**kwargs):
     """
     Initialize worker process.
-    
+
     Called when a new worker process starts.
     Sets up event loop and initializes browser pool.
     """
@@ -114,7 +114,7 @@ def init_worker_process(**kwargs):
 def shutdown_worker_process(**kwargs):
     """
     Clean up worker process on shutdown.
-    
+
     Called when worker process is shutting down.
     Closes browser pool and cleans up resources.
     """
@@ -201,37 +201,37 @@ celery_app.conf.update(
 
     # Broker settings
     broker_connection_retry_on_startup=True,
-    
+
     # ==========================================================================
     # Redis Command Optimization Settings
     # ==========================================================================
-    
+
     # Polling interval - CRITICAL for reducing command count
     # Default is often 1s. increasing to 10s reduces idle polling by 90%
     broker_transport_options={
         "polling_interval": 10,  # Check for new tasks every 10 seconds
         "visibility_timeout": 3600,  # 1 hour visibility
     },
-    
+
     # Disable worker gossip - reduces Redis PUBLISH/SUBSCRIBE commands
     worker_enable_remote_control=True,
-    
+
     # Disable mingle - workers don't need to sync with each other
     # Saves ~10-20 Redis commands per worker on startup
     worker_disable_tracebacks=True,
-    
+
     # Increase heartbeat interval (default 2s → 30s)
     # Reduces heartbeat commands by 93%
     broker_heartbeat=120,  # 120s heartbeat reduces commands significantly
-    
+
     # Disable task events unless needed for monitoring
     # Saves PUBLISH commands for every task state change
     worker_send_task_events=False,
     task_send_sent_event=False,
-    
+
     # Use transient queues - no persistence needed
     task_create_missing_queues=True,
-    
+
     # Broker pool limit - reduce connection overhead
     broker_pool_limit=1,
 )

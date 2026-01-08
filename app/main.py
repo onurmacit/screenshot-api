@@ -267,6 +267,7 @@ app.include_router(
 
 # Admin routes (protected by admin email check)
 from app.api.routes import admin
+
 app.include_router(
     admin.router,
     prefix="/api/v1/admin",
@@ -289,17 +290,17 @@ app.include_router(
 async def root(request: Request) -> Response:
     """
     Root endpoint.
-    
+
     - Browser requests (Accept: text/html) -> Redirect to dashboard login
     - API requests (Accept: application/json) -> Return API information
     """
     accept_header = request.headers.get("Accept", "").lower()
     user_agent = request.headers.get("User-Agent", "").lower()
-    
+
     # Check if it's a browser request
     has_html = "text/html" in accept_header
     has_json = "application/json" in accept_header
-    
+
     # Browser detection logic:
     # 1. If HTML is accepted but JSON is not -> browser
     # 2. If accept header is empty/*/* and User-Agent indicates browser -> browser
@@ -312,7 +313,7 @@ async def root(request: Request) -> Response:
             for browser in ["mozilla", "chrome", "safari", "firefox", "edge", "opera"]
         )
     )
-    
+
     # Redirect browser requests to login page
     if is_browser_request:
         login_url = f"{settings.DASHBOARD_URL}/login"
@@ -323,7 +324,7 @@ async def root(request: Request) -> Response:
             user_agent=user_agent[:50] if user_agent else None,
         )
         return RedirectResponse(url=login_url, status_code=302)
-    
+
     # Return API information for API clients
     logger.debug("API request detected, returning JSON", accept=accept_header)
     return JSONResponse(
@@ -342,7 +343,7 @@ async def robots_txt() -> Response:
     Robots.txt to prevent search engines from crawling the API.
     """
     from fastapi.responses import PlainTextResponse
-    
+
     robots_content = """User-agent: *
 Disallow: /
 

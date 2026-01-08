@@ -38,11 +38,11 @@ logger = get_logger(__name__)
 def generate_webhook_signature(payload: str, secret: str) -> str:
     """
     Generate HMAC-SHA256 signature for webhook payload.
-    
+
     Args:
         payload: JSON payload string
         secret: Webhook secret key
-        
+
     Returns:
         Hex-encoded HMAC signature prefixed with 'sha256='
     """
@@ -62,13 +62,13 @@ def verify_webhook_signature(
 ) -> bool:
     """
     Verify HMAC-SHA256 signature of webhook payload.
-    
+
     Args:
         payload: JSON payload string
         signature: Received signature (with or without 'sha256=' prefix)
         secret: Webhook secret key
         tolerance_seconds: Maximum age of webhook in seconds (default 5 minutes)
-        
+
     Returns:
         True if signature is valid
     """
@@ -92,7 +92,7 @@ def verify_webhook_signature(
 def generate_webhook_secret() -> str:
     """
     Generate a secure random webhook secret.
-    
+
     Returns:
         64-character hex string prefixed with 'whsec_'
     """
@@ -125,7 +125,7 @@ async def create_webhook(
     - **is_active**: Whether webhook is active
 
     Returns the webhook with its secret for signature verification.
-    
+
     **Important**: Save the secret securely! It is only shown once on creation.
     Use it to verify webhook signatures on your server.
     """
@@ -332,14 +332,14 @@ async def rotate_webhook_secret(
 ) -> WebhookSecretResponse:
     """
     Rotate (regenerate) the webhook secret.
-    
+
     **Requires JWT authentication.**
-    
+
     This will invalidate the old secret immediately.
     Make sure to update your webhook receiver with the new secret.
-    
+
     - **webhook_id**: UUID of the webhook
-    
+
     Returns the new secret. Save it securely - it won't be shown again!
     """
     # Get webhook
@@ -388,15 +388,15 @@ async def verify_signature(
 ) -> WebhookVerifyResponse:
     """
     Verify a webhook signature.
-    
+
     **No authentication required.**
-    
+
     Use this endpoint to test your signature verification logic.
-    
+
     - **payload**: The raw payload string
     - **signature**: The signature from X-Webhook-Signature header
     - **secret**: Your webhook secret
-    
+
     Returns whether the signature is valid.
     """
     is_valid = verify_webhook_signature(

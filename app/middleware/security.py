@@ -13,7 +13,7 @@ from app.core.config import settings
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     """
     Middleware that adds security headers to all responses.
-    
+
     Implements mitigations for:
     - Clickjacking (X-Frame-Options)
     - MIME Sniffing (X-Content-Type-Options)
@@ -33,7 +33,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         if request.method == "OPTIONS":
             response = await call_next(request)
             return response
-            
+
         response = await call_next(request)
 
         # 1. Prevent Clickjacking

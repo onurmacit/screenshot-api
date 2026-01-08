@@ -349,10 +349,10 @@ class CacheService:
     # =========================================================================
     # Screenshot Image Cache (Binary)
     # =========================================================================
-    
+
     PREFIX_SCREENSHOT = "screenshot"
     TTL_SCREENSHOT = 3600  # 1 hour default
-    
+
     def _screenshot_cache_key(self, url: str, options: dict) -> str:
         """Generate cache key for screenshot image."""
         # Only include relevant options for cache key
@@ -368,7 +368,7 @@ class CacheService:
         combined = f"{url}:{options_str}"
         hash_value = hashlib.sha256(combined.encode()).hexdigest()[:24]
         return f"{self.PREFIX_SCREENSHOT}:{hash_value}"
-    
+
     async def get_screenshot_cache(
         self,
         url: str,
@@ -385,22 +385,22 @@ class CacheService:
             Tuple of (image_bytes, metadata) or None
         """
         cache_key = self._screenshot_cache_key(url, options)
-        
+
         async with redis_context("cache") as redis:
             # Get both image and metadata
             image_key = f"{cache_key}:img"
             meta_key = f"{cache_key}:meta"
-            
+
             image_bytes = await redis.get(image_key)
             if not image_bytes:
                 return None
-            
+
             meta_str = await redis.get(meta_key)
             metadata = json.loads(meta_str) if meta_str else {}
-            
+
             logger.info("Screenshot cache hit", url=url[:50])
             return image_bytes, metadata
-    
+
     async def set_screenshot_cache(
         self,
         url: str,
@@ -424,20 +424,20 @@ class CacheService:
         """
         cache_key = self._screenshot_cache_key(url, options)
         ttl = ttl or self.TTL_SCREENSHOT
-        
+
         async with redis_context("cache") as redis:
             image_key = f"{cache_key}:img"
             meta_key = f"{cache_key}:meta"
-            
+
             # Use pipeline for atomic operations
             pipe = redis.pipeline()
             pipe.setex(image_key, ttl, image_bytes)
             pipe.setex(meta_key, ttl, json.dumps(metadata, default=str))
             await pipe.execute()
-            
+
             logger.info(
-                "Screenshot cached", 
-                url=url[:50], 
+                "Screenshot cached",
+                url=url[:50],
                 size=len(image_bytes),
                 ttl=ttl,
             )
@@ -576,9 +576,9 @@ class CacheService:
             True if logged successfully
         """
         import time
-        
+
         timestamp = int(time.time())
-        
+
         capture_data = {
             "ip": ip,
             "url": url,
@@ -591,41 +591,41 @@ class CacheService:
 
         async with redis_context("cache") as redis:
             pipe = redis.pipeline()
-            
+
             # Store in sorted set with timestamp as score (for recent captures)
             capture_key = f"{self.PREFIX_DEMO_CAPTURE}:recent"
             pipe.zadd(capture_key, {json.dumps(capture_data): timestamp})
-            
+
             # Keep only last 100 captures
             pipe.zremrangebyrank(capture_key, 0, -101)
-            
+
             # Set expiry to 7 days
             pipe.expire(capture_key, 604800)
-            
+
             # Increment daily counter
             from datetime import datetime
             today = datetime.utcnow().strftime("%Y%m%d")
             daily_key = f"{self.PREFIX_DEMO_STATS}:daily:{today}"
             pipe.incr(daily_key)
             pipe.expire(daily_key, 604800)  # Keep for 7 days
-            
+
             # Increment weekly counter
             week = datetime.utcnow().strftime("%Y-W%U")
             weekly_key = f"{self.PREFIX_DEMO_STATS}:weekly:{week}"
             pipe.incr(weekly_key)
             pipe.expire(weekly_key, 2592000)  # Keep for 30 days
-            
+
             # Increment all-time counter
             all_time_key = f"{self.PREFIX_DEMO_STATS}:total"
             pipe.incr(all_time_key)
-            
+
             # Track URL popularity (top URLs)
             url_key = f"{self.PREFIX_DEMO_STATS}:urls"
             pipe.zincrby(url_key, 1, url)
             pipe.expire(url_key, 2592000)  # Keep for 30 days
-            
+
             await pipe.execute()
-            
+
             logger.info(
                 "Demo capture logged",
                 ip=ip,
@@ -642,27 +642,27 @@ class CacheService:
             Dict with demo usage stats
         """
         from datetime import datetime
-        
+
         today = datetime.utcnow().strftime("%Y%m%d")
         week = datetime.utcnow().strftime("%Y-W%U")
-        
+
         async with redis_context("cache") as redis:
             pipe = redis.pipeline()
-            
+
             # Get counters
             pipe.get(f"{self.PREFIX_DEMO_STATS}:daily:{today}")
             pipe.get(f"{self.PREFIX_DEMO_STATS}:weekly:{week}")
             pipe.get(f"{self.PREFIX_DEMO_STATS}:total")
-            
+
             # Get top URLs (top 10)
             pipe.zrevrange(
                 f"{self.PREFIX_DEMO_STATS}:urls",
                 0, 9,
                 withscores=True
             )
-            
+
             results = await pipe.execute()
-            
+
             return {
                 "total_today": int(results[0]) if results[0] else 0,
                 "total_week": int(results[1]) if results[1] else 0,
@@ -689,7 +689,7 @@ class CacheService:
                 f"{self.PREFIX_DEMO_CAPTURE}:recent",
                 0, limit - 1
             )
-            
+
             result = []
             for capture_json in captures:
                 try:
@@ -697,7 +697,7 @@ class CacheService:
                     result.append(data)
                 except json.JSONDecodeError:
                     continue
-            
+
             return result
 
 

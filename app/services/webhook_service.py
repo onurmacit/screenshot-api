@@ -237,7 +237,7 @@ class WebhookService:
         result = await self.db.execute(
             select(Webhook).where(
                 Webhook.user_id == user_id,
-                Webhook.is_active == True,
+                Webhook.is_active,
                 Webhook.events.contains([event]),
             )
         )

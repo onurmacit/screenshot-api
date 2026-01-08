@@ -137,7 +137,7 @@ async def _check_usage_limits_async() -> dict[str, Any]:
         # Get all active users with plans
         result = await db.execute(
             select(User)
-            .where(User.is_active == True)
+            .where(User.is_active)
         )
         users = result.scalars().all()
 

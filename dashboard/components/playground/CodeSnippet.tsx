@@ -180,9 +180,9 @@ print(data['url'])  # Screenshot URL`;
                 </Tabs>
             </div>
             <CardContent className="p-0">
-                <div className="bg-slate-950 min-h-[240px] max-h-[280px] flex flex-col">
-                    <pre className="p-5 text-[13px] leading-relaxed font-mono flex-1 overflow-auto custom-scrollbar">
-                        <code className={activeTab === 'url' ? 'text-blue-400 break-all whitespace-pre-wrap' : 'text-slate-300'}>
+                <div className="bg-slate-950 h-[280px] overflow-hidden">
+                    <pre className="p-5 text-[13px] leading-relaxed font-mono h-full overflow-scroll custom-scrollbar whitespace-pre">
+                        <code className={activeTab === 'url' ? 'text-blue-400' : 'text-slate-300'}>
                             {getActiveCode()}
                         </code>
                     </pre>

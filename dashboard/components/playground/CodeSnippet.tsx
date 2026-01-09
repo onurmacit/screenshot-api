@@ -74,35 +74,37 @@ const CATEGORIES = [
 
 // Simple syntax highlighting function
 function highlightCode(code: string): string {
-    // Escape HTML first
+    // First, escape HTML entities
     let html = code
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;');
 
-    // Comments (// and #)
-    html = html.replace(/(\/\/.*$|#.*$)/gm, '<span style="color: #6b7280;">$1</span>');
+    // Tokenize and highlight in order of precedence
+    // 1. Comments (// ... and # ...)
+    html = html.replace(/(\/\/[^\n]*|#[^\n]*)/g, '<span class="text-gray-500">$1</span>');
 
-    // Strings (single and double quotes)
-    html = html.replace(/(&quot;[^&]*&quot;|&#39;[^&]*&#39;|'[^']*'|"[^"]*")/g, '<span style="color: #22c55e;">$1</span>');
+    // 2. Strings - both single and double quotes
+    html = html.replace(/(["'])(?:(?!\1)[^\\]|\\.)*\1/g, '<span class="text-green-400">$&</span>');
 
-    // Keywords
-    const keywords = ['const', 'let', 'var', 'function', 'async', 'await', 'return', 'import', 'from', 'require', 'export',
+    // 3. Keywords
+    const keywords = [
+        'const', 'let', 'var', 'function', 'async', 'await', 'return', 'import', 'from', 'require', 'export',
         'if', 'else', 'for', 'while', 'class', 'new', 'try', 'catch', 'throw',
-        'def', 'print', 'import', 'from', 'as', 'True', 'False', 'None',
-        'package', 'func', 'fmt', 'json', 'http', 'defer',
-        'curl', 'wget', '-X', '-H', '-d', '--post-data', '--header'];
-    const keywordPattern = new RegExp(`\\b(${keywords.join('|')})\\b`, 'g');
-    html = html.replace(keywordPattern, '<span style="color: #c084fc;">$1</span>');
+        'def', 'print', 'as', 'True', 'False', 'None', 'self',
+        'package', 'func', 'fmt', 'defer', 'go', 'make', 'nil',
+        'curl', 'wget', 'POST', 'GET'
+    ];
+    keywords.forEach(kw => {
+        const regex = new RegExp(`\\b(${kw})\\b`, 'g');
+        html = html.replace(regex, '<span class="text-purple-400">$1</span>');
+    });
 
-    // Method calls and functions
-    html = html.replace(/\b([a-zA-Z_][a-zA-Z0-9_]*)\s*\(/g, '<span style="color: #60a5fa;">$1</span>(');
+    // 4. Function/method calls
+    html = html.replace(/\b([a-zA-Z_][a-zA-Z0-9_]*)\s*\(/g, '<span class="text-blue-400">$1</span>(');
 
-    // Numbers
-    html = html.replace(/\b(\d+)\b/g, '<span style="color: #f97316;">$1</span>');
-
-    // Property names (before colons in objects/dicts)
-    html = html.replace(/(['"]?)([a-zA-Z_][a-zA-Z0-9_-]*)(['"]?)\s*:/g, '<span style="color: #fbbf24;">$1$2$3</span>:');
+    // 5. Numbers
+    html = html.replace(/\b(\d+)\b/g, '<span class="text-orange-400">$1</span>');
 
     return html;
 }

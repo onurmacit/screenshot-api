@@ -1,0 +1,169 @@
+# =============================================================================
+# Screenshot API - Docker Compose (Hybrid Go Renderer)
+# =============================================================================
+# Usage: docker-compose up -d
+# This version uses Go renderer for screenshots instead of Celery workers
+
+services:
+  # ===========================================================================
+  # API Service (FastAPI)
+  # ===========================================================================
+  api:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.api
+    container_name: screenshot-api
+    ports:
+      - "8000:8000"
+    environment:
+      - APP_ENV=development
+      - DEBUG=true
+      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/screenshot_api
+      - REDIS_URL=redis://redis:6379/0
+      - AWS_S3_ENDPOINT_URL=http://minio:9000
+      - AWS_S3_PUBLIC_URL=http://localhost:9000
+      - AWS_ACCESS_KEY_ID=minioadmin
+      - AWS_SECRET_ACCESS_KEY=minioadmin
+      - AWS_S3_BUCKET=screenshot-api-renders
+      - PORT=8000
+      # Go Renderer settings
+      - GO_RENDERER_URL=http://go-renderer:8001
+      - GO_RENDERER_TIMEOUT=60
+      - USE_GO_RENDERER=true
+    volumes:
+      - ../app:/app/app:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      go-renderer:
+        condition: service_healthy
+    networks:
+      - screenshot-network
+    restart: unless-stopped
+
+  # ===========================================================================
+  # Go Renderer Microservice (Replaces Celery Workers)
+  # ===========================================================================
+  go-renderer:
+    build:
+      context: ../go-renderer
+      dockerfile: Dockerfile
+    container_name: screenshot-go-renderer
+    ports:
+      - "8001:8001"
+    environment:
+      - PORT=8001
+      - BROWSER_POOL_SIZE=2
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - screenshot-network
+    restart: unless-stopped
+
+  # ===========================================================================
+  # PostgreSQL Database
+  # ===========================================================================
+  postgres:
+    image: postgres:15-alpine
+    container_name: screenshot-postgres
+    ports:
+      - "5433:5432"
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=screenshot_api
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - screenshot-network
+    restart: unless-stopped
+
+  # ===========================================================================
+  # Redis Cache
+  # ===========================================================================
+  redis:
+    image: redis:7-alpine
+    container_name: screenshot-redis
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - screenshot-network
+    restart: unless-stopped
+
+  # ===========================================================================
+  # MinIO (S3-compatible storage)
+  # ===========================================================================
+  minio:
+    image: minio/minio:latest
+    container_name: screenshot-minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      - MINIO_ROOT_USER=minioadmin
+      - MINIO_ROOT_PASSWORD=minioadmin
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - screenshot-network
+    restart: unless-stopped
+
+  # ===========================================================================
+  # MinIO Setup (Create bucket)
+  # ===========================================================================
+  minio-setup:
+    image: minio/mc:latest
+    container_name: screenshot-minio-setup
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set myminio http://minio:9000 minioadmin minioadmin;
+      mc mb myminio/screenshot-api-renders --ignore-existing;
+      mc anonymous set public myminio/screenshot-api-renders;
+      echo 'Bucket created successfully';
+      exit 0;
+      "
+    networks:
+      - screenshot-network
+
+# =============================================================================
+# Networks
+# =============================================================================
+networks:
+  screenshot-network:
+    driver: bridge
+
+# =============================================================================
+# Volumes
+# =============================================================================
+volumes:
+  postgres_data:
+  redis_data:
+  minio_data:

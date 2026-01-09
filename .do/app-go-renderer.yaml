@@ -1,0 +1,124 @@
+name: screenshotbeam-app
+region: nyc
+
+domains:
+  - domain: screenshotbeam.com
+    type: PRIMARY
+
+alerts:
+  - rule: DEPLOYMENT_FAILED
+  - rule: DOMAIN_FAILED
+
+services:
+  # ============================================================================
+  # API Service (FastAPI - Gateway)
+  # ============================================================================
+  - name: screenshot-api
+    github:
+      repo: onurmacit/screenshot-api
+      branch: main
+      deploy_on_push: true
+    
+    dockerfile_path: docker/Dockerfile.api
+    http_port: 8080
+    
+    run_command: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    
+    instance_count: 1
+    instance_size_slug: basic-xs  # Upgraded from xxs for stability
+    
+    envs:
+      - key: APP_ENV
+        value: production
+      - key: APP_NAME
+        value: ScreenshotAPI
+      - key: DEBUG
+        value: "false"
+      - key: LOG_LEVEL
+        value: INFO
+      - key: SECRET_KEY
+        scope: RUN_AND_BUILD_TIME
+        type: SECRET
+      - key: JWT_ALGORITHM
+        value: HS256
+      - key: DATABASE_URL
+        scope: RUN_AND_BUILD_TIME
+        type: SECRET
+      - key: REDIS_URL
+        scope: RUN_AND_BUILD_TIME
+        type: SECRET
+      # Go Renderer Settings
+      - key: USE_GO_RENDERER
+        value: "true"
+      - key: GO_RENDERER_URL
+        value: ${go-renderer.PRIVATE_URL}
+      - key: GO_RENDERER_TIMEOUT
+        value: "60"
+      # AWS S3
+      - key: AWS_ACCESS_KEY_ID
+        scope: RUN_AND_BUILD_TIME
+        type: SECRET
+      - key: AWS_SECRET_ACCESS_KEY
+        scope: RUN_AND_BUILD_TIME
+        type: SECRET
+      - key: AWS_REGION
+        value: nyc3
+      - key: AWS_S3_BUCKET
+        value: screenshotbeam-space
+      - key: AWS_S3_ENDPOINT_URL
+        value: https://nyc3.digitaloceanspaces.com
+      - key: AWS_S3_PUBLIC_URL
+        value: https://screenshotbeam-space.nyc3.digitaloceanspaces.com
+      # Stripe
+      - key: STRIPE_SECRET_KEY
+        scope: RUN_AND_BUILD_TIME
+        type: SECRET
+      - key: STRIPE_WEBHOOK_SECRET
+        scope: RUN_AND_BUILD_TIME
+        type: SECRET
+      - key: STRIPE_PUBLISHABLE_KEY
+        scope: RUN_AND_BUILD_TIME
+        type: SECRET
+      - key: TRUSTED_PROXIES
+        value: '["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"]'
+    
+    health_check:
+      http_path: /api/v1/health
+      initial_delay_seconds: 30
+      period_seconds: 10
+      timeout_seconds: 5
+      success_threshold: 1
+      failure_threshold: 3
+
+  # ============================================================================
+  # Go Renderer Microservice (Replaces Celery Workers)
+  # ============================================================================
+  - name: go-renderer
+    github:
+      repo: onurmacit/screenshot-api
+      branch: main
+      deploy_on_push: true
+    
+    dockerfile_path: go-renderer/Dockerfile
+    
+    # Internal service - not exposed to public
+    internal_ports:
+      - 8001
+    
+    instance_count: 1
+    instance_size_slug: basic-xs  # 1GB RAM for Chrome
+    
+    envs:
+      - key: PORT
+        value: "8001"
+      - key: BROWSER_POOL_SIZE
+        value: "2"
+    
+    health_check:
+      http_path: /health
+      port: 8001
+      initial_delay_seconds: 60
+      period_seconds: 10
+      timeout_seconds: 5
+      success_threshold: 1
+      failure_threshold: 5

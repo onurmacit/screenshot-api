@@ -10,6 +10,12 @@
 # -----------------------------------------------------------------------------
 FROM mcr.microsoft.com/playwright/python:v1.49.1-noble AS builder
 
+# Install build dependencies for psutil and other C extensions
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    python3-dev \
+    && rm -rf /var/lib/apt/lists/*
+
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \

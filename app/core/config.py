@@ -125,7 +125,14 @@ class Settings(BaseSettings):
     SMTP_FROM_NAME: str = "Screenshot API"
 
     # ==========================================================================
-    # Playwright / Browser
+    # Go Renderer Microservice
+    # ==========================================================================
+    GO_RENDERER_URL: str = "http://go-renderer:8001"
+    GO_RENDERER_TIMEOUT: int = 60  # seconds
+    USE_GO_RENDERER: bool = True  # Toggle between Go and Playwright
+
+    # ==========================================================================
+    # Playwright / Browser (Legacy - used if USE_GO_RENDERER=False)
     # ==========================================================================
     BROWSER_POOL_SIZE: int = 2
     BROWSER_TIMEOUT_MS: int = 30000

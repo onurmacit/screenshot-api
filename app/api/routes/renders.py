@@ -13,6 +13,7 @@ from app.api.dependencies import (
     DBSession,
     RateLimitedUser,
 )
+from app.core.config import settings
 from app.models import RenderJob
 from app.schemas.render import (
     PDFRequest,
@@ -24,7 +25,6 @@ from app.schemas.render import (
 )
 from app.services.cache_service import cache_service
 from app.services.rate_limit_service import rate_limit_service
-from app.services.render_service import render_service
 from app.services.storage_service import storage_service
 from app.utils.logger import get_logger
 
@@ -32,7 +32,16 @@ logger = get_logger(__name__)
 from app.utils.exceptions import NotFoundError, ValidationError
 from app.utils.helpers import utc_now
 from app.utils.validators import validate_url
-from app.workers.render_tasks import process_pdf, process_screenshot
+
+# Import render service based on configuration
+if settings.USE_GO_RENDERER:
+    from app.services.go_render_client import go_render_client as render_service
+else:
+    from app.services.render_service import render_service
+
+# Only import Celery tasks if not using Go renderer (for async mode)
+if not settings.USE_GO_RENDERER:
+    from app.workers.render_tasks import process_pdf, process_screenshot
 
 router = APIRouter()
 

@@ -72,34 +72,28 @@ const CATEGORIES = [
     { id: "languages", label: "Languages" },
 ];
 
-// Custom Dark Theme - Göz yormaz
-// Background: #101829, Text: #D1D5DC
+// Custom Theme - Sakin ve okunaklı
+// Background: #1F2329, Text: #C8CCD4
 function highlightCode(code: string): string {
     let html = code.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
-    // 1. Comments - #364053 ("buradayım ama rahatsız etmiyorum")
-    html = html.replace(/(\/\/[^\n]*|#[^\n]*)/g, '<span style="color:#364053">$1</span>');
+    // 1. Comments - #5E6773
+    html = html.replace(/(\/\/[^\n]*|#[^\n]*)/g, '<span style="color:#5E6773">$1</span>');
 
-    // 2. Strings - red #FB2C37 (net ayırt edilir)
-    html = html.replace(/(["'])(?:(?!\1)[^\\]|\\.)*\1/g, '<span style="color:#FB2C37">$&</span>');
+    // 2. Strings - green #A3BE8C (doğal)
+    html = html.replace(/(["'])(?:(?!\1)[^\\]|\\.)*\1/g, '<span style="color:#A3BE8C">$&</span>');
 
-    // 3. Keywords - green #00C951 (canlı ama neon değil)
-    const keywords = ['const', 'let', 'var', 'function', 'async', 'await', 'return', 'import', 'from', 'require', 'export', 'new', 'class', 'def', 'print', 'self', 'func', 'package', 'defer', 'go', 'if', 'else', 'for', 'while', 'try', 'catch', 'throw', 'using', 'public', 'private', 'static', 'raise', 'with', 'as', 'in'];
+    // 3. Keywords - purple #C792EA (mor, sakin)
+    const keywords = ['const', 'let', 'var', 'function', 'async', 'await', 'return', 'import', 'from', 'require', 'export', 'new', 'class', 'def', 'print', 'self', 'func', 'package', 'defer', 'go', 'if', 'else', 'for', 'while', 'try', 'catch', 'throw', 'using', 'public', 'private', 'static', 'raise', 'with', 'as', 'in', 'True', 'False', 'None', 'nil'];
     keywords.forEach(kw => {
-        html = html.replace(new RegExp(`\\b(${kw})\\b`, 'g'), '<span style="color:#00C951">$1</span>');
+        html = html.replace(new RegExp(`\\b(${kw})\\b`, 'g'), '<span style="color:#C792EA">$1</span>');
     });
 
-    // 4. Types/Classes - green #00C951
-    const types = ['True', 'False', 'None', 'nil', 'null', 'undefined', 'String', 'Int', 'Bool', 'Object', 'Array'];
-    types.forEach(t => {
-        html = html.replace(new RegExp(`\\b(${t})\\b`, 'g'), '<span style="color:#00C951">$1</span>');
-    });
+    // 4. Numbers - orange-brown #D08770
+    html = html.replace(/\b(\d+\.?\d*)\b/g, '<span style="color:#D08770">$1</span>');
 
-    // 5. Numbers/booleans - yellow #F1B100
-    html = html.replace(/\b(\d+\.?\d*)\b/g, '<span style="color:#F1B100">$1</span>');
-
-    // 6. Functions - yellow #F1B100 (sıcak sarı, dikkat çekiyor ama bağırmıyor)
-    html = html.replace(/\b([a-zA-Z_][a-zA-Z0-9_]*)\s*\(/g, '<span style="color:#F1B100">$1</span>(');
+    // 5. Functions - blue #82AAFF (bağırmıyor)
+    html = html.replace(/\b([a-zA-Z_][a-zA-Z0-9_]*)\s*\(/g, '<span style="color:#82AAFF">$1</span>(');
 
     return html;
 }
@@ -626,12 +620,12 @@ NSURLSession *session = [NSURLSession sharedSession];
                 </button>
             </div>
 
-            {/* Code Area - Custom Dark Theme */}
-            <div className="h-64 overflow-hidden rounded-b-lg" style={{ backgroundColor: '#101829' }}>
+            {/* Code Area - Custom Theme */}
+            <div className="h-64 overflow-hidden rounded-b-lg" style={{ backgroundColor: '#1F2329' }}>
                 <div className="h-full overflow-auto p-4 scrollbar-thin">
-                    <pre className="text-[13px] leading-relaxed font-mono whitespace-pre" style={{ color: '#D1D5DC' }}>
+                    <pre className="text-[13px] leading-relaxed font-mono whitespace-pre" style={{ color: '#C8CCD4' }}>
                         {activeTab === "url" ? (
-                            <code style={{ color: '#00C951' }} className="break-all">
+                            <code style={{ color: '#82AAFF' }} className="break-all">
                                 {codeSnippets[activeTab] || ""}
                             </code>
                         ) : (

@@ -7,13 +7,15 @@
 
 set -e
 
-WORKER_DROPLET="root@167.71.85.169"
+WORKER_1_DROPLET="root@167.71.85.169"
+WORKER_2_DROPLET="root@161.35.129.129"
 API_DROPLET="root@138.197.103.137"
 REMOTE_PATH="/opt/screenshot-api"
 
 echo "🚀 Deploying Distributed Hybrid Architecture..."
 echo "================================================="
 echo "📍 Method: Direct Code Push (Local -> Server)"
+echo "📍 Workers: 2 (Load Balanced)"
 echo ""
 
 # -----------------------------------------------------------------------------
@@ -56,20 +58,16 @@ if [[ ! $REPLY =~ ^[Yy]$ ]]; then
 fi
 
 # -----------------------------------------------------------------------------
-# 2. Deploy Worker Droplet (Go Renderer)
+# 2. Deploy Worker 1 (Go Renderer)
 # -----------------------------------------------------------------------------
 echo ""
-echo "📦 [1/2] Deploying Worker Droplet (Go Renderer)..."
+echo "📦 [1/3] Deploying Worker 1 (Go Renderer)..."
 
-sync_code $WORKER_DROPLET
+sync_code $WORKER_1_DROPLET
 
-ssh $WORKER_DROPLET << 'ENDSSH'
+ssh $WORKER_1_DROPLET << 'ENDSSH'
 set -e
 cd /opt/screenshot-api
-
-echo "   -> Cleaning up old Celery workers..."
-docker compose -f docker-compose.worker.yml down 2>/dev/null || true
-docker rm -f screenshotbeam-celery-worker 2>/dev/null || true
 
 echo "   -> Building Go Renderer..."
 docker compose -f docker-compose.worker-renderer.prod.yml build
@@ -80,7 +78,7 @@ docker compose -f docker-compose.worker-renderer.prod.yml up -d
 echo "   -> Health check..."
 sleep 5
 if curl -sf http://localhost:8001/health > /dev/null; then
-    echo "   ✅ Go Renderer is healthy!"
+    echo "   ✅ Worker 1 Go Renderer is healthy!"
 else
     echo "   ❌ Health check failed!"
     docker logs screenshot-go-renderer
@@ -89,10 +87,39 @@ fi
 ENDSSH
 
 # -----------------------------------------------------------------------------
-# 3. Deploy API Droplet (FastAPI)
+# 3. Deploy Worker 2 (Go Renderer)
 # -----------------------------------------------------------------------------
 echo ""
-echo "📦 [2/2] Deploying API Droplet (FastAPI Gateway)..."
+echo "📦 [2/3] Deploying Worker 2 (Go Renderer)..."
+
+sync_code $WORKER_2_DROPLET
+
+ssh $WORKER_2_DROPLET << 'ENDSSH'
+set -e
+cd /opt/screenshot-api
+
+echo "   -> Building Go Renderer..."
+docker compose -f docker-compose.worker-renderer.prod.yml build
+
+echo "   -> Starting Go Renderer..."
+docker compose -f docker-compose.worker-renderer.prod.yml up -d
+
+echo "   -> Health check..."
+sleep 5
+if curl -sf http://localhost:8001/health > /dev/null; then
+    echo "   ✅ Worker 2 Go Renderer is healthy!"
+else
+    echo "   ❌ Health check failed!"
+    docker logs screenshot-go-renderer
+    exit 1
+fi
+ENDSSH
+
+# -----------------------------------------------------------------------------
+# 4. Deploy API Droplet (FastAPI)
+# -----------------------------------------------------------------------------
+echo ""
+echo "📦 [3/3] Deploying API Droplet (FastAPI Gateway)..."
 
 sync_code $API_DROPLET
 

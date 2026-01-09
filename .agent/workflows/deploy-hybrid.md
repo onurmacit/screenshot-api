@@ -35,12 +35,17 @@ cd /Users/onurmacit/screenshot-api && ./scripts/deploy-hybrid.sh
 
 ## Manual Verification
 
-Check Worker:
+Check Worker 1:
 ```bash
 ssh root@167.71.85.169 "curl -v http://localhost:8001/health"
 ```
 
-Check API connectivity to Worker:
+Check Worker 2:
 ```bash
-ssh root@138.197.103.137 "curl -v http://167.71.85.169:8001/health"
+ssh root@161.35.129.129 "curl -v http://localhost:8001/health"
+```
+
+Check API connectivity to Workers:
+```bash
+ssh root@138.197.103.137 "curl -v http://167.71.85.169:8001/health && curl -v http://161.35.129.129:8001/health"
 ```

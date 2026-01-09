@@ -72,37 +72,6 @@ const CATEGORIES = [
     { id: "languages", label: "Languages" },
 ];
 
-// Clean minimal syntax highlighting (inspired by screenshotone)
-function highlightCode(code: string): string {
-    // Escape HTML entities
-    let html = code
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;');
-
-    // Clean color scheme:
-    // - Default: #e2e8f0 (light gray)
-    // - Strings: #93c5fd (soft blue)
-    // - Keys/params: #f87171 (soft red)
-    // - Numbers: #93c5fd (soft blue)
-    // - Comments: #6b7280 (dim gray)
-
-    // 1. Comments
-    html = html.replace(/(\/\/[^\n]*|#[^\n]*)/g, '<span style="color:#6b7280">$1</span>');
-
-    // 2. Strings (blue)
-    html = html.replace(/(["'])(?:(?!\1)[^\\]|\\.)*\1/g, '<span style="color:#93c5fd">$&</span>');
-
-    // 3. Object/JSON keys (red) - word before colon
-    html = html.replace(/([a-zA-Z_][a-zA-Z0-9_-]*)(\s*:)/g, '<span style="color:#f87171">$1</span>$2');
-
-    // 4. Numbers (blue)
-    html = html.replace(/\b(\d+)\b/g, '<span style="color:#93c5fd">$1</span>');
-
-    // Wrap in default color
-    return `<span style="color:#e2e8f0">${html}</span>`;
-}
-
 export function CodeSnippet({ curl, apiUrl, params, apiKey = "YOUR_API_KEY" }: CodeSnippetProps) {
     const [activeTab, setActiveTab] = useState<LanguageId>("curl");
     const [copied, setCopied] = useState(false);
@@ -628,15 +597,10 @@ NSURLSession *session = [NSURLSession sharedSession];
             {/* Code Area */}
             <div className="h-64 bg-slate-950 overflow-hidden">
                 <div className="h-full overflow-auto p-4 scrollbar-thin">
-                    <pre className="text-[13px] leading-relaxed font-mono whitespace-pre">
-                        <code
-                            className={activeTab === "url" ? "text-blue-400 break-all" : ""}
-                            dangerouslySetInnerHTML={{
-                                __html: activeTab === "url"
-                                    ? (codeSnippets[activeTab] || "")
-                                    : highlightCode(codeSnippets[activeTab] || "// Code snippet not available")
-                            }}
-                        />
+                    <pre className="text-[13px] leading-relaxed font-mono whitespace-pre text-white">
+                        <code className={activeTab === "url" ? "text-blue-300 break-all" : "text-slate-100"}>
+                            {codeSnippets[activeTab] || "// Code snippet not available"}
+                        </code>
                     </pre>
                 </div>
             </div>

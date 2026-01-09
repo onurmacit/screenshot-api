@@ -72,7 +72,7 @@ const CATEGORIES = [
     { id: "languages", label: "Languages" },
 ];
 
-// Simple syntax highlighting function using inline styles
+// Simple syntax highlighting with soft colors
 function highlightCode(code: string): string {
     // Escape HTML entities first
     let html = code
@@ -80,32 +80,26 @@ function highlightCode(code: string): string {
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;');
 
-    // 1. Comments (// ... and # ...)
-    html = html.replace(/(\/\/[^\n]*|#[^\n]*)/g, '<span style="color:#6b7280">$1</span>');
+    // Use soft, muted colors that work well on dark bg
+    // Default text is light gray (#cbd5e1)
 
-    // 2. Strings - both single and double quotes
-    html = html.replace(/(["'])(?:(?!\1)[^\\]|\\.)*\1/g, '<span style="color:#4ade80">$&</span>');
+    // 1. Strings - soft green
+    html = html.replace(/(["'])(?:(?!\1)[^\\]|\\.)*\1/g, '<span style="color:#86efac">$&</span>');
 
-    // 3. Keywords
-    const keywords = [
-        'const', 'let', 'var', 'function', 'async', 'await', 'return', 'import', 'from', 'require', 'export',
-        'if', 'else', 'for', 'while', 'class', 'new', 'try', 'catch', 'throw',
-        'def', 'print', 'as', 'True', 'False', 'None', 'self',
-        'package', 'func', 'fmt', 'defer', 'go', 'make', 'nil',
-        'curl', 'wget', 'POST', 'GET'
-    ];
+    // 2. Comments - dim gray
+    html = html.replace(/(\/\/[^\n]*|#[^\n]*)/g, '<span style="color:#64748b">$1</span>');
+
+    // 3. Keywords - soft purple
+    const keywords = ['const', 'let', 'var', 'function', 'async', 'await', 'return', 'import', 'from', 'require', 'export', 'new', 'class', 'def', 'print', 'True', 'False', 'None', 'self', 'func', 'package', 'defer', 'go', 'nil', 'using', 'var'];
     keywords.forEach(kw => {
-        const regex = new RegExp(`\\b(${kw})\\b`, 'g');
-        html = html.replace(regex, '<span style="color:#c084fc">$1</span>');
+        html = html.replace(new RegExp(`\\b(${kw})\\b`, 'g'), '<span style="color:#a78bfa">$1</span>');
     });
 
-    // 4. Function/method calls
-    html = html.replace(/\b([a-zA-Z_][a-zA-Z0-9_]*)\s*\(/g, '<span style="color:#60a5fa">$1</span>(');
+    // 4. Numbers - soft orange
+    html = html.replace(/\b(\d+)\b/g, '<span style="color:#fdba74">$1</span>');
 
-    // 5. Numbers
-    html = html.replace(/\b(\d+)\b/g, '<span style="color:#fb923c">$1</span>');
-
-    return html;
+    // Wrap everything in default color span
+    return `<span style="color:#e2e8f0">${html}</span>`;
 }
 
 export function CodeSnippet({ curl, apiUrl, params, apiKey = "YOUR_API_KEY" }: CodeSnippetProps) {

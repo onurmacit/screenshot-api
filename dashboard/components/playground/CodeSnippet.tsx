@@ -72,28 +72,28 @@ const CATEGORIES = [
     { id: "languages", label: "Languages" },
 ];
 
-// Nord x One Dark Theme - Elit takılma
-// Background: #2E3440, Text: #D8DEE9
+// Muted Dark Pro Theme - Güvenli liman, göz dostu
+// Background: #1F2329, Text: #C8CCD4
 function highlightCode(code: string): string {
     let html = code.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
-    // 1. Comments - #616E88
-    html = html.replace(/(\/\/[^\n]*|#[^\n]*)/g, '<span style="color:#616E88">$1</span>');
+    // 1. Comments - #5E6773
+    html = html.replace(/(\/\/[^\n]*|#[^\n]*)/g, '<span style="color:#5E6773">$1</span>');
 
-    // 2. Strings - #A3BE8C
+    // 2. Strings - #A3BE8C (yeşil, doğal)
     html = html.replace(/(["'])(?:(?!\1)[^\\]|\\.)*\1/g, '<span style="color:#A3BE8C">$&</span>');
 
-    // 3. Keywords - #B48EAD
+    // 3. Keywords - #C792EA (mor, sakin)
     const keywords = ['const', 'let', 'var', 'function', 'async', 'await', 'return', 'import', 'from', 'require', 'export', 'new', 'class', 'def', 'print', 'self', 'func', 'package', 'defer', 'go', 'if', 'else', 'for', 'while', 'try', 'catch', 'throw', 'using', 'public', 'private', 'static', 'raise', 'with', 'as', 'in', 'True', 'False', 'None', 'nil'];
     keywords.forEach(kw => {
-        html = html.replace(new RegExp(`\\b(${kw})\\b`, 'g'), '<span style="color:#B48EAD">$1</span>');
+        html = html.replace(new RegExp(`\\b(${kw})\\b`, 'g'), '<span style="color:#C792EA">$1</span>');
     });
 
-    // 4. Numbers - #EBCB8B
-    html = html.replace(/\b(\d+\.?\d*)\b/g, '<span style="color:#EBCB8B">$1</span>');
+    // 4. Numbers - #D08770 (turuncu-kahve arası)
+    html = html.replace(/\b(\d+\.?\d*)\b/g, '<span style="color:#D08770">$1</span>');
 
-    // 5. Functions - #81A1C1
-    html = html.replace(/\b([a-zA-Z_][a-zA-Z0-9_]*)\s*\(/g, '<span style="color:#81A1C1">$1</span>(');
+    // 5. Functions - #82AAFF (mavi ama bağırmıyor)
+    html = html.replace(/\b([a-zA-Z_][a-zA-Z0-9_]*)\s*\(/g, '<span style="color:#82AAFF">$1</span>(');
 
     return html;
 }
@@ -620,12 +620,12 @@ NSURLSession *session = [NSURLSession sharedSession];
                 </button>
             </div>
 
-            {/* Code Area - Nord x One Dark Theme */}
-            <div className="h-64 overflow-hidden rounded-b-lg" style={{ backgroundColor: '#2E3440' }}>
+            {/* Code Area - Muted Dark Pro Theme */}
+            <div className="h-64 overflow-hidden rounded-b-lg" style={{ backgroundColor: '#1F2329' }}>
                 <div className="h-full overflow-auto p-4 scrollbar-thin">
-                    <pre className="text-[13px] leading-relaxed font-mono whitespace-pre" style={{ color: '#D8DEE9' }}>
+                    <pre className="text-[13px] leading-relaxed font-mono whitespace-pre" style={{ color: '#C8CCD4' }}>
                         {activeTab === "url" ? (
-                            <code style={{ color: '#81A1C1' }} className="break-all">
+                            <code style={{ color: '#82AAFF' }} className="break-all">
                                 {codeSnippets[activeTab] || ""}
                             </code>
                         ) : (

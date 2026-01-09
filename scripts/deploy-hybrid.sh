@@ -47,7 +47,31 @@ mkdir -p /opt/screenshot-api
 cd /opt/screenshot-api
 
 echo "   -> Pulling latest code..."
-git pull origin main || git clone https://github.com/onurmacit/screenshot-api.git .
+if [ -d .git ]; then
+    git pull origin main
+else
+    echo "   ⚠️ Not a git repository or corrupted. Re-cloning..."
+    
+    # Backup .env
+    if [ -f .env ]; then
+        echo "   -> Backing up .env..."
+        cp .env /tmp/screenshot_env.bak
+    fi
+    
+    # Clean directory (carefully)
+    echo "   -> Cleaning directory..."
+    rm -rf ./* .git .gitignore .dockerignore
+    
+    # Clone
+    echo "   -> Cloning fresh copy..."
+    git clone https://github.com/onurmacit/screenshot-api.git .
+    
+    # Restore .env
+    if [ -f /tmp/screenshot_env.bak ]; then
+        echo "   -> Restoring .env..."
+        mv /tmp/screenshot_env.bak .env
+    fi
+fi
 
 echo "   -> Cleaning up old Celery workers..."
 docker compose -f docker-compose.worker.yml down 2>/dev/null || true
@@ -79,7 +103,15 @@ set -e
 cd /opt/screenshot-api
 
 echo "   -> Pulling latest code..."
-git pull origin main
+if [ -d .git ]; then
+    git pull origin main
+else
+    echo "   ⚠️ Not a git repository or corrupted. Re-cloning..."
+    if [ -f .env ]; then cp .env /tmp/screenshot_env.bak; fi
+    rm -rf ./* .git .gitignore .dockerignore
+    git clone https://github.com/onurmacit/screenshot-api.git .
+    if [ -f /tmp/screenshot_env.bak ]; then mv /tmp/screenshot_env.bak .env; fi
+fi
 
 echo "   -> Stopping old services..."
 docker compose -f docker-compose.api.yml down 2>/dev/null || true

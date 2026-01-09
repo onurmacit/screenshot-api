@@ -130,20 +130,61 @@ jobs:
           cache-to: type=gha,mode=max
 
   # ===========================================================================
-  # Deploy (Manual trigger or on main)
+  # Deploy (Automatic on main)
   # ===========================================================================
   deploy:
-    name: Deploy
+    name: Deploy to Production
     runs-on: ubuntu-latest
     needs: [build]
     if: github.ref == 'refs/heads/main'
     environment: production
     
     steps:
-      - name: Deploy notification
+      - uses: actions/checkout@v4
+
+      - name: Setup SSH
         run: |
-          echo "🚀 Ready to deploy!"
-          echo "API Image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest"
-          echo "Go Renderer Image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-go-renderer:latest"
-          echo ""
-          echo "📝 Manual deploy: ./scripts/deploy-hybrid.sh"
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H 167.71.85.169 >> ~/.ssh/known_hosts
+          ssh-keyscan -H 161.35.129.129 >> ~/.ssh/known_hosts
+          ssh-keyscan -H 138.197.103.137 >> ~/.ssh/known_hosts
+
+      - name: Deploy Worker 1
+        run: |
+          echo "📦 [1/3] Deploying Worker 1..."
+          ssh root@167.71.85.169 << 'ENDSSH'
+          cd /opt/screenshot-api
+          docker compose -f docker-compose.worker-renderer.prod.yml pull 2>/dev/null || true
+          docker compose -f docker-compose.worker-renderer.prod.yml up -d --build
+          sleep 5
+          curl -sf http://localhost:8001/health && echo " ✅ Worker 1 healthy!"
+          ENDSSH
+
+      - name: Deploy Worker 2
+        run: |
+          echo "📦 [2/3] Deploying Worker 2..."
+          ssh root@161.35.129.129 << 'ENDSSH'
+          cd /opt/screenshot-api
+          docker compose -f docker-compose.worker-renderer.prod.yml pull 2>/dev/null || true
+          docker compose -f docker-compose.worker-renderer.prod.yml up -d --build
+          sleep 5
+          curl -sf http://localhost:8001/health && echo " ✅ Worker 2 healthy!"
+          ENDSSH
+
+      - name: Deploy API
+        run: |
+          echo "📦 [3/3] Deploying API..."
+          ssh root@138.197.103.137 << 'ENDSSH'
+          cd /opt/screenshot-api
+          docker compose -f docker-compose.api.hybrid.prod.yml pull 2>/dev/null || true
+          docker compose -f docker-compose.api.hybrid.prod.yml up -d --build
+          sleep 10
+          curl -sf http://localhost:8000/api/v1/health && echo " ✅ API healthy!"
+          ENDSSH
+
+      - name: Verify Deployment
+        run: |
+          echo "🔍 Verifying deployment..."
+          curl -sf https://api.screenshotbeam.com/api/v1/health && echo "✅ Production is live!"

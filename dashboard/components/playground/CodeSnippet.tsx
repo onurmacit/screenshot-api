@@ -22,7 +22,6 @@ const ALL_LANGUAGES = [
     { id: "go", label: "Go", icon: Code, category: "popular" },
     { id: "ruby", label: "Ruby", icon: Code, category: "popular" },
     { id: "php", label: "PHP", icon: Code, category: "popular" },
-    { id: "node-axios", label: "Node", icon: Code, category: "popular" },
 
     // SDKs
     { id: "javascript-sdk", label: "JavaScript (SDK)", icon: Code, category: "sdk" },
@@ -72,6 +71,41 @@ const CATEGORIES = [
     { id: "python", label: "Python" },
     { id: "languages", label: "Languages" },
 ];
+
+// Simple syntax highlighting function
+function highlightCode(code: string): string {
+    // Escape HTML first
+    let html = code
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+
+    // Comments (// and #)
+    html = html.replace(/(\/\/.*$|#.*$)/gm, '<span style="color: #6b7280;">$1</span>');
+
+    // Strings (single and double quotes)
+    html = html.replace(/(&quot;[^&]*&quot;|&#39;[^&]*&#39;|'[^']*'|"[^"]*")/g, '<span style="color: #22c55e;">$1</span>');
+
+    // Keywords
+    const keywords = ['const', 'let', 'var', 'function', 'async', 'await', 'return', 'import', 'from', 'require', 'export',
+        'if', 'else', 'for', 'while', 'class', 'new', 'try', 'catch', 'throw',
+        'def', 'print', 'import', 'from', 'as', 'True', 'False', 'None',
+        'package', 'func', 'fmt', 'json', 'http', 'defer',
+        'curl', 'wget', '-X', '-H', '-d', '--post-data', '--header'];
+    const keywordPattern = new RegExp(`\\b(${keywords.join('|')})\\b`, 'g');
+    html = html.replace(keywordPattern, '<span style="color: #c084fc;">$1</span>');
+
+    // Method calls and functions
+    html = html.replace(/\b([a-zA-Z_][a-zA-Z0-9_]*)\s*\(/g, '<span style="color: #60a5fa;">$1</span>(');
+
+    // Numbers
+    html = html.replace(/\b(\d+)\b/g, '<span style="color: #f97316;">$1</span>');
+
+    // Property names (before colons in objects/dicts)
+    html = html.replace(/(['"]?)([a-zA-Z_][a-zA-Z0-9_-]*)(['"]?)\s*:/g, '<span style="color: #fbbf24;">$1$2$3</span>:');
+
+    return html;
+}
 
 export function CodeSnippet({ curl, apiUrl, params, apiKey = "YOUR_API_KEY" }: CodeSnippetProps) {
     const [activeTab, setActiveTab] = useState<LanguageId>("curl");
@@ -599,9 +633,14 @@ NSURLSession *session = [NSURLSession sharedSession];
             <div className="h-64 bg-slate-950 overflow-hidden">
                 <div className="h-full overflow-auto p-4 scrollbar-thin">
                     <pre className="text-[13px] leading-relaxed font-mono whitespace-pre">
-                        <code className={activeTab === "url" ? "text-blue-400 break-all" : "text-slate-300"}>
-                            {codeSnippets[activeTab] || "// Code snippet not available"}
-                        </code>
+                        <code
+                            className={activeTab === "url" ? "text-blue-400 break-all" : ""}
+                            dangerouslySetInnerHTML={{
+                                __html: activeTab === "url"
+                                    ? (codeSnippets[activeTab] || "")
+                                    : highlightCode(codeSnippets[activeTab] || "// Code snippet not available")
+                            }}
+                        />
                     </pre>
                 </div>
             </div>

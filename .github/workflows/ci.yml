@@ -205,10 +205,22 @@ jobs:
       - name: Deploy API
         run: |
           echo "📦 [3/3] Deploying API..."
-          ssh api "cd /opt/screenshot-api && docker compose -f docker-compose.api.hybrid.prod.yml up -d --build && sleep 10 && curl -sf http://localhost:8000/api/v1/health && echo ' ✅ API healthy!'"
+          ssh api "cd /opt/screenshot-api && docker compose -f docker-compose.api.hybrid.prod.yml up -d --build"
+          echo "⏳ Waiting for API to start (30s)..."
+          sleep 30
+          ssh api "curl -sf http://localhost:8000/api/v1/health && echo ' ✅ API healthy!'" || \
+            (echo '⏳ Retrying in 10s...' && sleep 10 && ssh api "curl -sf http://localhost:8000/api/v1/health && echo ' ✅ API healthy!'")
 
       - name: Verify Deployment
         run: |
           echo "🔍 Verifying deployment..."
-          sleep 5
-          curl -sf https://api.screenshotbeam.com/api/v1/health && echo "✅ Production is live!"
+          for i in 1 2 3; do
+            if curl -sf https://api.screenshotbeam.com/api/v1/health; then
+              echo "✅ Production is live!"
+              exit 0
+            fi
+            echo "⏳ Retry $i/3..."
+            sleep 10
+          done
+          echo "❌ Production verification failed!"
+          exit 1

@@ -72,6 +72,30 @@ const CATEGORIES = [
     { id: "languages", label: "Languages" },
 ];
 
+// Custom syntax highlighting with brand colors
+// #00C951 (green), #F1B100 (yellow), #FB2C37 (red)
+// #1E2938, #364053 (dark grays), #D1D5DC (light gray), #101829 (darkest)
+function highlightCode(code: string): string {
+    let html = code.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+    // 1. Comments - muted gray
+    html = html.replace(/(\/\/[^\n]*|#[^\n]*)/g, '<span style="color:#364053">$1</span>');
+
+    // 2. Strings - green (#00C951)
+    html = html.replace(/(["'])(?:(?!\1)[^\\]|\\.)*\1/g, '<span style="color:#00C951">$&</span>');
+
+    // 3. Keywords - red (#FB2C37)
+    const keywords = ['const', 'let', 'var', 'function', 'async', 'await', 'return', 'import', 'from', 'require', 'export', 'new', 'class', 'def', 'print', 'self', 'func', 'package', 'defer', 'go', 'if', 'else', 'for', 'while', 'try', 'catch', 'throw', 'using', 'public', 'private', 'static', 'True', 'False', 'None', 'nil'];
+    keywords.forEach(kw => {
+        html = html.replace(new RegExp(`\\b(${kw})\\b`, 'g'), '<span style="color:#FB2C37">$1</span>');
+    });
+
+    // 4. Numbers - yellow (#F1B100)
+    html = html.replace(/\b(\d+\.?\d*)\b/g, '<span style="color:#F1B100">$1</span>');
+
+    return html;
+}
+
 export function CodeSnippet({ curl, apiUrl, params, apiKey = "YOUR_API_KEY" }: CodeSnippetProps) {
     const [activeTab, setActiveTab] = useState<LanguageId>("curl");
     const [copied, setCopied] = useState(false);
@@ -594,13 +618,17 @@ NSURLSession *session = [NSURLSession sharedSession];
                 </button>
             </div>
 
-            {/* Code Area - Monitor-matching colors */}
-            <div className="h-64 bg-gray-900 overflow-hidden rounded-b-lg">
+            {/* Code Area - Brand colors */}
+            <div className="h-64 overflow-hidden rounded-b-lg" style={{ backgroundColor: '#101829' }}>
                 <div className="h-full overflow-auto p-4 scrollbar-thin">
-                    <pre className="text-[13px] leading-relaxed font-mono whitespace-pre text-gray-100">
-                        <code className={activeTab === "url" ? "text-blue-300 break-all" : ""}>
-                            {codeSnippets[activeTab] || "// Code snippet not available"}
-                        </code>
+                    <pre className="text-[13px] leading-relaxed font-mono whitespace-pre" style={{ color: '#D1D5DC' }}>
+                        {activeTab === "url" ? (
+                            <code style={{ color: '#00C951' }} className="break-all">
+                                {codeSnippets[activeTab] || ""}
+                            </code>
+                        ) : (
+                            <code dangerouslySetInnerHTML={{ __html: highlightCode(codeSnippets[activeTab] || "// Code snippet not available") }} />
+                        )}
                     </pre>
                 </div>
             </div>

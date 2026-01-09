@@ -72,33 +72,34 @@ const CATEGORIES = [
     { id: "languages", label: "Languages" },
 ];
 
-// Simple syntax highlighting with soft colors
+// Clean minimal syntax highlighting (inspired by screenshotone)
 function highlightCode(code: string): string {
-    // Escape HTML entities first
+    // Escape HTML entities
     let html = code
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;');
 
-    // Use soft, muted colors that work well on dark bg
-    // Default text is light gray (#cbd5e1)
+    // Clean color scheme:
+    // - Default: #e2e8f0 (light gray)
+    // - Strings: #93c5fd (soft blue)
+    // - Keys/params: #f87171 (soft red)
+    // - Numbers: #93c5fd (soft blue)
+    // - Comments: #6b7280 (dim gray)
 
-    // 1. Strings - soft green
-    html = html.replace(/(["'])(?:(?!\1)[^\\]|\\.)*\1/g, '<span style="color:#86efac">$&</span>');
+    // 1. Comments
+    html = html.replace(/(\/\/[^\n]*|#[^\n]*)/g, '<span style="color:#6b7280">$1</span>');
 
-    // 2. Comments - dim gray
-    html = html.replace(/(\/\/[^\n]*|#[^\n]*)/g, '<span style="color:#64748b">$1</span>');
+    // 2. Strings (blue)
+    html = html.replace(/(["'])(?:(?!\1)[^\\]|\\.)*\1/g, '<span style="color:#93c5fd">$&</span>');
 
-    // 3. Keywords - soft purple
-    const keywords = ['const', 'let', 'var', 'function', 'async', 'await', 'return', 'import', 'from', 'require', 'export', 'new', 'class', 'def', 'print', 'True', 'False', 'None', 'self', 'func', 'package', 'defer', 'go', 'nil', 'using', 'var'];
-    keywords.forEach(kw => {
-        html = html.replace(new RegExp(`\\b(${kw})\\b`, 'g'), '<span style="color:#a78bfa">$1</span>');
-    });
+    // 3. Object/JSON keys (red) - word before colon
+    html = html.replace(/([a-zA-Z_][a-zA-Z0-9_-]*)(\s*:)/g, '<span style="color:#f87171">$1</span>$2');
 
-    // 4. Numbers - soft orange
-    html = html.replace(/\b(\d+)\b/g, '<span style="color:#fdba74">$1</span>');
+    // 4. Numbers (blue)
+    html = html.replace(/\b(\d+)\b/g, '<span style="color:#93c5fd">$1</span>');
 
-    // Wrap everything in default color span
+    // Wrap in default color
     return `<span style="color:#e2e8f0">${html}</span>`;
 }
 

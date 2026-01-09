@@ -72,6 +72,34 @@ const CATEGORIES = [
     { id: "languages", label: "Languages" },
 ];
 
+// Dark mode syntax highlighting - eye-friendly for late night coding
+// Background: #020617 (slate-950), Text: #E5E7EB (gray-200)
+function highlightCode(code: string): string {
+    // Escape HTML
+    let html = code.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+    // Order matters! Apply in sequence:
+    // 1. Comments first (so they're not affected by other rules)
+    html = html.replace(/(\/\/[^\n]*|#[^\n]*)/g, '<span style="color:#64748B">$1</span>');
+
+    // 2. Strings
+    html = html.replace(/(["'])(?:(?!\1)[^\\]|\\.)*\1/g, '<span style="color:#4ADE80">$&</span>');
+
+    // 3. Keywords
+    const keywords = ['const', 'let', 'var', 'function', 'async', 'await', 'return', 'import', 'from', 'require', 'export', 'new', 'class', 'def', 'print', 'True', 'False', 'None', 'self', 'func', 'package', 'defer', 'go', 'nil', 'if', 'else', 'for', 'while', 'try', 'catch', 'throw', 'using', 'var', 'public', 'private', 'static', 'void', 'string', 'int', 'bool'];
+    keywords.forEach(kw => {
+        html = html.replace(new RegExp(`\\b(${kw})\\b`, 'g'), '<span style="color:#38BDF8">$1</span>');
+    });
+
+    // 4. Numbers and booleans
+    html = html.replace(/\b(\d+|true|false)\b/gi, '<span style="color:#FACC15">$1</span>');
+
+    // 5. Function calls (word followed by parenthesis)
+    html = html.replace(/\b([a-zA-Z_][a-zA-Z0-9_]*)\s*\(/g, '<span style="color:#A78BFA">$1</span>(');
+
+    return html;
+}
+
 export function CodeSnippet({ curl, apiUrl, params, apiKey = "YOUR_API_KEY" }: CodeSnippetProps) {
     const [activeTab, setActiveTab] = useState<LanguageId>("curl");
     const [copied, setCopied] = useState(false);
@@ -594,13 +622,17 @@ NSURLSession *session = [NSURLSession sharedSession];
                 </button>
             </div>
 
-            {/* Code Area */}
-            <div className="h-64 bg-slate-950 overflow-hidden">
+            {/* Code Area - Dark Mode Theme */}
+            <div className="h-64 bg-[#020617] overflow-hidden rounded-b-lg">
                 <div className="h-full overflow-auto p-4 scrollbar-thin">
-                    <pre className="text-[13px] leading-relaxed font-mono whitespace-pre text-white">
-                        <code className={activeTab === "url" ? "text-blue-300 break-all" : "text-slate-100"}>
-                            {codeSnippets[activeTab] || "// Code snippet not available"}
-                        </code>
+                    <pre className="text-[13px] leading-relaxed font-mono whitespace-pre" style={{ color: '#E5E7EB' }}>
+                        {activeTab === "url" ? (
+                            <code className="text-sky-400 break-all">
+                                {codeSnippets[activeTab] || ""}
+                            </code>
+                        ) : (
+                            <code dangerouslySetInnerHTML={{ __html: highlightCode(codeSnippets[activeTab] || "// Code snippet not available") }} />
+                        )}
                     </pre>
                 </div>
             </div>

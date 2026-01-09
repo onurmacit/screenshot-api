@@ -64,7 +64,7 @@ else
     
     # Clone
     echo "   -> Cloning fresh copy..."
-    git clone https://github.com/onurmacit/screenshot-api.git .
+    git clone git@github.com:onurmacit/screenshot-api.git .
     
     # Restore .env
     if [ -f /tmp/screenshot_env.bak ]; then
@@ -112,7 +112,7 @@ else
     # Clean directory robustly
     find . -mindepth 1 -delete
     
-    git clone https://github.com/onurmacit/screenshot-api.git .
+    git clone git@github.com:onurmacit/screenshot-api.git .
     if [ -f /tmp/screenshot_env.bak ]; then mv /tmp/screenshot_env.bak .env; fi
 fi
 

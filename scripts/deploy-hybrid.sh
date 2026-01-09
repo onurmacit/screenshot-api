@@ -2,8 +2,8 @@
 # =============================================================================
 # Deploy Script - Distributed Hybrid Architecture
 # =============================================================================
-# Deploys Go Renderer to Worker Droplet (167.71.85.169)
-# Deploys FastAPI Gateway to API Droplet (138.197.103.137)
+# Usage: ./scripts/deploy-hybrid.sh
+# Method: Push-based (tar | ssh) to bypass git auth issues on servers
 
 set -e
 
@@ -13,22 +13,41 @@ REMOTE_PATH="/opt/screenshot-api"
 
 echo "🚀 Deploying Distributed Hybrid Architecture..."
 echo "================================================="
+echo "📍 Method: Direct Code Push (Local -> Server)"
+echo ""
+
+# -----------------------------------------------------------------------------
+# Helper Function: Sync Code
+# -----------------------------------------------------------------------------
+sync_code() {
+    local target=$1
+    echo "   -> Syncing code to $target..."
+    
+    # Create remote dir
+    ssh $target "mkdir -p $REMOTE_PATH"
+    
+    # Tar local files and extract on remote
+    # Excludes heavy/unnecessary folders
+    tar czf - \
+        --exclude='.git' \
+        --exclude='.github' \
+        --exclude='.idea' \
+        --exclude='.vscode' \
+        --exclude='node_modules' \
+        --exclude='venv' \
+        --exclude='__pycache__' \
+        --exclude='*.pyc' \
+        --exclude='metrics_data' \
+        --exclude='prometheus_data' \
+        --exclude='alertmanager_data' \
+        . | ssh $target "cd $REMOTE_PATH && tar xzf -"
+        
+    echo "   ✅ Code synced."
+}
 
 # -----------------------------------------------------------------------------
 # 1. Deploy Review
 # -----------------------------------------------------------------------------
-echo ""
-echo "📍 Worker Droplet ($WORKER_DROPLET):"
-echo "   - Go Renderer (Pool Size: 6)"
-echo "   - Port: 8001"
-echo ""
-echo "📍 API Droplet ($API_DROPLET):"
-echo "   - FastAPI Gateway"
-echo "   - Nginx (SSL)"
-echo "   - Prometheus"
-echo "   - Alertmanager"
-echo "   - Connects to: http://167.71.85.169:8001"
-echo ""
 read -p "⚠️  Are you sure you want to deploy to PRODUCTION? (y/N) " -n 1 -r
 echo ""
 if [[ ! $REPLY =~ ^[Yy]$ ]]; then
@@ -41,41 +60,12 @@ fi
 # -----------------------------------------------------------------------------
 echo ""
 echo "📦 [1/2] Deploying Worker Droplet (Go Renderer)..."
+
+sync_code $WORKER_DROPLET
+
 ssh $WORKER_DROPLET << 'ENDSSH'
 set -e
-mkdir -p /opt/screenshot-api
 cd /opt/screenshot-api
-
-echo "   -> Pulling latest code..."
-if [ -d .git ]; then
-    git pull origin main
-else
-    echo "   ⚠️ Not a git repository or corrupted. Re-cloning..."
-    
-    # Backup .env
-    if [ -f .env ]; then
-        echo "   -> Backing up .env..."
-        cp .env /tmp/screenshot_env.bak
-    fi
-    
-    # Clean directory (robustly)
-    echo "   -> Cleaning directory..."
-    find . -mindepth 1 -delete
-    
-    # Ensure GitHub in known_hosts
-    mkdir -p ~/.ssh
-    ssh-keyscan github.com >> ~/.ssh/known_hosts 2>/dev/null || true
-    
-    # Clone
-    echo "   -> Cloning fresh copy..."
-    git clone git@github.com:onurmacit/screenshot-api.git .
-    
-    # Restore .env
-    if [ -f /tmp/screenshot_env.bak ]; then
-        echo "   -> Restoring .env..."
-        mv /tmp/screenshot_env.bak .env
-    fi
-fi
 
 echo "   -> Cleaning up old Celery workers..."
 docker compose -f docker-compose.worker.yml down 2>/dev/null || true
@@ -93,6 +83,7 @@ if curl -sf http://localhost:8001/health > /dev/null; then
     echo "   ✅ Go Renderer is healthy!"
 else
     echo "   ❌ Health check failed!"
+    docker logs screenshot-go-renderer
     exit 1
 fi
 ENDSSH
@@ -102,27 +93,12 @@ ENDSSH
 # -----------------------------------------------------------------------------
 echo ""
 echo "📦 [2/2] Deploying API Droplet (FastAPI Gateway)..."
+
+sync_code $API_DROPLET
+
 ssh $API_DROPLET << 'ENDSSH'
 set -e
 cd /opt/screenshot-api
-
-echo "   -> Pulling latest code..."
-if [ -d .git ]; then
-    git pull origin main
-else
-    echo "   ⚠️ Not a git repository or corrupted. Re-cloning..."
-    if [ -f .env ]; then cp .env /tmp/screenshot_env.bak; fi
-    
-    # Clean directory robustly
-    find . -mindepth 1 -delete
-    
-    # Ensure GitHub in known_hosts
-    mkdir -p ~/.ssh
-    ssh-keyscan github.com >> ~/.ssh/known_hosts 2>/dev/null || true
-    
-    git clone git@github.com:onurmacit/screenshot-api.git .
-    if [ -f /tmp/screenshot_env.bak ]; then mv /tmp/screenshot_env.bak .env; fi
-fi
 
 echo "   -> Stopping old services..."
 docker compose -f docker-compose.api.yml down 2>/dev/null || true
@@ -139,6 +115,7 @@ if curl -sf http://localhost:8000/api/v1/health > /dev/null; then
     echo "   ✅ API is healthy!"
 else
     echo "   ❌ Health check failed!"
+    docker logs screenshot-api
     exit 1
 fi
 ENDSSH

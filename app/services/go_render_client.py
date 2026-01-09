@@ -19,17 +19,66 @@ from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
+# Worker pool configuration
+GO_RENDERER_URLS = [
+    "http://167.71.85.169:8001",   # Worker 1
+    "http://161.35.129.129:8001",  # Worker 2
+]
+
+# Round-robin counter (thread-safe with atomic operations)
+_current_worker_index = 0
+_worker_lock = asyncio.Lock()
+
 
 class GoRenderClient:
     """
     HTTP client for the Go rendering microservice.
     
-    Replaces the Playwright-based RenderService with HTTP calls to the Go renderer.
+    Supports load balancing across multiple workers with automatic failover.
     """
 
     def __init__(self):
-        self.base_url = settings.GO_RENDERER_URL
+        # Fallback to config if no worker pool defined
+        self.worker_urls = GO_RENDERER_URLS if GO_RENDERER_URLS else [settings.GO_RENDERER_URL]
         self.timeout = settings.GO_RENDERER_TIMEOUT
+
+    async def _get_next_renderer(self) -> str:
+        """Get next renderer URL using round-robin."""
+        global _current_worker_index
+        async with _worker_lock:
+            url = self.worker_urls[_current_worker_index]
+            _current_worker_index = (_current_worker_index + 1) % len(self.worker_urls)
+            return url
+
+    async def _get_healthy_renderer(self) -> str:
+        """Get a healthy renderer, with failover if primary is down."""
+        # Try round-robin first
+        primary_url = await self._get_next_renderer()
+        
+        try:
+            async with httpx.AsyncClient(timeout=2.0) as client:
+                resp = await client.get(f"{primary_url}/health")
+                if resp.status_code == 200:
+                    return primary_url
+        except Exception:
+            logger.warning(f"Worker {primary_url} health check failed, trying failover")
+        
+        # Failover: try other workers
+        for url in self.worker_urls:
+            if url == primary_url:
+                continue
+            try:
+                async with httpx.AsyncClient(timeout=2.0) as client:
+                    resp = await client.get(f"{url}/health")
+                    if resp.status_code == 200:
+                        logger.info(f"Failover to {url}")
+                        return url
+            except Exception:
+                continue
+        
+        # All workers down, still try primary
+        logger.error("All workers appear down, attempting primary anyway")
+        return primary_url
 
     async def capture_screenshot(
         self,
@@ -79,10 +128,13 @@ class GoRenderClient:
         }
 
         try:
+            # Get healthy renderer URL (load balanced with failover)
+            renderer_url = await self._get_healthy_renderer()
+            
             timeout_config = httpx.Timeout(float(self.timeout), connect=10.0)
             async with httpx.AsyncClient(timeout=timeout_config) as client:
                 response = await client.post(
-                    f"{self.base_url}/render/screenshot",
+                    f"{renderer_url}/render/screenshot",
                     json=payload,
                 )
 
@@ -178,10 +230,13 @@ class GoRenderClient:
         }
 
         try:
+            # Get healthy renderer URL (load balanced with failover)
+            renderer_url = await self._get_healthy_renderer()
+            
             timeout_config = httpx.Timeout(float(self.timeout), connect=10.0)
             async with httpx.AsyncClient(timeout=timeout_config) as client:
                 response = await client.post(
-                    f"{self.base_url}/render/pdf",
+                    f"{renderer_url}/render/pdf",
                     json=payload,
                 )
 

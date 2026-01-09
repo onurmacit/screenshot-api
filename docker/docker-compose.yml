@@ -39,146 +39,27 @@ services:
     restart: unless-stopped
 
   # ===========================================================================
-  # Celery Worker (Default Queue)
+  # Go Renderer (Replaces Celery Workers)
   # ===========================================================================
-  worker:
+  go-renderer:
     build:
-      context: ..
-      dockerfile: docker/Dockerfile.worker
-    container_name: screenshot-worker
-    command: celery -A app.workers.celery_app worker --loglevel=info -Q default,low_priority -c 2
-    environment:
-      - APP_ENV=development
-      - DEBUG=true
-      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/screenshot_api
-      - REDIS_URL=${REDIS_URL}
-      - CELERY_BROKER_URL=${CELERY_BROKER_URL}
-      - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND}
-      - AWS_S3_ENDPOINT_URL=http://minio:9000
-      - AWS_S3_PUBLIC_URL=http://localhost:9000
-      - AWS_ACCESS_KEY_ID=minioadmin
-      - AWS_SECRET_ACCESS_KEY=minioadmin
-      - AWS_S3_BUCKET=screenshot-api-renders
-    volumes:
-      - ../app:/app/app:ro
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    networks:
-      - screenshot-network
-    restart: unless-stopped
-
-  # ===========================================================================
-  # Celery Worker (High Priority Queue)
-  # ===========================================================================
-  worker-high:
-    build:
-      context: ..
-      dockerfile: docker/Dockerfile.worker
-    container_name: screenshot-worker-high
-    command: celery -A app.workers.celery_app worker --loglevel=info -Q high_priority -c 2
-    environment:
-      - APP_ENV=development
-      - DEBUG=true
-      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/screenshot_api
-      - REDIS_URL=${REDIS_URL}
-      - CELERY_BROKER_URL=${CELERY_BROKER_URL}
-      - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND}
-      - AWS_S3_ENDPOINT_URL=http://minio:9000
-      - AWS_S3_PUBLIC_URL=http://localhost:9000
-      - AWS_ACCESS_KEY_ID=minioadmin
-      - AWS_SECRET_ACCESS_KEY=minioadmin
-      - AWS_S3_BUCKET=screenshot-api-renders
-    volumes:
-      - ../app:/app/app:ro
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    networks:
-      - screenshot-network
-    restart: unless-stopped
-
-  # ===========================================================================
-  # Celery Worker (Webhooks Queue)
-  # ===========================================================================
-  worker-webhooks:
-    build:
-      context: ..
-      dockerfile: docker/Dockerfile.worker
-    container_name: screenshot-worker-webhooks
-    command: celery -A app.workers.celery_app worker --loglevel=info -Q webhooks,cleanup,billing -c 2
-    environment:
-      - APP_ENV=development
-      - DEBUG=true
-      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/screenshot_api
-      - REDIS_URL=${REDIS_URL}
-      - CELERY_BROKER_URL=${CELERY_BROKER_URL}
-      - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND}
-      - AWS_S3_ENDPOINT_URL=http://minio:9000
-      - AWS_S3_PUBLIC_URL=http://localhost:9000
-      - AWS_ACCESS_KEY_ID=minioadmin
-      - AWS_SECRET_ACCESS_KEY=minioadmin
-      - AWS_S3_BUCKET=screenshot-api-renders
-    volumes:
-      - ../app:/app/app:ro
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    networks:
-      - screenshot-network
-    restart: unless-stopped
-
-  # ===========================================================================
-  # Celery Beat (Scheduler)
-  # ===========================================================================
-  beat:
-    build:
-      context: ..
-      dockerfile: docker/Dockerfile.worker
-    container_name: screenshot-beat
-    command: celery -A app.workers.celery_app beat --loglevel=info
-    environment:
-      - APP_ENV=development
-      - DEBUG=true
-      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/screenshot_api
-      - REDIS_URL=${REDIS_URL}
-      - CELERY_BROKER_URL=${CELERY_BROKER_URL}
-      - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND}
-    volumes:
-      - ../app:/app/app:ro
-    depends_on:
-      - redis
-    networks:
-      - screenshot-network
-    restart: unless-stopped
-
-  # ===========================================================================
-  # Flower (Celery Monitoring)
-  # ===========================================================================
-  flower:
-    build:
-      context: ..
-      dockerfile: docker/Dockerfile.worker
-    container_name: screenshot-flower
-    command: celery -A app.workers.celery_app flower --port=5555
+      context: ../go-renderer
+      dockerfile: Dockerfile
+    container_name: screenshot-go-renderer
     ports:
-      - "5555:5555"
+      - "8001:8001"
     environment:
-      - CELERY_BROKER_URL=${CELERY_BROKER_URL}
-      - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND}
-    volumes:
-      - ../app:/app/app:ro
-    depends_on:
-      - redis
+      - PORT=8001
+      - BROWSER_POOL_SIZE=2
     networks:
       - screenshot-network
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8001/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
 
   # ===========================================================================
   # PostgreSQL Database

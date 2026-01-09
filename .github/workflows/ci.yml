@@ -145,46 +145,43 @@ jobs:
       - name: Setup SSH
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
-          chmod 600 ~/.ssh/id_ed25519
-          ssh-keyscan -H 167.71.85.169 >> ~/.ssh/known_hosts
-          ssh-keyscan -H 161.35.129.129 >> ~/.ssh/known_hosts
-          ssh-keyscan -H 138.197.103.137 >> ~/.ssh/known_hosts
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          cat >> ~/.ssh/config << EOF
+          Host worker1
+            HostName 167.71.85.169
+            User root
+            IdentityFile ~/.ssh/deploy_key
+            StrictHostKeyChecking no
+          Host worker2
+            HostName 161.35.129.129
+            User root
+            IdentityFile ~/.ssh/deploy_key
+            StrictHostKeyChecking no
+          Host api
+            HostName 138.197.103.137
+            User root
+            IdentityFile ~/.ssh/deploy_key
+            StrictHostKeyChecking no
+          EOF
 
       - name: Deploy Worker 1
         run: |
           echo "📦 [1/3] Deploying Worker 1..."
-          ssh root@167.71.85.169 << 'ENDSSH'
-          cd /opt/screenshot-api
-          docker compose -f docker-compose.worker-renderer.prod.yml pull 2>/dev/null || true
-          docker compose -f docker-compose.worker-renderer.prod.yml up -d --build
-          sleep 5
-          curl -sf http://localhost:8001/health && echo " ✅ Worker 1 healthy!"
-          ENDSSH
+          ssh worker1 "cd /opt/screenshot-api && docker compose -f docker-compose.worker-renderer.prod.yml up -d --build && sleep 5 && curl -sf http://localhost:8001/health && echo ' ✅ Worker 1 healthy!'"
 
       - name: Deploy Worker 2
         run: |
           echo "📦 [2/3] Deploying Worker 2..."
-          ssh root@161.35.129.129 << 'ENDSSH'
-          cd /opt/screenshot-api
-          docker compose -f docker-compose.worker-renderer.prod.yml pull 2>/dev/null || true
-          docker compose -f docker-compose.worker-renderer.prod.yml up -d --build
-          sleep 5
-          curl -sf http://localhost:8001/health && echo " ✅ Worker 2 healthy!"
-          ENDSSH
+          ssh worker2 "cd /opt/screenshot-api && docker compose -f docker-compose.worker-renderer.prod.yml up -d --build && sleep 5 && curl -sf http://localhost:8001/health && echo ' ✅ Worker 2 healthy!'"
 
       - name: Deploy API
         run: |
           echo "📦 [3/3] Deploying API..."
-          ssh root@138.197.103.137 << 'ENDSSH'
-          cd /opt/screenshot-api
-          docker compose -f docker-compose.api.hybrid.prod.yml pull 2>/dev/null || true
-          docker compose -f docker-compose.api.hybrid.prod.yml up -d --build
-          sleep 10
-          curl -sf http://localhost:8000/api/v1/health && echo " ✅ API healthy!"
-          ENDSSH
+          ssh api "cd /opt/screenshot-api && docker compose -f docker-compose.api.hybrid.prod.yml up -d --build && sleep 10 && curl -sf http://localhost:8000/api/v1/health && echo ' ✅ API healthy!'"
 
       - name: Verify Deployment
         run: |
           echo "🔍 Verifying deployment..."
+          sleep 5
           curl -sf https://api.screenshotbeam.com/api/v1/health && echo "✅ Production is live!"

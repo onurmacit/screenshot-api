@@ -58,9 +58,9 @@ else
         cp .env /tmp/screenshot_env.bak
     fi
     
-    # Clean directory (carefully)
+    # Clean directory (robustly)
     echo "   -> Cleaning directory..."
-    rm -rf ./* .git .gitignore .dockerignore
+    find . -mindepth 1 -delete
     
     # Clone
     echo "   -> Cloning fresh copy..."
@@ -108,7 +108,10 @@ if [ -d .git ]; then
 else
     echo "   ⚠️ Not a git repository or corrupted. Re-cloning..."
     if [ -f .env ]; then cp .env /tmp/screenshot_env.bak; fi
-    rm -rf ./* .git .gitignore .dockerignore
+    
+    # Clean directory robustly
+    find . -mindepth 1 -delete
+    
     git clone https://github.com/onurmacit/screenshot-api.git .
     if [ -f /tmp/screenshot_env.bak ]; then mv /tmp/screenshot_env.bak .env; fi
 fi

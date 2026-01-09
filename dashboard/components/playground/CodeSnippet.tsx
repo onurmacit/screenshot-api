@@ -19,6 +19,10 @@ const ALL_LANGUAGES = [
     { id: "curl", label: "cURL", icon: Terminal, category: "popular" },
     { id: "javascript", label: "JavaScript", icon: Code, category: "popular" },
     { id: "python", label: "Python", icon: FileCode, category: "popular" },
+    { id: "go", label: "Go", icon: Code, category: "popular" },
+    { id: "ruby", label: "Ruby", icon: Code, category: "popular" },
+    { id: "php", label: "PHP", icon: Code, category: "popular" },
+    { id: "node-axios", label: "Node", icon: Code, category: "popular" },
 
     // SDKs
     { id: "javascript-sdk", label: "JavaScript (SDK)", icon: Code, category: "sdk" },
@@ -43,8 +47,6 @@ const ALL_LANGUAGES = [
     { id: "python-requests", label: "Python (Requests)", icon: FileCode, category: "python" },
 
     // Other languages
-    { id: "go", label: "Go", icon: Code, category: "languages" },
-    { id: "ruby", label: "Ruby", icon: Code, category: "languages" },
     { id: "rust", label: "Rust", icon: Code, category: "languages" },
     { id: "swift", label: "Swift", icon: Code, category: "languages" },
     { id: "kotlin", label: "Kotlin", icon: Code, category: "languages" },
@@ -507,7 +509,7 @@ NSURLSession *session = [NSURLSession sharedSession];
                                     : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
                                 }
                             `}>
-                                {!isActivePrimary && activeLanguage ? (activeLanguage.label.length > 12 ? activeLanguage.label.substring(0, 10) + '...' : activeLanguage.label) : "More"}
+                                {!isActivePrimary && activeLanguage ? activeLanguage.label : "More"}
                                 <ChevronDown className="w-3 h-3" />
                             </button>
                         </PopoverTrigger>

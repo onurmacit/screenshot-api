@@ -72,26 +72,27 @@ const CATEGORIES = [
     { id: "languages", label: "Languages" },
 ];
 
-// Custom syntax highlighting with brand colors
-// #00C951 (green), #F1B100 (yellow), #FB2C37 (red)
-// #1E2938, #364053 (dark grays), #D1D5DC (light gray), #101829 (darkest)
+// One Dark Pro VS Code Theme
 function highlightCode(code: string): string {
     let html = code.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
-    // 1. Comments - muted gray
-    html = html.replace(/(\/\/[^\n]*|#[^\n]*)/g, '<span style="color:#364053">$1</span>');
+    // 1. Comments (#5C6370)
+    html = html.replace(/(\/\/[^\n]*|#[^\n]*)/g, '<span style="color:#5C6370">$1</span>');
 
-    // 2. Strings - green (#00C951)
-    html = html.replace(/(["'])(?:(?!\1)[^\\]|\\.)*\1/g, '<span style="color:#00C951">$&</span>');
+    // 2. Strings - green (#98C379)
+    html = html.replace(/(["'])(?:(?!\1)[^\\]|\\.)*\1/g, '<span style="color:#98C379">$&</span>');
 
-    // 3. Keywords - red (#FB2C37)
+    // 3. Keywords - purple (#C678DD)
     const keywords = ['const', 'let', 'var', 'function', 'async', 'await', 'return', 'import', 'from', 'require', 'export', 'new', 'class', 'def', 'print', 'self', 'func', 'package', 'defer', 'go', 'if', 'else', 'for', 'while', 'try', 'catch', 'throw', 'using', 'public', 'private', 'static', 'True', 'False', 'None', 'nil'];
     keywords.forEach(kw => {
-        html = html.replace(new RegExp(`\\b(${kw})\\b`, 'g'), '<span style="color:#FB2C37">$1</span>');
+        html = html.replace(new RegExp(`\\b(${kw})\\b`, 'g'), '<span style="color:#C678DD">$1</span>');
     });
 
-    // 4. Numbers - yellow (#F1B100)
-    html = html.replace(/\b(\d+\.?\d*)\b/g, '<span style="color:#F1B100">$1</span>');
+    // 4. Numbers - orange (#D19A66)
+    html = html.replace(/\b(\d+\.?\d*)\b/g, '<span style="color:#D19A66">$1</span>');
+
+    // 5. Functions - blue (#61AFEF)
+    html = html.replace(/\b([a-zA-Z_][a-zA-Z0-9_]*)\s*\(/g, '<span style="color:#61AFEF">$1</span>(');
 
     return html;
 }
@@ -618,12 +619,12 @@ NSURLSession *session = [NSURLSession sharedSession];
                 </button>
             </div>
 
-            {/* Code Area - Brand colors */}
-            <div className="h-64 overflow-hidden rounded-b-lg" style={{ backgroundColor: '#101829' }}>
+            {/* Code Area - One Dark Pro Theme */}
+            <div className="h-64 overflow-hidden rounded-b-lg" style={{ backgroundColor: '#282C34' }}>
                 <div className="h-full overflow-auto p-4 scrollbar-thin">
-                    <pre className="text-[13px] leading-relaxed font-mono whitespace-pre" style={{ color: '#D1D5DC' }}>
+                    <pre className="text-[13px] leading-relaxed font-mono whitespace-pre" style={{ color: '#ABB2BF' }}>
                         {activeTab === "url" ? (
-                            <code style={{ color: '#00C951' }} className="break-all">
+                            <code style={{ color: '#61AFEF' }} className="break-all">
                                 {codeSnippets[activeTab] || ""}
                             </code>
                         ) : (

@@ -97,11 +97,11 @@ jobs:
             type=sha,prefix=
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
 
-      - name: Extract metadata (Worker)
-        id: meta-worker
+      - name: Extract metadata (Go Renderer)
+        id: meta-go-renderer
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-worker
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-go-renderer
           tags: |
             type=ref,event=branch
             type=sha,prefix=
@@ -118,14 +118,14 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Build and push Worker image
+      - name: Build and push Go Renderer image
         uses: docker/build-push-action@v5
         with:
-          context: .
-          file: ./docker/Dockerfile.worker
+          context: ./go-renderer
+          file: ./go-renderer/Dockerfile
           push: true
-          tags: ${{ steps.meta-worker.outputs.tags }}
-          labels: ${{ steps.meta-worker.outputs.labels }}
+          tags: ${{ steps.meta-go-renderer.outputs.tags }}
+          labels: ${{ steps.meta-go-renderer.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -144,5 +144,6 @@ jobs:
         run: |
           echo "🚀 Ready to deploy!"
           echo "API Image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest"
-          echo "Worker Image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-worker:latest"
-          # Add deployment commands here (kubectl, docker-compose pull, etc.)
+          echo "Go Renderer Image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-go-renderer:latest"
+          echo ""
+          echo "📝 Manual deploy: ./scripts/deploy-hybrid.sh"

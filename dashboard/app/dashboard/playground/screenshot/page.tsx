@@ -568,7 +568,7 @@ export default function ScreenshotPlaygroundPage() {
                         </div>
 
                         {/* Response Info Panel - Expands vertically on render */}
-                        <div className="w-72 flex-shrink-0">
+                        <div className="w-52 flex-shrink-0">
                             <div className="border rounded-lg bg-background overflow-hidden transition-all duration-500 ease-out">
                                 {responseMetadata ? (
                                     <div className="p-4 space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">

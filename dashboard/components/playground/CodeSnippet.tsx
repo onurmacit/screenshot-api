@@ -507,11 +507,11 @@ NSURLSession *session = [NSURLSession sharedSession];
                                     : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
                                 }
                             `}>
-                                {!isActivePrimary && activeLanguage ? activeLanguage.label : "More"}
+                                {!isActivePrimary && activeLanguage ? (activeLanguage.label.length > 12 ? activeLanguage.label.substring(0, 10) + '...' : activeLanguage.label) : "More"}
                                 <ChevronDown className="w-3 h-3" />
                             </button>
                         </PopoverTrigger>
-                        <PopoverContent className="w-72 p-0" align="start">
+                        <PopoverContent className="w-72 p-0" align="start" side="bottom" sideOffset={4}>
                             {/* Search */}
                             <div className="p-2 border-b">
                                 <div className="relative">
@@ -525,8 +525,8 @@ NSURLSession *session = [NSURLSession sharedSession];
                                 </div>
                             </div>
 
-                            {/* Language List */}
-                            <div className="max-h-64 overflow-y-auto py-1">
+                            {/* Language List - Fixed height to prevent layout shift */}
+                            <div className="h-64 overflow-y-auto py-1">
                                 {searchQuery ? (
                                     // Search results
                                     filteredLanguages.length > 0 ? (

@@ -72,20 +72,19 @@ const CATEGORIES = [
     { id: "languages", label: "Languages" },
 ];
 
-// Simple syntax highlighting function
+// Simple syntax highlighting function using inline styles
 function highlightCode(code: string): string {
-    // First, escape HTML entities
+    // Escape HTML entities first
     let html = code
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;');
 
-    // Tokenize and highlight in order of precedence
     // 1. Comments (// ... and # ...)
-    html = html.replace(/(\/\/[^\n]*|#[^\n]*)/g, '<span class="text-gray-500">$1</span>');
+    html = html.replace(/(\/\/[^\n]*|#[^\n]*)/g, '<span style="color:#6b7280">$1</span>');
 
     // 2. Strings - both single and double quotes
-    html = html.replace(/(["'])(?:(?!\1)[^\\]|\\.)*\1/g, '<span class="text-green-400">$&</span>');
+    html = html.replace(/(["'])(?:(?!\1)[^\\]|\\.)*\1/g, '<span style="color:#4ade80">$&</span>');
 
     // 3. Keywords
     const keywords = [
@@ -97,14 +96,14 @@ function highlightCode(code: string): string {
     ];
     keywords.forEach(kw => {
         const regex = new RegExp(`\\b(${kw})\\b`, 'g');
-        html = html.replace(regex, '<span class="text-purple-400">$1</span>');
+        html = html.replace(regex, '<span style="color:#c084fc">$1</span>');
     });
 
     // 4. Function/method calls
-    html = html.replace(/\b([a-zA-Z_][a-zA-Z0-9_]*)\s*\(/g, '<span class="text-blue-400">$1</span>(');
+    html = html.replace(/\b([a-zA-Z_][a-zA-Z0-9_]*)\s*\(/g, '<span style="color:#60a5fa">$1</span>(');
 
     // 5. Numbers
-    html = html.replace(/\b(\d+)\b/g, '<span class="text-orange-400">$1</span>');
+    html = html.replace(/\b(\d+)\b/g, '<span style="color:#fb923c">$1</span>');
 
     return html;
 }

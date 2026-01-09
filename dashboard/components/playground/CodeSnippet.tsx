@@ -72,30 +72,35 @@ const CATEGORIES = [
     { id: "languages", label: "Languages" },
 ];
 
-// Dark mode syntax highlighting - eye-friendly for late night coding
-// Background: #020617 (slate-950), Text: #E5E7EB (gray-200)
+// One Dark Pro VS Code Theme - Clean developer aesthetic
+// https://github.com/Binaryify/OneDark-Pro
 function highlightCode(code: string): string {
     // Escape HTML
     let html = code.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
-    // Order matters! Apply in sequence:
-    // 1. Comments first (so they're not affected by other rules)
-    html = html.replace(/(\/\/[^\n]*|#[^\n]*)/g, '<span style="color:#64748B">$1</span>');
+    // 1. Comments first (#5C6370)
+    html = html.replace(/(\/\/[^\n]*|#[^\n]*)/g, '<span style="color:#5C6370">$1</span>');
 
-    // 2. Strings
-    html = html.replace(/(["'])(?:(?!\1)[^\\]|\\.)*\1/g, '<span style="color:#4ADE80">$&</span>');
+    // 2. Strings (#98C379 green)
+    html = html.replace(/(["'])(?:(?!\1)[^\\]|\\.)*\1/g, '<span style="color:#98C379">$&</span>');
 
-    // 3. Keywords
-    const keywords = ['const', 'let', 'var', 'function', 'async', 'await', 'return', 'import', 'from', 'require', 'export', 'new', 'class', 'def', 'print', 'True', 'False', 'None', 'self', 'func', 'package', 'defer', 'go', 'nil', 'if', 'else', 'for', 'while', 'try', 'catch', 'throw', 'using', 'var', 'public', 'private', 'static', 'void', 'string', 'int', 'bool'];
+    // 3. Keywords - purple (#C678DD)
+    const keywords = ['const', 'let', 'var', 'function', 'async', 'await', 'return', 'import', 'from', 'require', 'export', 'new', 'class', 'def', 'print', 'self', 'func', 'package', 'defer', 'go', 'if', 'else', 'for', 'while', 'try', 'catch', 'throw', 'using', 'public', 'private', 'static', 'raise', 'with', 'as', 'in', 'not', 'and', 'or', 'lambda', 'yield'];
     keywords.forEach(kw => {
-        html = html.replace(new RegExp(`\\b(${kw})\\b`, 'g'), '<span style="color:#38BDF8">$1</span>');
+        html = html.replace(new RegExp(`\\b(${kw})\\b`, 'g'), '<span style="color:#C678DD">$1</span>');
     });
 
-    // 4. Numbers and booleans
-    html = html.replace(/\b(\d+|true|false)\b/gi, '<span style="color:#FACC15">$1</span>');
+    // 4. Types/Classes - yellow (#E5C07B)
+    const types = ['True', 'False', 'None', 'nil', 'null', 'undefined', 'String', 'Int', 'Bool', 'Object', 'Array', 'Map', 'Set', 'Promise', 'Error'];
+    types.forEach(t => {
+        html = html.replace(new RegExp(`\\b(${t})\\b`, 'g'), '<span style="color:#E5C07B">$1</span>');
+    });
 
-    // 5. Function calls (word followed by parenthesis)
-    html = html.replace(/\b([a-zA-Z_][a-zA-Z0-9_]*)\s*\(/g, '<span style="color:#A78BFA">$1</span>(');
+    // 5. Numbers/booleans/constants - orange (#D19A66)
+    html = html.replace(/\b(\d+\.?\d*|true|false)\b/gi, '<span style="color:#D19A66">$1</span>');
+
+    // 6. Function calls - blue (#61AFEF)
+    html = html.replace(/\b([a-zA-Z_][a-zA-Z0-9_]*)\s*\(/g, '<span style="color:#61AFEF">$1</span>(');
 
     return html;
 }
@@ -622,12 +627,12 @@ NSURLSession *session = [NSURLSession sharedSession];
                 </button>
             </div>
 
-            {/* Code Area - Dark Mode Theme */}
-            <div className="h-64 bg-[#020617] overflow-hidden rounded-b-lg">
+            {/* Code Area - One Dark Pro Theme */}
+            <div className="h-64 overflow-hidden rounded-b-lg" style={{ backgroundColor: '#282C34' }}>
                 <div className="h-full overflow-auto p-4 scrollbar-thin">
-                    <pre className="text-[13px] leading-relaxed font-mono whitespace-pre" style={{ color: '#E5E7EB' }}>
+                    <pre className="text-[13px] leading-relaxed font-mono whitespace-pre" style={{ color: '#ABB2BF' }}>
                         {activeTab === "url" ? (
-                            <code className="text-sky-400 break-all">
+                            <code style={{ color: '#61AFEF' }} className="break-all">
                                 {codeSnippets[activeTab] || ""}
                             </code>
                         ) : (

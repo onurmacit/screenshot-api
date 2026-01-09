@@ -72,28 +72,28 @@ const CATEGORIES = [
     { id: "languages", label: "Languages" },
 ];
 
-// Carbon Night Theme - Backendci modu, terminal gibi
-// Background: #101417, Text: #B8C1CC
+// Nord x One Dark Theme - Elit takılma
+// Background: #2E3440, Text: #D8DEE9
 function highlightCode(code: string): string {
     let html = code.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
-    // 1. Comments - #4A525C
-    html = html.replace(/(\/\/[^\n]*|#[^\n]*)/g, '<span style="color:#4A525C">$1</span>');
+    // 1. Comments - #616E88
+    html = html.replace(/(\/\/[^\n]*|#[^\n]*)/g, '<span style="color:#616E88">$1</span>');
 
-    // 2. Strings - #8FBC8F (yeşil-gri)
-    html = html.replace(/(["'])(?:(?!\1)[^\\]|\\.)*\1/g, '<span style="color:#8FBC8F">$&</span>');
+    // 2. Strings - #A3BE8C
+    html = html.replace(/(["'])(?:(?!\1)[^\\]|\\.)*\1/g, '<span style="color:#A3BE8C">$&</span>');
 
-    // 3. Keywords - #B48EAD (kirli mor)
+    // 3. Keywords - #B48EAD
     const keywords = ['const', 'let', 'var', 'function', 'async', 'await', 'return', 'import', 'from', 'require', 'export', 'new', 'class', 'def', 'print', 'self', 'func', 'package', 'defer', 'go', 'if', 'else', 'for', 'while', 'try', 'catch', 'throw', 'using', 'public', 'private', 'static', 'raise', 'with', 'as', 'in', 'True', 'False', 'None', 'nil'];
     keywords.forEach(kw => {
         html = html.replace(new RegExp(`\\b(${kw})\\b`, 'g'), '<span style="color:#B48EAD">$1</span>');
     });
 
-    // 4. Numbers - #C9A26D
-    html = html.replace(/\b(\d+\.?\d*)\b/g, '<span style="color:#C9A26D">$1</span>');
+    // 4. Numbers - #EBCB8B
+    html = html.replace(/\b(\d+\.?\d*)\b/g, '<span style="color:#EBCB8B">$1</span>');
 
-    // 5. Functions - #6CA6E0
-    html = html.replace(/\b([a-zA-Z_][a-zA-Z0-9_]*)\s*\(/g, '<span style="color:#6CA6E0">$1</span>(');
+    // 5. Functions - #81A1C1
+    html = html.replace(/\b([a-zA-Z_][a-zA-Z0-9_]*)\s*\(/g, '<span style="color:#81A1C1">$1</span>(');
 
     return html;
 }
@@ -620,12 +620,12 @@ NSURLSession *session = [NSURLSession sharedSession];
                 </button>
             </div>
 
-            {/* Code Area - Carbon Night Theme */}
-            <div className="h-64 overflow-hidden rounded-b-lg" style={{ backgroundColor: '#101417' }}>
+            {/* Code Area - Nord x One Dark Theme */}
+            <div className="h-64 overflow-hidden rounded-b-lg" style={{ backgroundColor: '#2E3440' }}>
                 <div className="h-full overflow-auto p-4 scrollbar-thin">
-                    <pre className="text-[13px] leading-relaxed font-mono whitespace-pre" style={{ color: '#B8C1CC' }}>
+                    <pre className="text-[13px] leading-relaxed font-mono whitespace-pre" style={{ color: '#D8DEE9' }}>
                         {activeTab === "url" ? (
-                            <code style={{ color: '#6CA6E0' }} className="break-all">
+                            <code style={{ color: '#81A1C1' }} className="break-all">
                                 {codeSnippets[activeTab] || ""}
                             </code>
                         ) : (

@@ -62,6 +62,10 @@ else
     echo "   -> Cleaning directory..."
     find . -mindepth 1 -delete
     
+    # Ensure GitHub in known_hosts
+    mkdir -p ~/.ssh
+    ssh-keyscan github.com >> ~/.ssh/known_hosts 2>/dev/null || true
+    
     # Clone
     echo "   -> Cloning fresh copy..."
     git clone git@github.com:onurmacit/screenshot-api.git .
@@ -111,6 +115,10 @@ else
     
     # Clean directory robustly
     find . -mindepth 1 -delete
+    
+    # Ensure GitHub in known_hosts
+    mkdir -p ~/.ssh
+    ssh-keyscan github.com >> ~/.ssh/known_hosts 2>/dev/null || true
     
     git clone git@github.com:onurmacit/screenshot-api.git .
     if [ -f /tmp/screenshot_env.bak ]; then mv /tmp/screenshot_env.bak .env; fi

@@ -245,7 +245,7 @@ export default function ScreenshotPlaygroundPage() {
                 >
                     {/* Scrollable content area */}
                     <div className="h-full overflow-y-auto p-4 space-y-4">
-                        {/* API Key + Render Button */}
+                        {/* API Key + Render Button + Response Info (expands after render) */}
                         <Card>
                             <CardContent className="pt-4 space-y-4">
                                 <div className="space-y-2">
@@ -275,56 +275,67 @@ export default function ScreenshotPlaygroundPage() {
                                         </>
                                     )}
                                 </Button>
-                            </CardContent>
-                        </Card>
 
-                        {/* Response Info - Appears after render with animation */}
-                        <div
-                            className={`transition-all duration-500 ease-out overflow-hidden ${responseMetadata && !isLoading
-                                    ? 'max-h-[500px] opacity-100 translate-y-0'
-                                    : 'max-h-0 opacity-0 -translate-y-4'
-                                }`}
-                        >
-                            <Card className="border-green-200 bg-gradient-to-br from-green-50 to-emerald-50">
-                                <CardHeader className="pb-2 pt-4">
-                                    <div className="flex items-center gap-2">
-                                        <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                                        <CardTitle className="text-sm font-semibold text-green-800">Response Info</CardTitle>
-                                    </div>
-                                </CardHeader>
-                                <CardContent className="space-y-2 text-sm">
-                                    <div className="flex justify-between items-center">
-                                        <span className="text-gray-600">Status</span>
-                                        <span className="flex items-center gap-1 text-green-700 font-medium">
-                                            <Check className="h-3 w-3" />
-                                            {responseMetadata?.status} OK
-                                        </span>
-                                    </div>
-                                    <div className="flex justify-between items-center">
-                                        <span className="text-gray-600">Content-Type</span>
-                                        <span className="font-mono text-xs text-gray-800">{responseMetadata?.contentType}</span>
-                                    </div>
-                                    <div className="flex justify-between items-center">
-                                        <span className="text-gray-600">File Size</span>
-                                        <span className="font-mono text-xs text-gray-800">
-                                            {responseMetadata?.fileSize
-                                                ? responseMetadata.fileSize > 1024 * 1024
-                                                    ? `${(responseMetadata.fileSize / (1024 * 1024)).toFixed(2)} MB`
-                                                    : `${(responseMetadata.fileSize / 1024).toFixed(1)} KB`
-                                                : '-'}
-                                        </span>
-                                    </div>
-                                    {responseMetadata?.renderTime && (
+                                {/* Response Info - Expands inside card after render */}
+                                <div
+                                    className={`transition-all duration-500 ease-out overflow-hidden ${responseMetadata && !isLoading
+                                            ? 'max-h-[600px] opacity-100'
+                                            : 'max-h-0 opacity-0'
+                                        }`}
+                                >
+                                    <div className="pt-4 border-t border-gray-200 space-y-3">
+                                        {/* Status Row with success indicator */}
                                         <div className="flex justify-between items-center">
-                                            <span className="text-gray-600">Render Time</span>
-                                            <span className="font-mono text-xs text-gray-800">
-                                                {responseMetadata.renderTime}ms
+                                            <span className="text-sm text-gray-600">Status</span>
+                                            <span className="flex items-center gap-1.5 text-sm text-green-600 font-medium">
+                                                <div className="w-2 h-2 rounded-full bg-green-500" />
+                                                {responseMetadata?.status} OK
                                             </span>
                                         </div>
-                                    )}
-                                </CardContent>
-                            </Card>
-                        </div>
+
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-sm text-gray-600">Content-Type</span>
+                                            <span className="font-mono text-xs text-gray-800">{responseMetadata?.contentType}</span>
+                                        </div>
+
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-sm text-gray-600">File Size</span>
+                                            <span className="font-mono text-xs text-gray-800">
+                                                {responseMetadata?.fileSize
+                                                    ? responseMetadata.fileSize > 1024 * 1024
+                                                        ? `${(responseMetadata.fileSize / (1024 * 1024)).toFixed(2)} MB`
+                                                        : `${(responseMetadata.fileSize / 1024).toFixed(1)} KB`
+                                                    : '-'}
+                                            </span>
+                                        </div>
+
+                                        {responseMetadata?.renderTime && (
+                                            <div className="flex justify-between items-center">
+                                                <span className="text-sm text-gray-600">Render Time</span>
+                                                <span className="font-mono text-xs text-gray-800">
+                                                    {responseMetadata.renderTime}ms
+                                                </span>
+                                            </div>
+                                        )}
+
+                                        {/* Headers Section */}
+                                        {responseMetadata?.headers && Object.keys(responseMetadata.headers).length > 0 && (
+                                            <div className="pt-2 mt-2 border-t border-gray-100">
+                                                <div className="text-xs text-gray-500 mb-2 font-medium uppercase tracking-wide">Headers</div>
+                                                <div className="space-y-1.5 max-h-32 overflow-y-auto">
+                                                    {Object.entries(responseMetadata.headers).map(([key, value]) => (
+                                                        <div key={key} className="flex justify-between items-start gap-4">
+                                                            <span className="text-xs text-gray-500 shrink-0">{key}</span>
+                                                            <span className="font-mono text-xs text-gray-700 text-right break-all">{value}</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            </CardContent>
+                        </Card>
 
                         {/* Accordion Options */}
                         <Accordion type="multiple" defaultValue={["essentials", "viewport"]} className="space-y-2">

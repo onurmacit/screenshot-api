@@ -278,6 +278,54 @@ export default function ScreenshotPlaygroundPage() {
                             </CardContent>
                         </Card>
 
+                        {/* Response Info - Appears after render with animation */}
+                        <div
+                            className={`transition-all duration-500 ease-out overflow-hidden ${responseMetadata && !isLoading
+                                    ? 'max-h-[500px] opacity-100 translate-y-0'
+                                    : 'max-h-0 opacity-0 -translate-y-4'
+                                }`}
+                        >
+                            <Card className="border-green-200 bg-gradient-to-br from-green-50 to-emerald-50">
+                                <CardHeader className="pb-2 pt-4">
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+                                        <CardTitle className="text-sm font-semibold text-green-800">Response Info</CardTitle>
+                                    </div>
+                                </CardHeader>
+                                <CardContent className="space-y-2 text-sm">
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-gray-600">Status</span>
+                                        <span className="flex items-center gap-1 text-green-700 font-medium">
+                                            <Check className="h-3 w-3" />
+                                            {responseMetadata?.status} OK
+                                        </span>
+                                    </div>
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-gray-600">Content-Type</span>
+                                        <span className="font-mono text-xs text-gray-800">{responseMetadata?.contentType}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-gray-600">File Size</span>
+                                        <span className="font-mono text-xs text-gray-800">
+                                            {responseMetadata?.fileSize
+                                                ? responseMetadata.fileSize > 1024 * 1024
+                                                    ? `${(responseMetadata.fileSize / (1024 * 1024)).toFixed(2)} MB`
+                                                    : `${(responseMetadata.fileSize / 1024).toFixed(1)} KB`
+                                                : '-'}
+                                        </span>
+                                    </div>
+                                    {responseMetadata?.renderTime && (
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-gray-600">Render Time</span>
+                                            <span className="font-mono text-xs text-gray-800">
+                                                {responseMetadata.renderTime}ms
+                                            </span>
+                                        </div>
+                                    )}
+                                </CardContent>
+                            </Card>
+                        </div>
+
                         {/* Accordion Options */}
                         <Accordion type="multiple" defaultValue={["essentials", "viewport"]} className="space-y-2">
                             {/* ESSENTIALS - Always expanded by default */}

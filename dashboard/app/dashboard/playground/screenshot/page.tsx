@@ -279,8 +279,8 @@ export default function ScreenshotPlaygroundPage() {
                                 {/* Response Info - Expands inside card after render */}
                                 <div
                                     className={`transition-all duration-500 ease-out overflow-hidden ${responseMetadata && !isLoading
-                                            ? 'max-h-[600px] opacity-100'
-                                            : 'max-h-0 opacity-0'
+                                        ? 'max-h-[600px] opacity-100'
+                                        : 'max-h-0 opacity-0'
                                         }`}
                                 >
                                     <div className="pt-4 border-t border-gray-200 space-y-3">
@@ -331,6 +331,27 @@ export default function ScreenshotPlaygroundPage() {
                                                     ))}
                                                 </div>
                                             </div>
+                                        )}
+
+                                        {/* Download Button */}
+                                        {result && (
+                                            <Button
+                                                variant="outline"
+                                                className="w-full mt-3"
+                                                size="default"
+                                                onClick={() => {
+                                                    const link = document.createElement('a');
+                                                    link.href = result;
+                                                    link.download = `screenshot-${Date.now()}.${format}`;
+                                                    link.target = '_blank';
+                                                    link.click();
+                                                }}
+                                            >
+                                                <svg className="mr-2 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                                </svg>
+                                                Download {format.toUpperCase()}
+                                            </Button>
                                         )}
                                     </div>
                                 </div>
@@ -518,26 +539,6 @@ export default function ScreenshotPlaygroundPage() {
                             </AccordionItem>
                         </Accordion>
 
-                        {/* Download Button - Shows when result exists */}
-                        {result && !isLoading && (
-                            <Button
-                                variant="outline"
-                                className="w-full"
-                                size="lg"
-                                onClick={() => {
-                                    const link = document.createElement('a');
-                                    link.href = result;
-                                    link.download = `screenshot-${Date.now()}.${format}`;
-                                    link.target = '_blank';
-                                    link.click();
-                                }}
-                            >
-                                <svg className="mr-2 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                                </svg>
-                                Download {format.toUpperCase()}
-                            </Button>
-                        )}
                     </div>
                 </div>
 

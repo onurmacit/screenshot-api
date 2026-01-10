@@ -11,9 +11,7 @@ services:
   # API Service (FastAPI Gateway)
   # ===========================================================================
   api:
-    build:
-      context: .
-      dockerfile: docker/Dockerfile.api
+    image: ghcr.io/onurmacit/screenshot-api:latest
     container_name: screenshot-api
     ports:
       - "127.0.0.1:8000:8080"

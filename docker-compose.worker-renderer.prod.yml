@@ -11,9 +11,7 @@ services:
   # Go Renderer Microservice
   # ===========================================================================
   go-renderer:
-    build:
-      context: ./go-renderer
-      dockerfile: Dockerfile
+    image: ghcr.io/onurmacit/screenshot-api-go-renderer:latest
     container_name: screenshot-go-renderer
     ports:
       # Expose for API droplet to connect

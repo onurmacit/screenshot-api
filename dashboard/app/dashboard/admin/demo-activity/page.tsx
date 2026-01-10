@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { api } from "@/services/api";
-import { Activity, Globe, Clock, TrendingUp } from "lucide-react";
+import { Activity, Globe, Clock, TrendingUp, Bot, User } from "lucide-react";
 
 interface DemoCapture {
     ip: string;
@@ -12,6 +12,10 @@ interface DemoCapture {
     width?: number;
     height?: number;
     format?: string;
+    user_agent?: string;
+    country?: string;
+    referer?: string;
+    is_bot?: boolean;
 }
 
 interface DemoStats {
@@ -130,6 +134,9 @@ export default function DemoActivityPage() {
                                     IP Address
                                 </th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Country
+                                </th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                     URL
                                 </th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -137,6 +144,9 @@ export default function DemoActivityPage() {
                                 </th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                     Render Time
+                                </th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Type
                                 </th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                     Time
@@ -150,7 +160,10 @@ export default function DemoActivityPage() {
                                         <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-900">
                                             {capture.ip}
                                         </td>
-                                        <td className="px-6 py-4 text-sm text-gray-900 max-w-md truncate">
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                            {capture.country || '-'}
+                                        </td>
+                                        <td className="px-6 py-4 text-sm text-gray-900 max-w-md truncate" title={capture.url}>
                                             {capture.url}
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
@@ -162,6 +175,19 @@ export default function DemoActivityPage() {
                                                 {capture.render_time_ms}ms
                                             </div>
                                         </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm">
+                                            {capture.is_bot ? (
+                                                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700">
+                                                    <Bot className="h-3 w-3" />
+                                                    Bot
+                                                </span>
+                                            ) : (
+                                                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">
+                                                    <User className="h-3 w-3" />
+                                                    Human
+                                                </span>
+                                            )}
+                                        </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                             {new Date(capture.timestamp).toLocaleString()}
                                         </td>
@@ -169,7 +195,7 @@ export default function DemoActivityPage() {
                                 ))
                             ) : (
                                 <tr>
-                                    <td colSpan={5} className="px-6 py-12 text-center text-sm text-gray-500">
+                                    <td colSpan={7} className="px-6 py-12 text-center text-sm text-gray-500">
                                         No demo captures yet
                                     </td>
                                 </tr>

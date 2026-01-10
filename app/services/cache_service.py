@@ -562,6 +562,9 @@ class CacheService:
         url: str,
         render_time_ms: float,
         metadata: dict,
+        user_agent: str | None = None,
+        country: str | None = None,
+        referer: str | None = None,
     ) -> bool:
         """
         Log a demo capture event.
@@ -571,6 +574,9 @@ class CacheService:
             url: Captured URL
             render_time_ms: Render time in milliseconds
             metadata: Capture metadata
+            user_agent: Client user agent
+            country: Client country (from CF-IPCountry)
+            referer: Request referer
 
         Returns:
             True if logged successfully
@@ -578,6 +584,14 @@ class CacheService:
         import time
 
         timestamp = int(time.time())
+
+        # Bot detection
+        BOT_PATTERNS = ["bot", "crawler", "spider", "curl", "wget", "python", "scrapy", "headless"]
+        is_bot = False
+        if not user_agent:
+            is_bot = True
+        elif any(pattern in user_agent.lower() for pattern in BOT_PATTERNS):
+            is_bot = True
 
         capture_data = {
             "ip": ip,
@@ -587,6 +601,10 @@ class CacheService:
             "width": metadata.get("width"),
             "height": metadata.get("height"),
             "format": metadata.get("format"),
+            "user_agent": user_agent,
+            "country": country,
+            "referer": referer,
+            "is_bot": is_bot,
         }
 
         async with redis_context("cache") as redis:

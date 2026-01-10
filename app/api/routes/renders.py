@@ -94,12 +94,12 @@ async def demo_screenshot(
     import time
     start_time = time.perf_counter()
 
-    # Get client IP for rate limiting
-    # Use X-Real-IP (set by nginx, trusted) instead of X-Forwarded-For (can be spoofed)
-    client_ip = request.headers.get("X-Real-IP")
-    if not client_ip:
-        # Fallback to direct connection (local dev or misconfigured proxy)
-        client_ip = request.client.host if request.client else "unknown"
+    # Get client IP for rate limiting (Cloudflare chain: CF-Connecting-IP → X-Real-IP → host)
+    client_ip = (
+        request.headers.get("CF-Connecting-IP") or
+        request.headers.get("X-Real-IP") or
+        (request.client.host if request.client else "unknown")
+    )
 
     # Check IP-based rate limit (5 per minute)
     is_limited = await rate_limit_service.check_demo_rate_limit(client_ip)
@@ -163,7 +163,10 @@ async def demo_screenshot(
             ip=client_ip,
             url=url,
             render_time_ms=elapsed * 1000,
-            metadata=metadata
+            metadata=metadata,
+            user_agent=request.headers.get("User-Agent"),
+            country=request.headers.get("CF-IPCountry"),
+            referer=request.headers.get("Referer"),
         )
     except Exception as e:
         logger.warning("Failed to log demo capture", error=str(e))

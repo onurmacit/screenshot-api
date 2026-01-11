@@ -75,30 +75,45 @@ const CATEGORIES = [
 // Muted Dark Pro Theme - Güvenli liman, göz dostu
 // Background: #1F2329, Text: #C8CCD4
 function highlightCode(code: string): string {
+    // Escape HTML first
     let html = code.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
-    // 1. Comments - #5E6773 (only // style, not # which appears in URLs)
+    // Step 1: Protect strings FIRST (before any other highlighting)
+    // This prevents // in URLs like https:// from being treated as comments
+    const stringPlaceholders: string[] = [];
+    html = html.replace(/(['"])(?:(?!\1)[^\\]|\\.)*\1/g, (match) => {
+        const index = stringPlaceholders.length;
+        // Store the highlighted string
+        stringPlaceholders.push(`<span style="color:#A3BE8C">${match}</span>`);
+        return `__STR_${index}__`;
+    });
+
+    // Step 2: Now safely highlight comments (strings are protected)
+    // C-style line comments
     html = html.replace(/(\/\/[^\n]*)/g, '<span style="color:#5E6773">$1</span>');
-    // Python/Shell comments - only at start of line (with optional whitespace)
+    // Python/Shell comments - only at start of line
     html = html.replace(/^(\s*#[^\n]*)$/gm, '<span style="color:#5E6773">$1</span>');
 
-    // 2. Strings - #A3BE8C (yeşil, doğal)
-    html = html.replace(/(["'])(?:(?!\1)[^\\]|\\.)*\1/g, '<span style="color:#A3BE8C">$&</span>');
-
-    // 3. Keywords - #C792EA (mor, sakin)
+    // Step 3: Keywords - #C792EA
     const keywords = ['const', 'let', 'var', 'function', 'async', 'await', 'return', 'import', 'from', 'require', 'export', 'new', 'class', 'def', 'print', 'self', 'func', 'package', 'defer', 'go', 'if', 'else', 'for', 'while', 'try', 'catch', 'throw', 'using', 'public', 'private', 'static', 'raise', 'with', 'as', 'in', 'True', 'False', 'None', 'nil'];
     keywords.forEach(kw => {
         html = html.replace(new RegExp(`\\b(${kw})\\b`, 'g'), '<span style="color:#C792EA">$1</span>');
     });
 
-    // 4. Numbers - #D08770 (turuncu-kahve arası)
+    // Step 4: Numbers - #D08770
     html = html.replace(/\b(\d+\.?\d*)\b/g, '<span style="color:#D08770">$1</span>');
 
-    // 5. Functions - #82AAFF (mavi ama bağırmıyor)
+    // Step 5: Functions - #82AAFF
     html = html.replace(/\b([a-zA-Z_][a-zA-Z0-9_]*)\s*\(/g, '<span style="color:#82AAFF">$1</span>(');
+
+    // Step 6: Restore protected strings
+    stringPlaceholders.forEach((replacement, index) => {
+        html = html.replace(`__STR_${index}__`, replacement);
+    });
 
     return html;
 }
+
 
 export function CodeSnippet({ curl, apiUrl, params, apiKey = "YOUR_API_KEY" }: CodeSnippetProps) {
     const [activeTab, setActiveTab] = useState<LanguageId>("curl");

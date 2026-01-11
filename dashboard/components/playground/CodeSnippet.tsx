@@ -77,8 +77,10 @@ const CATEGORIES = [
 function highlightCode(code: string): string {
     let html = code.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
-    // 1. Comments - #5E6773
-    html = html.replace(/(\/\/[^\n]*|#[^\n]*)/g, '<span style="color:#5E6773">$1</span>');
+    // 1. Comments - #5E6773 (only // style, not # which appears in URLs)
+    html = html.replace(/(\/\/[^\n]*)/g, '<span style="color:#5E6773">$1</span>');
+    // Python/Shell comments - only at start of line (with optional whitespace)
+    html = html.replace(/^(\s*#[^\n]*)$/gm, '<span style="color:#5E6773">$1</span>');
 
     // 2. Strings - #A3BE8C (yeşil, doğal)
     html = html.replace(/(["'])(?:(?!\1)[^\\]|\\.)*\1/g, '<span style="color:#A3BE8C">$&</span>');

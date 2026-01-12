@@ -1,7 +1,7 @@
 """Add dual-key API authentication system
 
 Revision ID: 003_dual_key_auth
-Revises: 002_seed_plans
+Revises: 002
 Create Date: 2026-01-12
 
 Migration adds:

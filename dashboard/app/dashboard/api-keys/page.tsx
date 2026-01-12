@@ -559,8 +559,13 @@ export default function ApiKeysPage() {
                                                     variant="ghost"
                                                     size="icon"
                                                     onClick={() => handleDeleteKey(key.key_id)}
-                                                    className="text-red-500 hover:text-red-700 hover:bg-red-50"
-                                                    title="Delete API key"
+                                                    className={keys.length === 1
+                                                        ? "text-gray-300 cursor-not-allowed"
+                                                        : "text-red-500 hover:text-red-700 hover:bg-red-50"}
+                                                    title={keys.length === 1
+                                                        ? "Cannot delete the last API key"
+                                                        : "Delete API key"}
+                                                    disabled={keys.length === 1}
                                                 >
                                                     <Trash2 className="h-4 w-4" />
                                                 </Button>

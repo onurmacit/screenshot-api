@@ -471,17 +471,15 @@ async def take_screenshot(
     
     if key_to_lookup:
         # Try new dual-key system first (access_key lookup)
-        if key_to_lookup.startswith("ak_"):
-            # New system: Public access key
-            api_key_record = await db.scalar(
-                select(APIKey).where(
-                    APIKey.access_key == key_to_lookup,
-                    APIKey.is_active == True,
-                )
+        # Supports both old "ak_xxx" prefix and new prefix-less format
+        api_key_record = await db.scalar(
+            select(APIKey).where(
+                APIKey.access_key == key_to_lookup,
+                APIKey.is_active == True,
             )
-            
-            if not api_key_record:
-                raise HTTPException(status_code=401, detail="Invalid access key")
+        )
+        
+        if api_key_record:
             
             # Check signature enforcement
             if api_key_record.enforce_signing:
@@ -528,8 +526,8 @@ async def take_screenshot(
                 except Exception as e:
                     logger.warning("Optional signature verification error", error=str(e))
         
-        else:
-            # Legacy system: Full API key (sk_live_xxx or hash lookup)
+        # If not found by access_key, try legacy key_hash lookup
+        if not api_key_record:
             import hashlib
             key_hash = hashlib.sha256(key_to_lookup.encode()).hexdigest()
             api_key_record = await db.scalar(
@@ -539,10 +537,12 @@ async def take_screenshot(
                 )
             )
             
-            if not api_key_record:
-                raise HTTPException(status_code=401, detail="Invalid API key")
-            
-            logger.warning("Legacy API key used", key_prefix=key_to_lookup[:12] if len(key_to_lookup) > 12 else key_to_lookup)
+            if api_key_record:
+                logger.warning("Legacy API key used", key_prefix=key_to_lookup[:12] if len(key_to_lookup) > 12 else key_to_lookup)
+        
+        # If still not found, raise error
+        if not api_key_record:
+            raise HTTPException(status_code=401, detail="Invalid API key")
         
         if not api_key_record.is_active:
             raise HTTPException(status_code=401, detail="API key is inactive")

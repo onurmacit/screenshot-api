@@ -121,35 +121,48 @@ async def get_current_user_from_api_key(
     """
     Dependency to get current user from API key.
 
-    Used for endpoints that require API key authentication.
+    Supports both:
+    - New system: access_key (e.g., "nW73cIaO8Y2cZA")
+    - Legacy system: full API key with hash (e.g., "sk_live_xxx...")
     """
     if not x_api_key:
         raise AuthenticationError("Missing X-API-Key header")
 
-    if not verify_api_key_format(x_api_key):
-        raise AuthenticationError("Invalid API key format")
-
-    # Hash the API key for lookup
-    key_hash = hash_api_key(x_api_key)
-
-    # Check cache first
-    cached = await cache_service.get_api_key_cache(key_hash)
-    if cached:
-        return CurrentUser(
-            user_id=UUID(cached["user_id"]),
-            email=cached.get("email"),
-            plan_id=cached.get("plan_id"),
-            plan_name=cached.get("plan_name", "free"),
-            plan_features=cached.get("plan_features", {}),
-            api_key_id=UUID(cached["api_key_id"]),
-            scopes=cached.get("scopes", []),
-        )
-
-    # Look up API key in database
+    api_key = None
+    
+    # Try new dual-key system first (access_key lookup)
+    # New keys are ~14 char URL-safe strings without prefix
     result = await db.execute(
-        select(APIKey).where(APIKey.key_hash == key_hash)
+        select(APIKey).where(
+            APIKey.access_key == x_api_key,
+            APIKey.is_active == True,
+        )
     )
     api_key = result.scalar_one_or_none()
+    
+    # If not found, try legacy key_hash lookup
+    if not api_key:
+        # Check old format validity
+        if verify_api_key_format(x_api_key):
+            key_hash = hash_api_key(x_api_key)
+            
+            # Check cache first for legacy keys
+            cached = await cache_service.get_api_key_cache(key_hash)
+            if cached:
+                return CurrentUser(
+                    user_id=UUID(cached["user_id"]),
+                    email=cached.get("email"),
+                    plan_id=cached.get("plan_id"),
+                    plan_name=cached.get("plan_name", "free"),
+                    plan_features=cached.get("plan_features", {}),
+                    api_key_id=UUID(cached["api_key_id"]),
+                    scopes=cached.get("scopes", []),
+                )
+            
+            result = await db.execute(
+                select(APIKey).where(APIKey.key_hash == key_hash)
+            )
+            api_key = result.scalar_one_or_none()
 
     if not api_key:
         raise AuthenticationError("Invalid API key")
@@ -180,7 +193,8 @@ async def get_current_user_from_api_key(
     api_key.last_used_at = utc_now()
     await db.commit()
 
-    # Cache the result
+    # Cache the result (for both new and legacy keys)
+    cache_key = api_key.access_key or hash_api_key(x_api_key)
     cache_data = {
         "user_id": str(user.id),
         "email": user.email,
@@ -190,7 +204,7 @@ async def get_current_user_from_api_key(
         "api_key_id": str(api_key.id),
         "scopes": api_key.scopes or [],
     }
-    await cache_service.set_api_key_cache(key_hash, cache_data)
+    await cache_service.set_api_key_cache(cache_key, cache_data)
 
     return CurrentUser(
         user_id=user.id,

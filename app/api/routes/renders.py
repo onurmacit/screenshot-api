@@ -3,7 +3,7 @@ Screenshot and PDF rendering endpoints
 """
 
 from typing import Union
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from fastapi import APIRouter, HTTPException, Query, Request, status
 from fastapi.responses import Response
@@ -396,7 +396,9 @@ async def take_screenshot(
     width: int = Query(1920, ge=320, le=3840, description="Viewport width"),
     height: int = Query(1080, ge=240, le=2160, description="Viewport height"),
     quality: int = Query(80, ge=1, le=100, description="Image quality (jpeg/webp)"),
+    response_type: str = Query("binary", description="Response type: 'binary' or 'json'"),
     full_page: bool = Query(False, description="Capture full page"),
+    capture_beyond_viewport: bool = Query(True, description="Capture content beyond viewport"),
     delay: int = Query(0, ge=0, le=10000, description="Delay before capture (ms)"),
     # Selector options
     selector: str | None = Query(None, description="CSS selector to capture specific element"),
@@ -539,6 +541,7 @@ async def take_screenshot(
         "selector": selector,
         "scroll_into_view": scroll_into_view,
         "scroll_adjust_top": scroll_adjust_top,
+        "capture_beyond_viewport": capture_beyond_viewport,
     }
 
     # =========================================================================
@@ -618,29 +621,80 @@ async def take_screenshot(
         size=len(image_bytes),
     )
 
-    # Determine content type
-    content_types = {
-        "png": "image/png",
-        "jpeg": "image/jpeg",
-        "jpg": "image/jpeg",
-        "webp": "image/webp",
-    }
-    content_type = content_types.get(format, "image/png")
+    # =========================================================================
+    # RESPONSE HANDLING - Binary vs JSON
+    # =========================================================================
+    
+    # 1. Binary mode (Default) - Return image directly
+    if response_type == "binary":
+        # Determine content type
+        content_types = {
+            "png": "image/png",
+            "jpeg": "image/jpeg",
+            "jpg": "image/jpeg",
+            "webp": "image/webp",
+        }
+        content_type = content_types.get(format, "image/png")
 
-    # Return image directly
-    return Response(
-        content=image_bytes,
-        media_type=content_type,
-        headers={
-            "Content-Length": str(len(image_bytes)),
-            "Cache-Control": "public, max-age=3600",
-            "X-Cache": "MISS",
-            "X-Render-Time": f"{elapsed:.3f}s",
-            "X-Processing-Time-Ms": str(metadata.get("processing_time_ms", 0)),
-            "X-Image-Width": str(metadata.get("width", 0)),
-            "X-Image-Height": str(metadata.get("height", 0)),
-        },
-    )
+        return Response(
+            content=image_bytes,
+            media_type=content_type,
+            headers={
+                "Content-Length": str(len(image_bytes)),
+                "Cache-Control": "public, max-age=3600",
+                "X-Cache": "MISS",
+                "X-Render-Time": f"{elapsed:.3f}s",
+                "X-Processing-Time-Ms": str(metadata.get("processing_time_ms", 0)),
+                "X-Image-Width": str(metadata.get("width", 0)),
+                "X-Image-Height": str(metadata.get("height", 0)),
+            },
+        )
+        
+    # 2. JSON mode - Upload to S3 and return metadata
+    try:
+        # Generate temporary job ID for upload path (even though we don't save to DB)
+        temp_job_id = str(uuid4())
+        
+        # Upload to S3
+        upload_result = await storage_service.upload_render(
+            file_bytes=image_bytes,
+            user_id=str(user_id) if user_id else "anonymous",
+            job_id=temp_job_id,
+            file_type=options.get("format", "png"),
+        )
+        
+        # Cache the result (optional, but good practice)
+        if url:
+            try:
+                await cache_service.set_render_cache(
+                    url=url,
+                    options=options,
+                    data={
+                        "s3_key": upload_result["s3_key"],
+                        "s3_url": upload_result["s3_url"],
+                        "file_size": upload_result["file_size"],
+                        "metadata": metadata,
+                    },
+                    ttl=3600,
+                )
+            except Exception as e:
+                logger.warning("Cache set (JSON) failed", error=str(e))
+
+        return {
+            "url": upload_result["s3_url"],
+            "screenshot_url": upload_result["s3_url"], # Alias for compatibility
+            "width": metadata.get("width", 0),
+            "height": metadata.get("height", 0),
+            "format": options.get("format", "png"),
+            "size": upload_result["file_size"],
+            "processing_time_ms": metadata.get("processing_time_ms", 0),
+            "captured_at": metadata.get("captured_at"),
+            "status": "completed"
+        }
+        
+    except Exception as e:
+        logger.error("JSON response generation failed", error=str(e))
+        raise HTTPException(status_code=500, detail=f"Failed to generate JSON response: {str(e)}")
 
 
 @router.post(

@@ -127,13 +127,15 @@ export function CodeSnippet({ curl, apiUrl, params, apiKey = "YOUR_API_KEY" }: C
 
         // URL with query string
         const queryParams = new URLSearchParams();
-        queryParams.set("api_key", apiKey);
+        if (apiKey) queryParams.set("access_key", apiKey); // Use access_key for GET
         Object.entries(params).forEach(([key, value]) => {
-            if (value !== undefined && value !== "" && value !== false) {
+            if (value !== undefined && value !== "" && value !== false && key !== "api_key") {
                 queryParams.set(key, String(value));
             }
         });
-        snippets.url = `${apiUrl}?${queryParams.toString()}`;
+        // Convert API URL from /screenshot (POST) to /take (GET)
+        const takeUrl = apiUrl.replace("/screenshot", "/take");
+        snippets.url = `${takeUrl}?${queryParams.toString()}`;
 
         // cURL
         snippets.curl = curl;

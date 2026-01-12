@@ -202,6 +202,12 @@ jobs:
             -e "ssh -o StrictHostKeyChecking=no -i ~/.ssh/deploy_key" \
             ./ root@138.197.103.137:/opt/screenshot-api/
 
+      - name: Run Database Migrations
+        run: |
+          echo "🗃️ Running database migrations..."
+          ssh api "cd /opt/screenshot-api && docker compose -f docker-compose.api.hybrid.prod.yml run --rm api alembic upgrade head"
+          echo "✅ Migrations complete!"
+
       - name: Deploy API
         run: |
           echo "📦 [3/3] Deploying API..."

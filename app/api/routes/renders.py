@@ -536,10 +536,10 @@ async def take_screenshot(
         "block_trackers": block_trackers,
         "block_cookie_banners": block_cookie_banners,
         # New Essentials options
-        "html": html,
-        "markdown": markdown,
-        "selector": selector,
-        "scroll_into_view": scroll_into_view,
+        "html": html or "",
+        "markdown": markdown or "",
+        "selector": selector or "",
+        "scroll_into_view": scroll_into_view or "",
         "scroll_adjust_top": scroll_adjust_top,
         "capture_beyond_viewport": capture_beyond_viewport,
     }

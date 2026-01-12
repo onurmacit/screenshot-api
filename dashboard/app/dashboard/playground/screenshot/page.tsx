@@ -24,6 +24,7 @@ export default function ScreenshotPlaygroundPage() {
     const [signRequests, setSignRequests] = useState(false);
     const [responseType, setResponseType] = useState("binary");
     const [selector, setSelector] = useState("");
+    const [jsonResult, setJsonResult] = useState<string | null>(null);
 
     // === FORCE SCROLL TOGGLE (UI HELPER) ===
     const [forceScroll, setForceScroll] = useState(false);
@@ -114,6 +115,7 @@ export default function ScreenshotPlaygroundPage() {
         setIsLoading(true);
         setError(null);
         setResult(null);
+        setJsonResult(null);
         setIsImageLoaded(false);
         setResponseMetadata(null);
 
@@ -167,6 +169,14 @@ export default function ScreenshotPlaygroundPage() {
             if ((response.data.status === "completed" && response.data.url) || response.data.screenshot_url) {
                 const resultUrl = response.data.url || response.data.screenshot_url;
                 setResult(resultUrl);
+
+                // If response type is JSON, store the full JSON payload
+                if (responseType === "json") {
+                    setJsonResult(JSON.stringify(response.data, null, 2));
+                } else {
+                    setJsonResult(null);
+                }
+
                 // Capture response metadata
                 const fileSizeBytes = response.data.file_size || 0;
                 setResponseMetadata({
@@ -674,16 +684,25 @@ export default function ScreenshotPlaygroundPage() {
                             )}
 
                             {/* Image - renders hidden during loading, visible when ready */}
-                            {result && (
-                                <img
-                                    src={result}
-                                    alt="Screenshot Preview"
-                                    className={`w-full h-full object-cover transition-opacity duration-300 ${isLoading ? 'opacity-0' : 'opacity-100'}`}
-                                    onLoad={() => {
-                                        setIsImageLoaded(true);
-                                        setIsLoading(false);
-                                    }}
-                                />
+                            {/* Content Display: JSON or Image */}
+                            {jsonResult ? (
+                                <div className="w-full h-full overflow-auto bg-[#1e1e1e] p-4 text-left">
+                                    <pre className="font-mono text-xs text-green-400 whitespace-pre">
+                                        {jsonResult}
+                                    </pre>
+                                </div>
+                            ) : (
+                                result && (
+                                    <img
+                                        src={result}
+                                        alt="Screenshot Preview"
+                                        className={`w-full h-full object-cover transition-opacity duration-300 ${isLoading ? 'opacity-0' : 'opacity-100'}`}
+                                        onLoad={() => {
+                                            setIsImageLoaded(true);
+                                            setIsLoading(false);
+                                        }}
+                                    />
+                                )
                             )}
 
                             {/* Empty State */}

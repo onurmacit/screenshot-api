@@ -112,6 +112,7 @@ class GoRenderClient:
             "format": options.get("format", "jpeg"),
             "quality": options.get("quality", 80),
             "full_page": options.get("full_page", False),
+            "capture_beyond_viewport": options.get("capture_beyond_viewport", True),
             "delay": options.get("delay", 0),
             "device_scale_factor": options.get("device_scale_factor", 1.0),
             "block_ads": options.get("block_ads", True),

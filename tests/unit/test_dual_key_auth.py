@@ -200,14 +200,12 @@ class TestAPIKeyModel:
         """Test APIKey model default values."""
         from app.models.api_key import APIKey
         
-        # Create instance without dual-key fields to check defaults
-        key = APIKey(
-            user_id=None,  # Will be set properly in real usage
-            name="Test Key",
-        )
+        # Check column defaults (not instance values - those are set on flush)
+        enforce_col = APIKey.__table__.columns['enforce_signing']
+        is_legacy_col = APIKey.__table__.columns['is_legacy']
         
-        assert key.enforce_signing is False
-        assert key.is_legacy is False
+        assert enforce_col.default.arg is False
+        assert is_legacy_col.default.arg is False
 
 
 class TestEnforceSigningLogic:

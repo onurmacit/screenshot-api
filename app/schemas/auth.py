@@ -91,6 +91,10 @@ class APIKeyCreate(BaseModel):
         None,
         description="Expiration timestamp (optional)",
     )
+    enforce_signing: bool = Field(
+        default=False,
+        description="Require request signing with secret key",
+    )
 
     @field_validator("scopes")
     @classmethod

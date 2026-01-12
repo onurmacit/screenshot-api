@@ -49,6 +49,7 @@ import {
 } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 
 // =============================================================================
 // API Key Display Component - Same style as dialog input
@@ -139,6 +140,7 @@ export default function ApiKeysPage() {
     // Dual-key state
     const [createdAccessKey, setCreatedAccessKey] = useState<string | null>(null);
     const [createdSecretKey, setCreatedSecretKey] = useState<string | null>(null);
+    const [createEnforceSigning, setCreateEnforceSigning] = useState(false);
     const [isDialogOpen, setIsDialogOpen] = useState(false);
 
     // Search state
@@ -213,8 +215,12 @@ export default function ApiKeysPage() {
         }
 
         setIsCreating(true);
+
         try {
-            const result = await authApi.createApiKey({ name: newKeyName.trim() });
+            const result = await authApi.createApiKey({
+                name: newKeyName.trim(),
+                enforce_signing: createEnforceSigning
+            });
             // Dual-key response
             setCreatedAccessKey(result.access_key);
             setCreatedSecretKey(result.secret_key);
@@ -295,6 +301,7 @@ export default function ApiKeysPage() {
             setCreatedAccessKey(null);
             setCreatedSecretKey(null);
             setNewKeyName("");
+            setCreateEnforceSigning(false);
         }
         setDialogCopied(null);
         setIsDialogOpen(false);
@@ -442,6 +449,24 @@ export default function ApiKeysPage() {
                                     <p className="text-sm text-muted-foreground">
                                         A friendly name to identify this key in your dashboard.
                                     </p>
+                                </div>
+
+                                {/* Enforce Signing Toggle */}
+                                <div className="flex flex-row items-center justify-between rounded-lg border p-4 shadow-sm bg-slate-50">
+                                    <div className="space-y-0.5">
+                                        <Label htmlFor="enforce-signing" className="text-base font-medium">
+                                            Accept only signed requests
+                                        </Label>
+                                        <div className="text-sm text-muted-foreground">
+                                            Enhanced security: requires HMAC signature for every request.
+                                        </div>
+                                    </div>
+                                    <Switch
+                                        id="enforce-signing"
+                                        checked={createEnforceSigning}
+                                        onCheckedChange={setCreateEnforceSigning}
+                                        disabled={isCreating}
+                                    />
                                 </div>
 
                                 {/* Action Buttons */}

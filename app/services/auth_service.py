@@ -331,6 +331,7 @@ class AuthService:
         name: str,
         scopes: list[str],
         expires_at: datetime | None = None,
+        enforce_signing: bool = False,
     ) -> tuple[str, str, APIKey]:
         """
         Create a new dual-key API key for user.
@@ -340,6 +341,7 @@ class AuthService:
             name: Name for the API key
             scopes: Permission scopes
             expires_at: Expiration timestamp (optional)
+            enforce_signing: Require request signing
 
         Returns:
             Tuple of (access_key, secret_key, api_key_model)
@@ -375,7 +377,7 @@ class AuthService:
             secret_key_encrypted=encrypt_secret_key(secret_key),
             name=name,
             scopes=scopes,
-            enforce_signing=False,
+            enforce_signing=enforce_signing,
             is_legacy=False,
             is_active=True,
             expires_at=expires_at,

@@ -101,6 +101,7 @@ export interface CreateAPIKeyRequest {
     name: string;
     scopes?: string[];
     expires_at?: string | null;
+    enforce_signing?: boolean;
 }
 
 // Auth API

@@ -209,6 +209,7 @@ async def create_api_key(
         name=request.name,
         scopes=request.scopes,
         expires_at=request.expires_at,
+        enforce_signing=request.enforce_signing,
     )
 
     return APIKeyCreateResponse(

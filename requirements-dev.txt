@@ -47,5 +47,5 @@ locust==2.20.1
 
 # Security Audit
 bandit==1.7.7
-safety==2.3.5
+safety==3.7.0
 

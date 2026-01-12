@@ -136,7 +136,9 @@ export default function ApiKeysPage() {
     const [isCreating, setIsCreating] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
     const [newKeyName, setNewKeyName] = useState("");
-    const [createdKey, setCreatedKey] = useState<string | null>(null);
+    // Dual-key state
+    const [createdAccessKey, setCreatedAccessKey] = useState<string | null>(null);
+    const [createdSecretKey, setCreatedSecretKey] = useState<string | null>(null);
     const [isDialogOpen, setIsDialogOpen] = useState(false);
 
     // Search state
@@ -146,7 +148,7 @@ export default function ApiKeysPage() {
     const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
 
     // Dialog copy state
-    const [dialogCopied, setDialogCopied] = useState(false);
+    const [dialogCopied, setDialogCopied] = useState<'access' | 'secret' | null>(null);
 
     useEffect(() => {
         fetchKeys();
@@ -213,7 +215,9 @@ export default function ApiKeysPage() {
         setIsCreating(true);
         try {
             const result = await authApi.createApiKey({ name: newKeyName.trim() });
-            setCreatedKey(result.api_key);
+            // Dual-key response
+            setCreatedAccessKey(result.access_key);
+            setCreatedSecretKey(result.secret_key);
             setKeys([result, ...keys]);
             setNewKeyName("");
             toast.success("API Key created successfully");
@@ -286,22 +290,13 @@ export default function ApiKeysPage() {
         setIsDeleting(false);
     };
 
-    const handleDialogCopy = async (text: string) => {
-        try {
-            await navigator.clipboard.writeText(text);
-            setDialogCopied(true);
-            setTimeout(() => setDialogCopied(false), 2000);
-        } catch (err) {
-            toast.error("Failed to copy");
-        }
-    };
-
     const closeDialog = () => {
-        if (createdKey) {
-            setCreatedKey(null);
+        if (createdAccessKey || createdSecretKey) {
+            setCreatedAccessKey(null);
+            setCreatedSecretKey(null);
             setNewKeyName("");
         }
-        setDialogCopied(false);
+        setDialogCopied(null);
         setIsDialogOpen(false);
     };
 
@@ -327,60 +322,74 @@ export default function ApiKeysPage() {
                         </Button>
                     </DialogTrigger>
                     <DialogContent className="sm:max-w-lg">
-                        {createdKey ? (
-                            /* ===== SUCCESS STATE ===== */
+                        {createdAccessKey && createdSecretKey ? (
+                            /* ===== SUCCESS STATE - DUAL KEY ===== */
                             <div className="space-y-6 py-2">
-                                {/* Header - Same style as Create */}
+                                {/* Header */}
                                 <div className="text-center space-y-3">
                                     <div className="mx-auto w-16 h-16 bg-green-100 rounded-full flex items-center justify-center">
                                         <Check className="h-8 w-8 text-green-600" />
                                     </div>
                                     <div>
                                         <h2 className="text-2xl font-bold text-gray-900">API Key Created</h2>
-                                        <p className="text-gray-500 mt-1">Copy your key now - you won't see it again</p>
+                                        <p className="text-gray-500 mt-1">Save both keys - you won't see them again</p>
                                     </div>
                                 </div>
 
-                                {/* API Key Input - Same style as Create */}
+                                {/* Access Key */}
                                 <div className="space-y-2">
                                     <Label className="text-sm font-medium text-gray-700">
-                                        Your API Key
+                                        Access Key <span className="text-green-600">(Public - safe to share)</span>
                                     </Label>
                                     <div className="flex gap-2">
                                         <Input
-                                            value={createdKey}
+                                            value={createdAccessKey}
                                             readOnly
-                                            className="h-12 text-base font-mono bg-slate-50"
+                                            className="h-10 text-sm font-mono bg-slate-50"
                                         />
                                         <Button
-                                            className={`
-                                                h-12 px-4 min-w-[100px] transition-all duration-200
-                                                ${dialogCopied
-                                                    ? 'bg-green-600 hover:bg-green-600'
-                                                    : ''
-                                                }
-                                            `}
-                                            onClick={() => handleDialogCopy(createdKey)}
+                                            variant="outline"
+                                            className={`h-10 px-3 ${dialogCopied === 'access' ? 'bg-green-100 text-green-700' : ''}`}
+                                            onClick={() => {
+                                                navigator.clipboard.writeText(createdAccessKey);
+                                                setDialogCopied('access');
+                                                setTimeout(() => setDialogCopied(null), 2000);
+                                            }}
                                         >
-                                            {dialogCopied ? (
-                                                <>
-                                                    <Check className="h-5 w-5 mr-1.5" />
-                                                    Copied!
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <Copy className="h-5 w-5 mr-1.5" />
-                                                    Copy
-                                                </>
-                                            )}
+                                            {dialogCopied === 'access' ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                                        </Button>
+                                    </div>
+                                </div>
+
+                                {/* Secret Key */}
+                                <div className="space-y-2">
+                                    <Label className="text-sm font-medium text-gray-700">
+                                        Secret Key <span className="text-red-600">(Private - keep safe!)</span>
+                                    </Label>
+                                    <div className="flex gap-2">
+                                        <Input
+                                            value={createdSecretKey}
+                                            readOnly
+                                            className="h-10 text-sm font-mono bg-red-50 border-red-200"
+                                        />
+                                        <Button
+                                            variant="outline"
+                                            className={`h-10 px-3 ${dialogCopied === 'secret' ? 'bg-green-100 text-green-700' : ''}`}
+                                            onClick={() => {
+                                                navigator.clipboard.writeText(createdSecretKey);
+                                                setDialogCopied('secret');
+                                                setTimeout(() => setDialogCopied(null), 2000);
+                                            }}
+                                        >
+                                            {dialogCopied === 'secret' ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
                                         </Button>
                                     </div>
                                     <p className="text-sm text-amber-600 font-medium">
-                                        ⚠️ This key will only be shown once. Store it securely.
+                                        ⚠️ The Secret Key is used for signing requests. Store it securely!
                                     </p>
                                 </div>
 
-                                {/* Action Buttons - Same style as Create */}
+                                {/* Action Buttons */}
                                 <div className="flex gap-3 pt-2">
                                     <Button
                                         variant="outline"
@@ -391,25 +400,14 @@ export default function ApiKeysPage() {
                                     </Button>
                                     <Button
                                         onClick={() => {
-                                            handleDialogCopy(createdKey);
+                                            navigator.clipboard.writeText(`Access Key: ${createdAccessKey}\nSecret Key: ${createdSecretKey}`);
+                                            toast.success("Both keys copied!");
                                             setTimeout(() => closeDialog(), 500);
                                         }}
-                                        className={`
-                                            flex-1 h-12 text-base font-medium
-                                            ${dialogCopied ? 'bg-green-600 hover:bg-green-600' : ''}
-                                        `}
+                                        className="flex-1 h-12 text-base font-medium"
                                     >
-                                        {dialogCopied ? (
-                                            <>
-                                                <Check className="h-5 w-5 mr-2" />
-                                                Done
-                                            </>
-                                        ) : (
-                                            <>
-                                                <Copy className="h-5 w-5 mr-2" />
-                                                Copy & Close
-                                            </>
-                                        )}
+                                        <Copy className="h-5 w-5 mr-2" />
+                                        Copy Both & Close
                                     </Button>
                                 </div>
                             </div>
@@ -615,8 +613,8 @@ export default function ApiKeysPage() {
                                             <TableCell>
                                                 <button
                                                     className={`flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium transition-colors ${(key as any).enforce_signing
-                                                            ? "bg-green-100 text-green-700 hover:bg-green-200"
-                                                            : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                                                        ? "bg-green-100 text-green-700 hover:bg-green-200"
+                                                        : "bg-gray-100 text-gray-500 hover:bg-gray-200"
                                                         }`}
                                                     title={(key as any).enforce_signing ? "Signing enforced" : "Signing optional"}
                                                 >

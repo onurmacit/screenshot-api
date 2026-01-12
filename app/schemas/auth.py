@@ -108,7 +108,11 @@ class APIKeyResponse(BaseModel):
 
     key_id: UUID
     name: str | None
-    key_prefix: str
+    # Dual-key system
+    access_key: str | None = None
+    key_prefix: str | None = None  # Legacy
+    enforce_signing: bool = False
+    # Other fields
     scopes: list[str]
     last_used_at: datetime | None
     created_at: datetime
@@ -119,10 +123,16 @@ class APIKeyResponse(BaseModel):
 
 
 class APIKeyCreateResponse(BaseModel):
-    """API key creation response (includes full key)."""
+    """API key creation response (includes full keys - shown once!)."""
 
-    api_key: str = Field(..., description="Full API key (only shown once)")
-    key_prefix: str
+    # Dual-key system
+    access_key: str = Field(..., description="Public access key (safe to share)")
+    secret_key: str = Field(..., description="Private secret key (ONLY shown once!)")
+    enforce_signing: bool = False
+    # Legacy compatibility
+    api_key: str | None = Field(None, description="Legacy: Full API key")
+    key_prefix: str | None = None
+    # Other fields
     key_id: UUID
     name: str | None
     scopes: list[str]

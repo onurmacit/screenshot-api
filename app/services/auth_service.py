@@ -331,9 +331,9 @@ class AuthService:
         name: str,
         scopes: list[str],
         expires_at: datetime | None = None,
-    ) -> tuple[str, APIKey]:
+    ) -> tuple[str, str, APIKey]:
         """
-        Create a new API key for user.
+        Create a new dual-key API key for user.
 
         Args:
             user_id: User UUID
@@ -342,12 +342,14 @@ class AuthService:
             expires_at: Expiration timestamp (optional)
 
         Returns:
-            Tuple of (full_api_key, api_key_model)
-            Note: full_api_key is only returned once!
+            Tuple of (access_key, secret_key, api_key_model)
+            Note: secret_key is only returned once!
 
         Raises:
             ValidationError: If user has too many API keys
         """
+        from app.utils.crypto import encrypt_secret_key, generate_key_pair
+        
         # Check API key count
         result = await self.db.execute(
             select(APIKey).where(
@@ -363,16 +365,18 @@ class AuthService:
                 details={"current_count": len(existing_keys), "max": 10},
             )
 
-        # Generate API key
-        full_key, key_prefix, key_hash = generate_api_key()
+        # Generate dual-key pair
+        access_key, secret_key = generate_key_pair()
 
         # Create API key record
         api_key = APIKey(
             user_id=user_id,
-            key_hash=key_hash,
-            key_prefix=key_prefix,
+            access_key=access_key,
+            secret_key_encrypted=encrypt_secret_key(secret_key),
             name=name,
             scopes=scopes,
+            enforce_signing=False,
+            is_legacy=False,
             is_active=True,
             expires_at=expires_at,
         )
@@ -382,13 +386,13 @@ class AuthService:
         await self.db.refresh(api_key)
 
         logger.info(
-            "API key created",
+            "API key created (dual-key)",
             user_id=str(user_id),
             key_id=str(api_key.id),
-            key_prefix=key_prefix,
+            access_key=access_key[:12] + "...",
         )
 
-        return full_key, api_key
+        return access_key, secret_key, api_key
 
     async def validate_api_key(
         self,

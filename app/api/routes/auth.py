@@ -200,11 +200,11 @@ async def create_api_key(
     - **scopes**: Permission scopes (renders:read, renders:write, webhooks:manage)
     - **expires_at**: Optional expiration timestamp
 
-    Returns the full API key (only shown once!).
+    Returns the access_key and secret_key (secret only shown once!).
     """
     auth_service = AuthService(db)
 
-    full_key, api_key = await auth_service.create_api_key(
+    access_key, secret_key, api_key = await auth_service.create_api_key(
         user_id=current_user.user_id,
         name=request.name,
         scopes=request.scopes,
@@ -212,8 +212,9 @@ async def create_api_key(
     )
 
     return APIKeyCreateResponse(
-        api_key=full_key,
-        key_prefix=api_key.key_prefix,
+        access_key=access_key,
+        secret_key=secret_key,
+        enforce_signing=api_key.enforce_signing,
         key_id=api_key.id,
         name=api_key.name,
         scopes=api_key.scopes or [],
@@ -248,7 +249,9 @@ async def list_api_keys(
         APIKeyResponse(
             key_id=key.id,
             name=key.name,
+            access_key=key.access_key,
             key_prefix=key.key_prefix,
+            enforce_signing=key.enforce_signing,
             scopes=key.scopes or [],
             last_used_at=key.last_used_at,
             created_at=key.created_at,
@@ -281,4 +284,62 @@ async def delete_api_key(
     await auth_service.delete_api_key(
         user_id=current_user.user_id,
         key_id=key_id,
+    )
+
+
+@router.patch(
+    "/api-keys/{key_id}/enforce-signing",
+    response_model=APIKeyResponse,
+    summary="Toggle enforce signing",
+    description="Enable or disable signature enforcement for an API key.",
+)
+async def toggle_enforce_signing(
+    key_id: UUID,
+    enforce: bool,
+    current_user: JWTUser,
+    db: DBSession,
+) -> APIKeyResponse:
+    """
+    Toggle signature enforcement for an API key.
+
+    **Requires JWT authentication.**
+
+    - **key_id**: UUID of the API key
+    - **enforce**: True to require signatures, False to make optional
+    """
+    from sqlalchemy import select
+    from app.models import APIKey
+    from app.utils.exceptions import NotFoundError
+    
+    # Find key owned by user
+    result = await db.execute(
+        select(APIKey).where(
+            APIKey.id == key_id,
+            APIKey.user_id == current_user.user_id,
+        )
+    )
+    api_key = result.scalar_one_or_none()
+    
+    if not api_key:
+        raise NotFoundError(
+            "API key not found",
+            resource_type="api_key",
+            resource_id=str(key_id),
+        )
+    
+    api_key.enforce_signing = enforce
+    await db.commit()
+    await db.refresh(api_key)
+    
+    return APIKeyResponse(
+        key_id=api_key.id,
+        name=api_key.name,
+        access_key=api_key.access_key,
+        key_prefix=api_key.key_prefix,
+        enforce_signing=api_key.enforce_signing,
+        scopes=api_key.scopes or [],
+        last_used_at=api_key.last_used_at,
+        created_at=api_key.created_at,
+        expires_at=api_key.expires_at,
+        is_active=api_key.is_active,
     )

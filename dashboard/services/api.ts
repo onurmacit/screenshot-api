@@ -28,7 +28,7 @@ api.interceptors.response.use(
             // Token expired or invalid - clear auth and redirect to login
             localStorage.removeItem("token");
             document.cookie = "token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
-            
+
             // Only redirect if not already on login page
             if (!window.location.pathname.includes("/login")) {
                 window.location.href = "/login?expired=true";
@@ -77,7 +77,11 @@ export interface LoginResponse {
 export interface APIKey {
     key_id: string;
     name: string;
-    key_prefix: string;
+    // Dual-key system
+    access_key?: string;
+    key_prefix?: string; // Legacy
+    enforce_signing?: boolean;
+    // Other fields
     scopes: string[];
     last_used_at: string | null;
     created_at: string;
@@ -86,7 +90,11 @@ export interface APIKey {
 }
 
 export interface CreateAPIKeyResponse extends APIKey {
-    api_key: string; // The full key, only returned on creation
+    // Dual-key - shown ONCE at creation
+    access_key: string;
+    secret_key: string;
+    // Legacy
+    api_key?: string;
 }
 
 export interface CreateAPIKeyRequest {

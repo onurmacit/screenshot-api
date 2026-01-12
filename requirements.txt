@@ -56,7 +56,7 @@ orjson==3.10.0
 tenacity==8.2.3
 
 # Logging & Monitoring
-structlog==24.1.0
+structlog==25.5.0
 python-json-logger==2.0.7
 
 # Prometheus Metrics

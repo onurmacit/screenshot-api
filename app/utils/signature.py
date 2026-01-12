@@ -20,25 +20,24 @@ DEFAULT_SIGNATURE_EXPIRY = 3600
 
 
 def generate_signature(
-    api_key: str,
+    access_key: str,
     params: dict,
-    secret_key: str | None = None,
+    secret_key: str,
     expires_in: int = DEFAULT_SIGNATURE_EXPIRY,
 ) -> dict:
     """
     Generate a signed request with HMAC-SHA256.
     
     Args:
-        api_key: The API key (used to look up the secret)
+        access_key: Public access key (included in params for lookup)
         params: Request parameters to sign
-        secret_key: Optional secret key (defaults to API key itself)
+        secret_key: Private secret key for HMAC signing
         expires_in: Signature validity in seconds
         
     Returns:
-        dict with original params + signature + expires
+        dict with original params + access_key + signature + expires
     """
-    # Use API key as secret if not provided
-    signing_key = secret_key or api_key
+    signing_key = secret_key
     
     # Add expiry timestamp
     expires = int(time.time()) + expires_in
@@ -67,23 +66,22 @@ def generate_signature(
 def verify_signature(
     params: dict,
     signature: str,
-    api_key: str,
-    secret_key: str | None = None,
+    secret_key: str,
 ) -> tuple[bool, str | None]:
     """
-    Verify a signed request.
+    Verify a signed request using HMAC-SHA256.
+    
+    SECURITY: Always use the private secret_key, never the public access_key!
     
     Args:
         params: Request parameters (including expires, excluding signature)
         signature: The signature to verify
-        api_key: The API key
-        secret_key: Optional secret key (defaults to API key itself)
+        secret_key: Private secret key for HMAC verification
         
     Returns:
         Tuple of (is_valid, error_message)
     """
-    # Use API key as secret if not provided
-    signing_key = secret_key or api_key
+    signing_key = secret_key
     
     # Check expiry
     expires = params.get("expires")

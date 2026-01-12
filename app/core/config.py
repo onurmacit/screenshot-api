@@ -47,6 +47,7 @@ class Settings(BaseSettings):
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
     BCRYPT_ROUNDS: int = 12
     API_KEY_PREFIX: str = "sk_live_"
+    SECRET_KEY_ENCRYPTION_KEY: str = ""  # Fernet key for encrypting API secret keys
 
     # ==========================================================================
     # Database

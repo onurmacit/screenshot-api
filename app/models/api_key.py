@@ -23,17 +23,23 @@ class APIKey(BaseModel):
     """
     API Key model for authentication.
 
-    Stores hashed API keys with their associated metadata.
+    Dual-key system (ScreenshotOne parity):
+    - access_key: Public identifier, safe to share in URLs
+    - secret_key_encrypted: Private key for HMAC signing (encrypted at rest)
 
     Attributes:
         id: UUID primary key
         user_id: Foreign key to user
-        key_hash: SHA256 hash of the full API key
-        key_prefix: First 8 characters for identification
+        access_key: Public access key (e.g., ak_xxx)
+        secret_key_encrypted: Encrypted secret key for signing
+        enforce_signing: If True, all requests must be signed
+        key_hash: (Legacy) SHA256 hash of the old single API key
+        key_prefix: (Legacy) First 8 characters for identification
         name: User-provided name for the key
         scopes: Array of permission scopes
         last_used_at: Last usage timestamp
         is_active: Whether the key is active
+        is_legacy: True for old-style keys, False for dual-key
         created_at: Creation timestamp
         expires_at: Expiration timestamp (optional)
     """
@@ -48,18 +54,45 @@ class APIKey(BaseModel):
         index=True,
     )
 
-    # Key data
-    key_hash: Mapped[str] = mapped_column(
+    # === NEW DUAL-KEY SYSTEM ===
+    # Public access key (safe to share in URLs)
+    access_key: Mapped[str | None] = mapped_column(
+        String(32),
+        unique=True,
+        index=True,
+        nullable=True,  # Nullable for legacy keys
+    )
+    # Private secret key (encrypted at rest)
+    secret_key_encrypted: Mapped[str | None] = mapped_column(
+        String(512),
+        nullable=True,  # Nullable for legacy keys
+    )
+    # Security: Require signature for all requests
+    enforce_signing: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        nullable=False,
+    )
+
+    # === LEGACY KEY SYSTEM (Deprecated) ===
+    key_hash: Mapped[str | None] = mapped_column(
         String(255),
         unique=True,
-        nullable=False,
+        nullable=True,  # Changed to nullable for new keys
         index=True,
     )
-    key_prefix: Mapped[str] = mapped_column(
+    key_prefix: Mapped[str | None] = mapped_column(
         String(20),
-        nullable=False,
+        nullable=True,  # Changed to nullable for new keys
         index=True,
     )
+    is_legacy: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        nullable=False,
+    )
+
+    # === COMMON FIELDS ===
     name: Mapped[str | None] = mapped_column(
         String(100),
         nullable=True,
@@ -113,6 +146,7 @@ class APIKey(BaseModel):
         Index("idx_api_keys_user", "user_id"),
         Index("idx_api_keys_hash", "key_hash"),
         Index("idx_api_keys_prefix", "key_prefix"),
+        Index("idx_api_keys_access_key", "access_key"),
     )
 
     def __repr__(self) -> str:

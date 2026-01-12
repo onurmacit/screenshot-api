@@ -2,6 +2,7 @@
 Screenshot and PDF rendering endpoints
 """
 
+from datetime import datetime
 from typing import Union
 from uuid import UUID, uuid4
 
@@ -445,68 +446,117 @@ async def take_screenshot(
     """
     import time
     from app.models import APIKey
+    from app.utils.exceptions import RenderError
     
     start_time = time.perf_counter()
     
     # =========================================================================
-    # AUTHENTICATION - Support multiple methods
+    # AUTHENTICATION - Dual-Key System (ScreenshotOne Parity)
     # =========================================================================
+    from app.utils.signature import verify_signature
+    from app.services.api_key_service import get_secret_key
+    
     api_key_record = None
     user_plan = None
     user_id = None
     
-    # Method 1: Check X-API-Key header
+    # Method 1: X-API-Key header (legacy single-key or new secret key for server-to-server)
     header_key = request.headers.get("X-API-Key")
     
-    # Method 2: Check access_key query param
+    # Method 2: access_key query param (new dual-key public identifier)
     query_key = access_key
     
-    # Method 3: Check signature (signed URL)
-    if signature and expires:
-        # Signed URL auth - need to look up API key from signed params
-        # For now, signed URLs require additional setup
-        # We'll verify signature against stored API key
-        pass
+    # Determine which key we have
+    key_to_lookup = header_key or query_key
     
-    # Try header first, then query param
-    api_key = header_key or query_key
-    
-    if api_key:
-        # Look up API key
-        api_key_record = await db.scalar(
-            select(APIKey).where(APIKey.key == api_key)
-        )
+    if key_to_lookup:
+        # Try new dual-key system first (access_key lookup)
+        if key_to_lookup.startswith("ak_"):
+            # New system: Public access key
+            api_key_record = await db.scalar(
+                select(APIKey).where(
+                    APIKey.access_key == key_to_lookup,
+                    APIKey.is_active == True,
+                )
+            )
+            
+            if not api_key_record:
+                raise HTTPException(status_code=401, detail="Invalid access key")
+            
+            # Check signature enforcement
+            if api_key_record.enforce_signing:
+                if not signature:
+                    raise HTTPException(
+                        status_code=403,
+                        detail="Signature required. This key has signing enforcement enabled."
+                    )
+                
+                # Verify signature using secret key
+                try:
+                    secret = await get_secret_key(api_key_record)
+                    params_to_verify = {
+                        "access_key": key_to_lookup,
+                        "url": url or "",
+                        "width": width,
+                        "height": height,
+                        "format": format,
+                        "full_page": str(full_page).lower(),
+                        "expires": expires,
+                    }
+                    is_valid, error = verify_signature(params_to_verify, signature, secret)
+                    if not is_valid:
+                        raise HTTPException(status_code=401, detail=f"Invalid signature: {error}")
+                except ValueError as e:
+                    raise HTTPException(status_code=500, detail=str(e))
+            
+            elif signature and expires:
+                # Optional signature verification (not enforced but provided)
+                try:
+                    secret = await get_secret_key(api_key_record)
+                    params_to_verify = {
+                        "access_key": key_to_lookup,
+                        "url": url or "",
+                        "width": width,
+                        "height": height,
+                        "format": format,
+                        "full_page": str(full_page).lower(),
+                        "expires": expires,
+                    }
+                    is_valid, error = verify_signature(params_to_verify, signature, secret)
+                    if not is_valid:
+                        logger.warning("Optional signature verification failed", error=error)
+                except Exception as e:
+                    logger.warning("Optional signature verification error", error=str(e))
         
-        if not api_key_record:
-            raise HTTPException(status_code=401, detail="Invalid API key")
+        else:
+            # Legacy system: Full API key (sk_live_xxx or hash lookup)
+            import hashlib
+            key_hash = hashlib.sha256(key_to_lookup.encode()).hexdigest()
+            api_key_record = await db.scalar(
+                select(APIKey).where(
+                    APIKey.key_hash == key_hash,
+                    APIKey.is_active == True,
+                )
+            )
+            
+            if not api_key_record:
+                raise HTTPException(status_code=401, detail="Invalid API key")
+            
+            logger.warning("Legacy API key used", key_prefix=key_to_lookup[:12] if len(key_to_lookup) > 12 else key_to_lookup)
         
         if not api_key_record.is_active:
             raise HTTPException(status_code=401, detail="API key is inactive")
         
         user_id = api_key_record.user_id
-        user_plan = api_key_record.user.plan_features if hasattr(api_key_record, 'user') else {}
+        user_plan = api_key_record.user.plan_features if hasattr(api_key_record, 'user') and api_key_record.user else {}
         
-    elif signature and expires:
-        # Signed URL authentication
-        params = {
-            "url": url or "",
-            "width": width,
-            "height": height,
-            "format": format,
-            "full_page": str(full_page).lower(),
-            "expires": expires,
-        }
+        # Update last used timestamp (fire and forget)
+        api_key_record.last_used_at = datetime.utcnow()
         
-        # We need the API key ID from signed params to verify
-        # For simplicity, signed URLs should include api_key_id
-        raise HTTPException(
-            status_code=401,
-            detail="For signed URLs, use /signed endpoint"
-        )
     else:
         raise HTTPException(
             status_code=401,
-            detail="Authentication required. Use X-API-Key header, access_key param, or signed URL"
+            detail="Authentication required. Use X-API-Key header or access_key param."
         )
 
     # Validate source - at least one required
@@ -582,11 +632,18 @@ async def take_screenshot(
     # =========================================================================
     # RENDER - Capture new screenshot
     # =========================================================================
-    image_bytes, metadata = await render_service.capture_screenshot(
-        url=url,
-        options=options,
-        user_plan=user_plan,
-    )
+    try:
+        image_bytes, metadata = await render_service.capture_screenshot(
+            url=url,
+            options=options,
+            user_plan=user_plan,
+        )
+    except RenderError as e:
+        logger.warning("Render failed", url=url, error=str(e))
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.exception("Unexpected render error", url=url, error=str(e))
+        raise HTTPException(status_code=500, detail="Internal Render Error")
 
     # Apply watermark for free tier
     if user_plan.get("watermark", True) if user_plan else True:

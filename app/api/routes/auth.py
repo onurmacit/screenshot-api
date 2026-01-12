@@ -241,26 +241,40 @@ async def list_api_keys(
 
     **Requires JWT authentication.**
 
-    Returns a list of API keys (without the full key, only prefix).
+    Returns a list of API keys including decrypted secret keys (ScreenshotOne style).
     """
+    from app.utils.crypto import decrypt_secret_key
+    
     auth_service = AuthService(db)
     api_keys = await auth_service.list_api_keys(user_id=current_user.user_id)
 
-    return [
-        APIKeyResponse(
-            key_id=key.id,
-            name=key.name,
-            access_key=key.access_key,
-            key_prefix=key.key_prefix,
-            enforce_signing=key.enforce_signing,
-            scopes=key.scopes or [],
-            last_used_at=key.last_used_at,
-            created_at=key.created_at,
-            expires_at=key.expires_at,
-            is_active=key.is_active,
+    result = []
+    for key in api_keys:
+        # Decrypt secret key if available (for dual-key system)
+        secret_key = None
+        if key.secret_key_encrypted:
+            try:
+                secret_key = decrypt_secret_key(key.secret_key_encrypted)
+            except Exception:
+                secret_key = None  # Fallback for legacy or corrupt keys
+        
+        result.append(
+            APIKeyResponse(
+                key_id=key.id,
+                name=key.name,
+                access_key=key.access_key,
+                secret_key=secret_key,
+                key_prefix=key.key_prefix,
+                enforce_signing=key.enforce_signing,
+                scopes=key.scopes or [],
+                last_used_at=key.last_used_at,
+                created_at=key.created_at,
+                expires_at=key.expires_at,
+                is_active=key.is_active,
+            )
         )
-        for key in api_keys
-    ]
+    
+    return result
 
 
 @router.delete(

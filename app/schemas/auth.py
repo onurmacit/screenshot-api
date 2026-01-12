@@ -112,8 +112,9 @@ class APIKeyResponse(BaseModel):
 
     key_id: UUID
     name: str | None
-    # Dual-key system
+    # Dual-key system (ScreenshotOne style)
     access_key: str | None = None
+    secret_key: str | None = None  # Decrypted for display
     key_prefix: str | None = None  # Legacy
     enforce_signing: bool = False
     # Other fields

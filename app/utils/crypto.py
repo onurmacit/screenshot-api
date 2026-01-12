@@ -62,20 +62,24 @@ def generate_access_key() -> str:
     """
     Generate a public access key.
     
-    Format: ak_<22 random chars>
-    Example: ak_xK7mN2pQ9rS4tU6vW8
+    Format: 14 URL-safe characters (no prefix, ScreenshotOne style)
+    Example: nW73cIaO8Y2cZA
+    
+    Security: 80 bits of entropy (2^80 brute-force attempts needed)
     """
-    return f"ak_{secrets.token_urlsafe(16)}"
+    return secrets.token_urlsafe(10)  # 10 bytes = ~14 chars
 
 
 def generate_secret_key() -> str:
     """
     Generate a private secret key.
     
-    Format: sk_<44 random chars>
-    Example: sk_aB3cD4eF5gH6iJ7kL8mN9oP0qR1sT2uV3wX4yZ5
+    Format: 14 URL-safe characters (no prefix, ScreenshotOne style)
+    Example: v2M_6coMczGUNw
+    
+    Security: 80 bits of entropy, stored encrypted at rest
     """
-    return f"sk_{secrets.token_urlsafe(32)}"
+    return secrets.token_urlsafe(10)  # 10 bytes = ~14 chars
 
 
 def generate_key_pair() -> tuple[str, str]:

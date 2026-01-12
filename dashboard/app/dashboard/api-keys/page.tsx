@@ -52,28 +52,27 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 
 // =============================================================================
-// API Key Display Component - Same style as dialog input
+// API Key Display Component - ScreenshotOne style
 // =============================================================================
 interface KeyDisplayProps {
     keyValue: string;
-    keyId: string;
+    keyType: 'access' | 'secret';
 }
 
-function KeyDisplay({ keyValue, keyId }: KeyDisplayProps) {
+function KeyDisplay({ keyValue, keyType }: KeyDisplayProps) {
     const [isVisible, setIsVisible] = useState(false);
     const [copied, setCopied] = useState(false);
 
-    // Format the key for display
-    // keyValue is the key_prefix (e.g., "f1d9b69f") - full key is only shown at creation
+    // Display the key as-is (no prefix added) - ScreenshotOne style
     const displayValue = isVisible
-        ? `sk_...${keyValue}`  // Show prefix with sk_ indicator
-        : "••••••••••••••••";   // Completely hidden
+        ? keyValue
+        : "••••••••••••••";
 
     const handleCopy = async () => {
         try {
             await navigator.clipboard.writeText(keyValue);
             setCopied(true);
-            toast.success("Key prefix copied");
+            toast.success(keyType === 'access' ? "Access key copied" : "Secret key copied");
             setTimeout(() => setCopied(false), 2000);
         } catch (err) {
             toast.error("Failed to copy");
@@ -87,7 +86,7 @@ function KeyDisplay({ keyValue, keyId }: KeyDisplayProps) {
                 value={displayValue}
                 readOnly
                 className={`
-                    font-mono text-sm w-[160px] h-9
+                    font-mono text-sm w-[140px] h-9
                     ${isVisible ? 'bg-slate-50' : 'bg-slate-100 text-slate-400'}
                 `}
             />
@@ -98,7 +97,7 @@ function KeyDisplay({ keyValue, keyId }: KeyDisplayProps) {
                 size="sm"
                 className="h-8 w-8 p-0 hover:bg-slate-100 flex-shrink-0"
                 onClick={() => setIsVisible(!isVisible)}
-                title={isVisible ? "Hide key prefix" : "Show key prefix"}
+                title={isVisible ? "Hide key" : "Show key"}
             >
                 {isVisible ? (
                     <EyeOff className="h-4 w-4 text-slate-500" />
@@ -116,7 +115,7 @@ function KeyDisplay({ keyValue, keyId }: KeyDisplayProps) {
                     ${copied ? 'text-green-600 hover:text-green-600' : 'hover:bg-slate-100'}
                 `}
                 onClick={handleCopy}
-                title={copied ? "Copied!" : "Copy key prefix"}
+                title={copied ? "Copied!" : `Copy ${keyType} key`}
             >
                 {copied ? (
                     <Check className="h-4 w-4" />
@@ -522,14 +521,14 @@ export default function ApiKeysPage() {
                                             </TableCell>
                                             <TableCell>
                                                 <KeyDisplay
-                                                    keyValue={(key as any).access_key || key.key_prefix || "ak_..."}
-                                                    keyId={key.key_id}
+                                                    keyValue={(key as any).access_key || "—"}
+                                                    keyType="access"
                                                 />
                                             </TableCell>
                                             <TableCell>
                                                 <KeyDisplay
-                                                    keyValue={(key as any).secret_key_prefix || "sk_..."}
-                                                    keyId={key.key_id}
+                                                    keyValue={(key as any).secret_key || "—"}
+                                                    keyType="secret"
                                                 />
                                             </TableCell>
                                             <TableCell>

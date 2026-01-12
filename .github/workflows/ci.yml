@@ -205,7 +205,7 @@ jobs:
       - name: Run Database Migrations
         run: |
           echo "🗃️ Running database migrations..."
-          ssh api "cd /opt/screenshot-api && docker compose -f docker-compose.api.hybrid.prod.yml run --rm api alembic upgrade head"
+          ssh api "cd /opt/screenshot-api && docker compose -f docker-compose.api.hybrid.prod.yml run --rm -v /opt/screenshot-api/alembic:/app/alembic:ro api alembic upgrade head"
           echo "✅ Migrations complete!"
 
       - name: Deploy API

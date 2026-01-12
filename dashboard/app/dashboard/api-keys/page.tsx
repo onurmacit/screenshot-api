@@ -15,6 +15,8 @@ import {
     Square,
     Minus,
     Check,
+    Shield,
+    ShieldOff,
 } from "lucide-react";
 import { toast } from "sonner";
 import { authApi, APIKey } from "@/services/api";
@@ -62,7 +64,7 @@ function KeyDisplay({ keyValue, keyId }: KeyDisplayProps) {
 
     // Format the key for display
     // keyValue is the key_prefix (e.g., "f1d9b69f") - full key is only shown at creation
-    const displayValue = isVisible 
+    const displayValue = isVisible
         ? `sk_...${keyValue}`  // Show prefix with sk_ indicator
         : "••••••••••••••••";   // Completely hidden
 
@@ -136,13 +138,13 @@ export default function ApiKeysPage() {
     const [newKeyName, setNewKeyName] = useState("");
     const [createdKey, setCreatedKey] = useState<string | null>(null);
     const [isDialogOpen, setIsDialogOpen] = useState(false);
-    
+
     // Search state
     const [searchQuery, setSearchQuery] = useState("");
-    
+
     // Selection states
     const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
-    
+
     // Dialog copy state
     const [dialogCopied, setDialogCopied] = useState(false);
 
@@ -176,7 +178,7 @@ export default function ApiKeysPage() {
     // Selection helpers
     const allSelected = filteredKeys.length > 0 && filteredKeys.every((k) => selectedKeys.has(k.key_id));
     const someSelected = filteredKeys.some((k) => selectedKeys.has(k.key_id));
-    const selectedCount = Array.from(selectedKeys).filter((id) => 
+    const selectedCount = Array.from(selectedKeys).filter((id) =>
         filteredKeys.some((k) => k.key_id === id)
     ).length;
 
@@ -248,7 +250,7 @@ export default function ApiKeysPage() {
         const keysToDelete = Array.from(selectedKeys).filter((id) =>
             filteredKeys.some((k) => k.key_id === id)
         );
-        
+
         if (keysToDelete.length === 0) {
             toast.error("No keys selected");
             return;
@@ -274,13 +276,13 @@ export default function ApiKeysPage() {
 
         await fetchKeys();
         setSelectedKeys(new Set());
-        
+
         if (failCount === 0) {
             toast.success(`${successCount} API key(s) deleted successfully`);
         } else {
             toast.warning(`${successCount} deleted, ${failCount} failed`);
         }
-        
+
         setIsDeleting(false);
     };
 
@@ -313,7 +315,7 @@ export default function ApiKeysPage() {
                         Manage your API keys to access the Screenshot API.
                     </p>
                 </div>
-                
+
                 {/* Create Key Dialog */}
                 <Dialog open={isDialogOpen} onOpenChange={(open) => {
                     if (!open) closeDialog();
@@ -350,11 +352,11 @@ export default function ApiKeysPage() {
                                             readOnly
                                             className="h-12 text-base font-mono bg-slate-50"
                                         />
-                                        <Button 
+                                        <Button
                                             className={`
                                                 h-12 px-4 min-w-[100px] transition-all duration-200
-                                                ${dialogCopied 
-                                                    ? 'bg-green-600 hover:bg-green-600' 
+                                                ${dialogCopied
+                                                    ? 'bg-green-600 hover:bg-green-600'
                                                     : ''
                                                 }
                                             `}
@@ -377,21 +379,21 @@ export default function ApiKeysPage() {
                                         ⚠️ This key will only be shown once. Store it securely.
                                     </p>
                                 </div>
-                                
+
                                 {/* Action Buttons - Same style as Create */}
                                 <div className="flex gap-3 pt-2">
-                                    <Button 
+                                    <Button
                                         variant="outline"
-                                        onClick={closeDialog} 
+                                        onClick={closeDialog}
                                         className="flex-1 h-12 text-base"
                                     >
                                         Close
                                     </Button>
-                                    <Button 
+                                    <Button
                                         onClick={() => {
                                             handleDialogCopy(createdKey);
                                             setTimeout(() => closeDialog(), 500);
-                                        }} 
+                                        }}
                                         className={`
                                             flex-1 h-12 text-base font-medium
                                             ${dialogCopied ? 'bg-green-600 hover:bg-green-600' : ''}
@@ -455,8 +457,8 @@ export default function ApiKeysPage() {
                                     >
                                         Cancel
                                     </Button>
-                                    <Button 
-                                        type="submit" 
+                                    <Button
+                                        type="submit"
                                         disabled={isCreating || !newKeyName.trim()}
                                         className="flex-1 h-12 text-base font-medium"
                                     >
@@ -490,7 +492,7 @@ export default function ApiKeysPage() {
                             </CardDescription>
                         </div>
                     </div>
-                    
+
                     {/* Search and Bulk Actions */}
                     <div className="flex items-center gap-4 pt-4">
                         <div className="relative flex-1 max-w-sm">
@@ -502,7 +504,7 @@ export default function ApiKeysPage() {
                                 className="pl-9"
                             />
                         </div>
-                        
+
                         {selectedCount > 0 && (
                             <div className="flex items-center gap-3">
                                 <span className="text-sm text-muted-foreground">
@@ -525,7 +527,7 @@ export default function ApiKeysPage() {
                         )}
                     </div>
                 </CardHeader>
-                
+
                 <CardContent>
                     {isLoading ? (
                         <div className="flex justify-center py-12">
@@ -566,16 +568,17 @@ export default function ApiKeysPage() {
                                             </button>
                                         </TableHead>
                                         <TableHead>Name</TableHead>
-                                        <TableHead>API Key</TableHead>
-                                        <TableHead>Created</TableHead>
+                                        <TableHead>Access Key</TableHead>
+                                        <TableHead>Secret Key</TableHead>
+                                        <TableHead>Signed</TableHead>
                                         <TableHead>Last Used</TableHead>
-                                        <TableHead>Status</TableHead>
+                                        <TableHead>Created</TableHead>
                                         <TableHead className="text-right">Actions</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
                                     {filteredKeys.map((key) => (
-                                        <TableRow 
+                                        <TableRow
                                             key={key.key_id}
                                             className={`
                                                 transition-colors
@@ -598,26 +601,39 @@ export default function ApiKeysPage() {
                                                 {key.name || <span className="text-gray-400 italic">Unnamed</span>}
                                             </TableCell>
                                             <TableCell>
-                                                <KeyDisplay 
-                                                    keyValue={key.key_prefix || "sk_live_"} 
+                                                <KeyDisplay
+                                                    keyValue={(key as any).access_key || key.key_prefix || "ak_..."}
                                                     keyId={key.key_id}
                                                 />
                                             </TableCell>
-                                            <TableCell className="text-sm text-gray-600">
-                                                {format(new Date(key.created_at), "MMM d, yyyy")}
+                                            <TableCell>
+                                                <KeyDisplay
+                                                    keyValue={(key as any).secret_key_prefix || "sk_..."}
+                                                    keyId={key.key_id}
+                                                />
+                                            </TableCell>
+                                            <TableCell>
+                                                <button
+                                                    className={`flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium transition-colors ${(key as any).enforce_signing
+                                                            ? "bg-green-100 text-green-700 hover:bg-green-200"
+                                                            : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                                                        }`}
+                                                    title={(key as any).enforce_signing ? "Signing enforced" : "Signing optional"}
+                                                >
+                                                    {(key as any).enforce_signing ? (
+                                                        <><Shield className="h-3.5 w-3.5" /> Yes</>
+                                                    ) : (
+                                                        <><ShieldOff className="h-3.5 w-3.5" /> No</>
+                                                    )}
+                                                </button>
                                             </TableCell>
                                             <TableCell className="text-sm text-gray-600">
                                                 {key.last_used_at
                                                     ? format(new Date(key.last_used_at), "MMM d, HH:mm")
                                                     : <span className="text-gray-400">Never</span>}
                                             </TableCell>
-                                            <TableCell>
-                                                <Badge 
-                                                    variant={key.is_active ? "default" : "secondary"} 
-                                                    className={key.is_active ? "bg-green-600 hover:bg-green-600" : ""}
-                                                >
-                                                    {key.is_active ? "Active" : "Inactive"}
-                                                </Badge>
+                                            <TableCell className="text-sm text-gray-600">
+                                                {format(new Date(key.created_at), "MMM d, yyyy")}
                                             </TableCell>
                                             <TableCell className="text-right">
                                                 <Button
@@ -638,7 +654,7 @@ export default function ApiKeysPage() {
                     )}
                 </CardContent>
             </Card>
-            
+
             {/* Footer info */}
             <div className="text-sm text-muted-foreground text-center">
                 <p>

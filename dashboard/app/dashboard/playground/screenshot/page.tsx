@@ -21,7 +21,12 @@ export default function ScreenshotPlaygroundPage() {
     const [url, setUrl] = useState("https://stripe.com");
     const [htmlContent, setHtmlContent] = useState("<h1>Hello World</h1>\n<p>This is a test page rendered from HTML.</p>");
     const [markdownContent, setMarkdownContent] = useState("# Hello World\n\nThis is a **test page** rendered from Markdown.");
+    const [signRequests, setSignRequests] = useState(false);
+    const [responseType, setResponseType] = useState("binary");
     const [selector, setSelector] = useState("");
+
+    // === FORCE SCROLL TOGGLE (UI HELPER) ===
+    const [forceScroll, setForceScroll] = useState(false);
 
     // === VIEWPORT & DISPLAY ===
     const [format, setFormat] = useState("png");
@@ -38,6 +43,7 @@ export default function ScreenshotPlaygroundPage() {
 
     // === FULL PAGE & CLIP ===
     const [fullPage, setFullPage] = useState(false);
+    const [captureBeyondViewport, setCaptureBeyondViewport] = useState(true);
     const [scrollIntoView, setScrollIntoView] = useState("");
     const [scrollAdjustTop, setScrollAdjustTop] = useState(0);
 
@@ -82,7 +88,8 @@ export default function ScreenshotPlaygroundPage() {
 
     // Count active options per category
     const blockingCount = [blockAds, blockCookieBanners, blockTrackers, blockChatWidgets].filter(Boolean).length;
-    const fullPageCount = [fullPage, scrollIntoView].filter(Boolean).length;
+    // Scroll options moved to Essentials, so Full Page section count is just fullPage + captureBeyondViewport (if changed from default)
+    const fullPageCount = [fullPage, !captureBeyondViewport].filter(Boolean).length;
     const advancedCount = [delay > 0, userAgent].filter(Boolean).length;
 
     const handleRender = async () => {
@@ -116,6 +123,8 @@ export default function ScreenshotPlaygroundPage() {
                 width,
                 height,
                 full_page: fullPage,
+                capture_beyond_viewport: captureBeyondViewport,
+                response_type: responseType,
             };
 
             // Source
@@ -127,8 +136,14 @@ export default function ScreenshotPlaygroundPage() {
                 requestBody.markdown = markdownContent;
             }
 
-            // Essentials
+            // Essentials (Selector & Scroll)
             if (selector.trim()) requestBody.selector = selector.trim();
+
+            // Only send scroll options if forceScroll is enabled
+            if (forceScroll) {
+                if (scrollIntoView.trim()) requestBody.scroll_into_view = scrollIntoView.trim();
+                if (scrollAdjustTop !== 0) requestBody.scroll_adjust_top = scrollAdjustTop;
+            }
 
             // Viewport
             if (deviceScale !== 1) requestBody.device_scale = deviceScale;
@@ -140,10 +155,6 @@ export default function ScreenshotPlaygroundPage() {
             if (blockTrackers) requestBody.block_trackers = blockTrackers;
             if (blockChatWidgets) requestBody.block_chat_widgets = blockChatWidgets;
 
-            // Full Page
-            if (scrollIntoView.trim()) requestBody.scroll_into_view = scrollIntoView.trim();
-            if (scrollAdjustTop !== 0) requestBody.scroll_adjust_top = scrollAdjustTop;
-
             // Advanced
             if (delay > 0) requestBody.delay = delay;
             if (timeout !== 30000) requestBody.timeout = timeout;
@@ -153,23 +164,23 @@ export default function ScreenshotPlaygroundPage() {
                 headers: { "X-API-Key": apiKey }
             });
 
-            if (response.data.status === "completed" && response.data.url) {
-                setResult(response.data.url);
+            if ((response.data.status === "completed" && response.data.url) || response.data.screenshot_url) {
+                const resultUrl = response.data.url || response.data.screenshot_url;
+                setResult(resultUrl);
                 // Capture response metadata
                 const fileSizeBytes = response.data.file_size || 0;
                 setResponseMetadata({
                     status: 200,
-                    contentType: `image/${format}`,
+                    contentType: responseType === 'json' ? 'application/json' : `image/${format}`,
                     fileSize: fileSizeBytes,
                     headers: {
                         'cache-control': 'private, no-cache, max-age=0, no-transform',
                         'content-length': fileSizeBytes.toString(),
-                        'content-type': `image/${format}`,
+                        'content-type': responseType === 'json' ? 'application/json' : `image/${format}`,
                         ...(response.data.headers || {})
                     },
                     renderTime: response.data.render_time
                 });
-                // Keep isLoading true - image onLoad will set it to false
             } else if (response.data.id) {
                 setError("Job started asynchronously. Check Jobs page.");
                 setIsLoading(false);
@@ -192,12 +203,29 @@ export default function ScreenshotPlaygroundPage() {
                 : `"markdown": "${markdownContent.replace(/"/g, '\\"').replace(/\n/g, '\\n')}"`;
 
         let extras = "";
-        if (selector.trim()) extras += `,\n    "selector": "${selector}"`;
+        if (selector.trim()) extras += `,\n    "selector": "${selector.trim()}"`;
+
+        if (forceScroll) {
+            if (scrollIntoView.trim()) extras += `,\n    "scroll_into_view": "${scrollIntoView.trim()}"`;
+            if (scrollAdjustTop !== 0) extras += `,\n    "scroll_adjust_top": ${scrollAdjustTop}`;
+        }
+
         if (blockAds) extras += `,\n    "block_ads": true`;
         if (blockCookieBanners) extras += `,\n    "block_cookie_banners": true`;
+        if (blockTrackers) extras += `,\n    "block_trackers": true`;
+        if (blockChatWidgets) extras += `,\n    "block_chat_widgets": true`;
+
         if (fullPage) extras += `,\n    "full_page": true`;
+        // API Default is True, so only send if explicitly False
+        if (captureBeyondViewport === false) extras += `,\n    "capture_beyond_viewport": false`;
+        if (responseType !== "binary") extras += `,\n    "response_type": "${responseType}"`;
+
+        if (deviceScale !== 1) extras += `,\n    "device_scale": ${deviceScale}`;
         if (darkMode) extras += `,\n    "dark_mode": true`;
+
         if (delay > 0) extras += `,\n    "delay": ${delay}`;
+        if (timeout !== 30000) extras += `,\n    "timeout": ${timeout}`;
+        if (userAgent.trim()) extras += `,\n    "user_agent": "${userAgent.trim()}"`;
 
         return `curl -X POST ${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/v1/renders/screenshot \\
   -H "X-API-Key: ${apiKey || "YOUR_API_KEY"}" \\
@@ -216,6 +244,7 @@ export default function ScreenshotPlaygroundPage() {
             width,
             height,
             format,
+            response_type: responseType,
         };
 
         if (sourceType === "url") params.url = url;
@@ -223,11 +252,20 @@ export default function ScreenshotPlaygroundPage() {
         else params.markdown = markdownContent;
 
         if (selector.trim()) params.selector = selector;
+
+        if (forceScroll) {
+            if (scrollIntoView.trim()) params.scroll_into_view = scrollIntoView;
+            if (scrollAdjustTop !== 0) params.scroll_adjust_top = scrollAdjustTop;
+        }
+
         if (blockAds) params.block_ads = true;
         if (blockCookieBanners) params.block_cookie_banners = true;
         if (blockTrackers) params.block_trackers = true;
         if (blockChatWidgets) params.block_chat_widgets = true;
+
         if (fullPage) params.full_page = true;
+        if (!captureBeyondViewport) params.capture_beyond_viewport = false;
+
         if (darkMode) params.dark_mode = true;
         if (delay > 0) params.delay = delay;
 
@@ -371,7 +409,7 @@ export default function ScreenshotPlaygroundPage() {
                                 <AccordionContent className="space-y-4 pb-4">
                                     {/* Source Type */}
                                     <div className="space-y-2">
-                                        <Label>Source</Label>
+                                        <Label className="font-semibold text-gray-700">Source</Label>
                                         <Tabs value={sourceType} onValueChange={(v) => setSourceType(v as "url" | "html" | "markdown")} className="w-full">
                                             <TabsList className="grid w-full grid-cols-3">
                                                 <TabsTrigger value="url">URL</TabsTrigger>
@@ -383,9 +421,9 @@ export default function ScreenshotPlaygroundPage() {
 
                                     {/* Source Input */}
                                     {sourceType === "url" && (
-                                        <div className="space-y-2">
-                                            <Label>URL</Label>
+                                        <div className="space-y-1">
                                             <Input placeholder="https://example.com" value={url} onChange={(e) => setUrl(e.target.value)} />
+                                            <p className="text-xs text-muted-foreground">Any website you want to take screenshot of.</p>
                                         </div>
                                     )}
                                     {sourceType === "html" && (
@@ -401,10 +439,66 @@ export default function ScreenshotPlaygroundPage() {
                                         </div>
                                     )}
 
+                                    {/* Sign Requests */}
+                                    <div className="flex items-center gap-2 pt-1 pb-1">
+                                        <Switch id="sign-req" checked={signRequests} onCheckedChange={setSignRequests} />
+                                        <Label htmlFor="sign-req" className="font-medium">Sign requests</Label>
+                                    </div>
+
+                                    {/* Response Type */}
+                                    <div className="space-y-2">
+                                        <Label className="font-semibold text-gray-700">Response type</Label>
+                                        <Select value={responseType} onValueChange={setResponseType}>
+                                            <SelectTrigger><SelectValue /></SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="binary">By Format (binary result)</SelectItem>
+                                                <SelectItem value="json">JSON (metadata + url)</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                        <p className="text-xs text-muted-foreground">By Format (binary or text result, depends on the format)</p>
+                                    </div>
+
                                     {/* Selector */}
                                     <div className="space-y-2">
-                                        <Label>Element Selector <span className="text-muted-foreground text-xs">(optional)</span></Label>
-                                        <Input placeholder=".hero, #main" value={selector} onChange={(e) => setSelector(e.target.value)} />
+                                        <Label className="font-semibold text-gray-700">Selector</Label>
+                                        <Input placeholder=".some-selector" value={selector} onChange={(e) => setSelector(e.target.value)} />
+                                        <p className="text-xs text-muted-foreground">A selector to take screenshot of.</p>
+                                    </div>
+
+                                    {/* Toggle: Scroll the element into view (UI Helper) */}
+                                    <div className="flex items-center gap-2 mt-2">
+                                        <Switch id="force-scroll" checked={forceScroll} onCheckedChange={setForceScroll} />
+                                        <Label htmlFor="force-scroll" className="text-sm font-normal text-gray-700">Scroll the element into view before rendering.</Label>
+                                    </div>
+
+                                    {/* Scroll Inputs Grid - CONDITIONALLY RENDERED */}
+                                    {forceScroll && (
+                                        <div className="grid grid-cols-2 gap-4 animate-in fade-in slide-in-from-top-2 duration-300">
+                                            <div className="space-y-2">
+                                                <Label className="font-semibold text-gray-700">Scroll into view</Label>
+                                                <Input placeholder="" value={scrollIntoView} onChange={(e) => setScrollIntoView(e.target.value)} />
+                                                <p className="text-xs text-muted-foreground">Selector to scroll into view.</p>
+                                            </div>
+                                            <div className="space-y-2">
+                                                <Label className="font-semibold text-gray-700">Adjust top</Label>
+                                                <Input type="number" value={scrollAdjustTop} onChange={(e) => setScrollAdjustTop(Number(e.target.value))} />
+                                                <p className="text-xs text-muted-foreground">Once reached the selector, scroll by this amount of pixels.</p>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Capture Beyond Viewport & GPU */}
+                                    <div className="space-y-3 pt-2">
+                                        <div className="flex items-center gap-2">
+                                            <Switch id="cbv" checked={captureBeyondViewport} onCheckedChange={setCaptureBeyondViewport} />
+                                            <Label htmlFor="cbv" className="text-sm text-blue-600 underline cursor-pointer flex items-center gap-1">
+                                                Capture beyond viewport <span className="text-[10px]">↗</span>
+                                            </Label>
+                                        </div>
+                                        <div className="flex items-center gap-2 opacity-50 cursor-not-allowed">
+                                            <Switch id="gpu" disabled />
+                                            <Label htmlFor="gpu" className="text-sm text-gray-500">Request GPU Rendering <span className="text-blue-500 underline text-xs ml-1">Upgrade to get access to GPU rendering.</span></Label>
+                                        </div>
                                     </div>
                                 </AccordionContent>
                             </AccordionItem>
@@ -486,28 +580,23 @@ export default function ScreenshotPlaygroundPage() {
                                 </AccordionContent>
                             </AccordionItem>
 
-                            {/* FULL PAGE & CLIP */}
+                            {/* FULL PAGE */}
                             <AccordionItem value="fullpage" className="border rounded-lg px-4">
                                 <AccordionTrigger className="hover:no-underline">
                                     <div className="flex items-center gap-2">
-                                        <span className="font-medium">Full Page & Scroll</span>
-                                        {fullPageCount > 0 && (
-                                            <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">{fullPageCount} active</span>
+                                        <span className="font-medium">Full Page</span>
+                                        {fullPage && (
+                                            <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">active</span>
                                         )}
                                     </div>
                                 </AccordionTrigger>
                                 <AccordionContent className="space-y-4 pb-4">
                                     <div className="flex items-center justify-between">
-                                        <Label>Full Page Screenshot</Label>
+                                        <div className="space-y-0.5">
+                                            <Label>Full Page Screenshot</Label>
+                                            <div className="text-[10px] text-muted-foreground">Capture entire scrollable page height</div>
+                                        </div>
                                         <Switch checked={fullPage} onCheckedChange={setFullPage} />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label>Scroll Into View <span className="text-muted-foreground text-xs">(selector)</span></Label>
-                                        <Input placeholder="#section, .element" value={scrollIntoView} onChange={(e) => setScrollIntoView(e.target.value)} />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label>Scroll Adjust Top <span className="text-muted-foreground text-xs">(pixels)</span></Label>
-                                        <Input type="number" value={scrollAdjustTop} onChange={(e) => setScrollAdjustTop(Number(e.target.value))} />
                                     </div>
                                 </AccordionContent>
                             </AccordionItem>

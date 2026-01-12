@@ -21,25 +21,26 @@ func NewScreenshotHandler(renderer *services.Renderer) *ScreenshotHandler {
 
 // ScreenshotRequest represents the request body for screenshot capture
 type ScreenshotRequest struct {
-	URL                string  `json:"url"`
-	Width              int     `json:"width"`
-	Height             int     `json:"height"`
-	Format             string  `json:"format"`
-	Quality            int     `json:"quality"`
-	FullPage           bool    `json:"full_page"`
-	Delay              int     `json:"delay"`
-	DeviceScaleFactor  float64 `json:"device_scale_factor"`
-	BlockAds           bool    `json:"block_ads"`
-	BlockTrackers      bool    `json:"block_trackers"`
-	BlockCookieBanners bool    `json:"block_cookie_banners"`
-	UserAgent          string  `json:"user_agent"`
-	Selector           string  `json:"selector"`
-	ScrollIntoView     string  `json:"scroll_into_view"`
-	ScrollAdjustTop    int     `json:"scroll_adjust_top"`
-	HTML               string  `json:"html"`
-	Markdown           string  `json:"markdown"`
-	Timeout            int     `json:"timeout"`
-	ReturnBase64       bool    `json:"return_base64"`
+	URL                   string  `json:"url"`
+	Width                 int     `json:"width"`
+	Height                int     `json:"height"`
+	Format                string  `json:"format"`
+	Quality               int     `json:"quality"`
+	FullPage              bool    `json:"full_page"`
+	Delay                 int     `json:"delay"`
+	DeviceScaleFactor     float64 `json:"device_scale_factor"`
+	BlockAds              bool    `json:"block_ads"`
+	BlockTrackers         bool    `json:"block_trackers"`
+	BlockCookieBanners    bool    `json:"block_cookie_banners"`
+	UserAgent             string  `json:"user_agent"`
+	Selector              string  `json:"selector"`
+	ScrollIntoView        string  `json:"scroll_into_view"`
+	ScrollAdjustTop       int     `json:"scroll_adjust_top"`
+	HTML                  string  `json:"html"`
+	Markdown              string  `json:"markdown"`
+	Timeout               int     `json:"timeout"`
+	ReturnBase64          bool    `json:"return_base64"`
+	CaptureBeyondViewport bool    `json:"capture_beyond_viewport"`
 }
 
 // ScreenshotResponse represents the JSON response (when return_base64 is true)
@@ -90,24 +91,25 @@ func (h *ScreenshotHandler) CaptureScreenshot(c *fiber.Ctx) error {
 
 	// Convert request to options
 	opts := services.ScreenshotOptions{
-		URL:                req.URL,
-		Width:              req.Width,
-		Height:             req.Height,
-		Format:             req.Format,
-		Quality:            req.Quality,
-		FullPage:           req.FullPage,
-		Delay:              req.Delay,
-		DeviceScaleFactor:  req.DeviceScaleFactor,
-		BlockAds:           req.BlockAds,
-		BlockTrackers:      req.BlockTrackers,
-		BlockCookieBanners: req.BlockCookieBanners,
-		UserAgent:          req.UserAgent,
-		Selector:           req.Selector,
-		ScrollIntoView:     req.ScrollIntoView,
-		ScrollAdjustTop:    req.ScrollAdjustTop,
-		HTML:               req.HTML,
-		Markdown:           req.Markdown,
-		Timeout:            req.Timeout,
+		URL:                   req.URL,
+		Width:                 req.Width,
+		Height:                req.Height,
+		Format:                req.Format,
+		Quality:               req.Quality,
+		FullPage:              req.FullPage,
+		Delay:                 req.Delay,
+		DeviceScaleFactor:     req.DeviceScaleFactor,
+		BlockAds:              req.BlockAds,
+		BlockTrackers:         req.BlockTrackers,
+		BlockCookieBanners:    req.BlockCookieBanners,
+		UserAgent:             req.UserAgent,
+		Selector:              req.Selector,
+		ScrollIntoView:        req.ScrollIntoView,
+		ScrollAdjustTop:       req.ScrollAdjustTop,
+		HTML:                  req.HTML,
+		Markdown:              req.Markdown,
+		Timeout:               req.Timeout,
+		CaptureBeyondViewport: req.CaptureBeyondViewport,
 	}
 
 	// Capture screenshot

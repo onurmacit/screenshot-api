@@ -31,6 +31,10 @@ class ScreenshotRequest(BaseModel):
     width: int = Field(default=1920, ge=320, le=3840, description="Viewport width")
     height: int = Field(default=1080, ge=240, le=2160, description="Viewport height")
     full_page: bool = Field(default=False, description="Capture full page")
+    capture_beyond_viewport: bool = Field(
+        default=True,
+        description="Capture content beyond viewport (for full_page and selector screenshots)",
+    )
     device_scale_factor: float = Field(
         default=1.0, ge=1.0, le=3.0, description="Device pixel ratio (1.0=fast, 2.0=HD)"
     )
@@ -38,6 +42,10 @@ class ScreenshotRequest(BaseModel):
     # Image options - JPEG default for speed (smaller files = faster S3 upload)
     format: str = Field(default="jpeg", description="Output format (png, jpeg, webp)")
     quality: int = Field(default=80, ge=1, le=100, description="Image quality (for jpeg/webp)")
+    response_type: str = Field(
+        default="binary",
+        description="Response type: 'binary' (raw image) or 'json' (metadata + S3 URL)",
+    )
 
     # Timing options
     delay: int = Field(default=0, ge=0, le=10000, description="Delay in ms before capture")
@@ -124,6 +132,15 @@ class ScreenshotRequest(BaseModel):
         allowed = {"load", "domcontentloaded", "networkidle"}
         if v.lower() not in allowed:
             raise ValueError(f"wait_until must be one of: {', '.join(allowed)}")
+        return v.lower()
+
+    @field_validator("response_type")
+    @classmethod
+    def validate_response_type(cls, v: str) -> str:
+        """Validate response_type value."""
+        allowed = {"binary", "json"}
+        if v.lower() not in allowed:
+            raise ValueError(f"response_type must be one of: {', '.join(allowed)}")
         return v.lower()
 
     def model_post_init(self, __context) -> None:

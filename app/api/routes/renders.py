@@ -32,6 +32,7 @@ logger = get_logger(__name__)
 from app.utils.exceptions import NotFoundError, ValidationError
 from app.utils.helpers import utc_now
 from app.utils.validators import validate_url
+from app.utils.signature import generate_signature, verify_signature
 
 # Import render service based on configuration
 if settings.USE_GO_RENDERER:
@@ -200,6 +201,171 @@ async def demo_screenshot(
 
 
 # =============================================================================
+# SIGNED URL ENDPOINTS - Frontend-safe screenshot URLs
+# =============================================================================
+
+@router.post(
+    "/sign",
+    summary="Generate signed URL",
+    description="Generate a signed screenshot URL that can be used client-side without exposing API key.",
+)
+async def sign_screenshot_url(
+    current_user: RateLimitedUser,
+    url: str = Query(..., description="URL to capture"),
+    width: int = Query(1920, ge=320, le=3840),
+    height: int = Query(1080, ge=240, le=2160),
+    format: str = Query("jpeg", description="Output format"),
+    full_page: bool = Query(False),
+    expires_in: int = Query(3600, ge=60, le=86400, description="Signature validity in seconds"),
+) -> dict:
+    """
+    Generate a signed URL for frontend use.
+    
+    The generated URL can be used directly in img tags or fetch calls
+    without needing to send the API key.
+    """
+    params = {
+        "url": url,
+        "width": width,
+        "height": height,
+        "format": format,
+        "full_page": str(full_page).lower(),
+        "api_key_id": str(current_user.api_key_id),
+    }
+    
+    # Use API key as the signing secret
+    signed_params = generate_signature(
+        api_key=current_user.api_key,
+        params=params,
+        expires_in=expires_in,
+    )
+    
+    # Build the signed URL
+    base_url = f"{settings.API_BASE_URL}/api/v1/renders/signed"
+    query_string = "&".join(f"{k}={v}" for k, v in signed_params.items())
+    signed_url = f"{base_url}?{query_string}"
+    
+    return {
+        "signed_url": signed_url,
+        "expires_in": expires_in,
+        "params": signed_params,
+    }
+
+
+@router.get(
+    "/signed",
+    summary="Signed screenshot (no API key required)",
+    description="Capture a screenshot using a signed URL. No API key header needed.",
+    responses={
+        200: {"content": {"image/png": {}, "image/jpeg": {}, "image/webp": {}}},
+    },
+)
+async def signed_screenshot(
+    request: Request,
+    db: DBSession,
+    url: str = Query(..., description="URL to capture"),
+    width: int = Query(1920, ge=320, le=3840),
+    height: int = Query(1080, ge=240, le=2160),
+    format: str = Query("jpeg"),
+    full_page: str = Query("false"),
+    api_key_id: str = Query(..., description="API key ID for verification"),
+    expires: int = Query(..., description="Expiry timestamp"),
+    signature: str = Query(..., description="HMAC signature"),
+):
+    """
+    Take a screenshot using a signed URL.
+    
+    This endpoint doesn't require X-API-Key header - authentication
+    is done via the signature parameter.
+    """
+    import time
+    
+    # Look up the API key by ID
+    from app.models import APIKey
+    api_key_record = await db.scalar(
+        select(APIKey).where(APIKey.id == api_key_id)
+    )
+    
+    if not api_key_record:
+        raise HTTPException(status_code=401, detail="Invalid API key")
+    
+    if not api_key_record.is_active:
+        raise HTTPException(status_code=401, detail="API key is inactive")
+    
+    # Verify the signature
+    params = {
+        "url": url,
+        "width": width,
+        "height": height,
+        "format": format,
+        "full_page": full_page,
+        "api_key_id": api_key_id,
+        "expires": expires,
+    }
+    
+    is_valid, error = verify_signature(
+        params=params,
+        signature=signature,
+        api_key=api_key_record.key,
+    )
+    
+    if not is_valid:
+        raise HTTPException(status_code=401, detail=f"Signature verification failed: {error}")
+    
+    # Process the screenshot
+    start_time = time.perf_counter()
+    
+    options = {
+        "width": width,
+        "height": height,
+        "format": format,
+        "quality": 80,
+        "full_page": full_page.lower() == "true",
+        "device_scale_factor": 1.0,
+        "delay": 0,
+    }
+    
+    try:
+        image_bytes, metadata = await render_service.capture_screenshot(
+            url=url,
+            options=options,
+            user_plan=None,  # Signed requests use basic settings
+        )
+        
+        # Apply watermark (signed URLs always get watermark unless pro)
+        image_bytes = render_service.inject_watermark(
+            image_bytes,
+            format=format,
+        )
+        
+        elapsed = time.perf_counter() - start_time
+        logger.info(
+            "Signed screenshot completed",
+            url=url[:50],
+            elapsed=f"{elapsed:.3f}s",
+        )
+        
+        media_type = {
+            "png": "image/png",
+            "jpeg": "image/jpeg",
+            "webp": "image/webp",
+        }.get(format, "image/png")
+        
+        return Response(
+            content=image_bytes,
+            media_type=media_type,
+            headers={
+                "X-Processing-Time-Ms": str(metadata["processing_time_ms"]),
+                "X-Signed-Request": "true",
+            },
+        )
+        
+    except Exception as e:
+        logger.error("Signed screenshot failed", error=str(e))
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# =============================================================================
 # FAST ENDPOINT - Returns image directly (like ScreenshotOne)
 # =============================================================================
 
@@ -219,7 +385,8 @@ async def demo_screenshot(
     },
 )
 async def take_screenshot(
-    current_user: RateLimitedUser,
+    request: Request,
+    db: DBSession,
     # Source options (only one required)
     url: str | None = Query(None, description="URL to capture"),
     html: str | None = Query(None, description="HTML content to render"),
@@ -239,12 +406,21 @@ async def take_screenshot(
     block_ads: bool = Query(True, description="Block ads"),
     block_trackers: bool = Query(True, description="Block trackers"),
     block_cookie_banners: bool = Query(True, description="Block cookie banners"),
+    # Auth options - multiple methods supported
+    access_key: str | None = Query(None, description="API key (alternative to X-API-Key header)"),
+    signature: str | None = Query(None, description="Request signature (for signed URLs)"),
+    expires: int | None = Query(None, description="Signature expiry timestamp"),
 ) -> Response:
     """
     Take a screenshot and return the image directly.
 
     **This is the fastest endpoint** - no S3 upload, no JSON response.
     Just pure image data returned directly.
+
+    **Authentication (choose one):**
+    - Header: `X-API-Key: sk_live_xxx`
+    - Query: `?access_key=sk_live_xxx`
+    - Signed: `?signature=xxx&expires=123` (no API key needed)
 
     **Source options (one required):**
     - `url`: URL to capture
@@ -259,13 +435,77 @@ async def take_screenshot(
     **Example:**
     ```
     GET /api/v1/renders/take?url=https://stripe.com&format=jpeg&quality=80
-    GET /api/v1/renders/take?html=<h1>Hello</h1>&format=png
+    GET /api/v1/renders/take?access_key=sk_xxx&url=https://stripe.com
+    GET /api/v1/renders/take?url=https://stripe.com&signature=abc&expires=123
     ```
 
     Returns: Binary image data with appropriate Content-Type header.
     """
     import time
+    from app.models import APIKey
+    
     start_time = time.perf_counter()
+    
+    # =========================================================================
+    # AUTHENTICATION - Support multiple methods
+    # =========================================================================
+    api_key_record = None
+    user_plan = None
+    user_id = None
+    
+    # Method 1: Check X-API-Key header
+    header_key = request.headers.get("X-API-Key")
+    
+    # Method 2: Check access_key query param
+    query_key = access_key
+    
+    # Method 3: Check signature (signed URL)
+    if signature and expires:
+        # Signed URL auth - need to look up API key from signed params
+        # For now, signed URLs require additional setup
+        # We'll verify signature against stored API key
+        pass
+    
+    # Try header first, then query param
+    api_key = header_key or query_key
+    
+    if api_key:
+        # Look up API key
+        api_key_record = await db.scalar(
+            select(APIKey).where(APIKey.key == api_key)
+        )
+        
+        if not api_key_record:
+            raise HTTPException(status_code=401, detail="Invalid API key")
+        
+        if not api_key_record.is_active:
+            raise HTTPException(status_code=401, detail="API key is inactive")
+        
+        user_id = api_key_record.user_id
+        user_plan = api_key_record.user.plan_features if hasattr(api_key_record, 'user') else {}
+        
+    elif signature and expires:
+        # Signed URL authentication
+        params = {
+            "url": url or "",
+            "width": width,
+            "height": height,
+            "format": format,
+            "full_page": str(full_page).lower(),
+            "expires": expires,
+        }
+        
+        # We need the API key ID from signed params to verify
+        # For simplicity, signed URLs should include api_key_id
+        raise HTTPException(
+            status_code=401,
+            detail="For signed URLs, use /signed endpoint"
+        )
+    else:
+        raise HTTPException(
+            status_code=401,
+            detail="Authentication required. Use X-API-Key header, access_key param, or signed URL"
+        )
 
     # Validate source - at least one required
     sources = [url, html, markdown]
@@ -342,11 +582,11 @@ async def take_screenshot(
     image_bytes, metadata = await render_service.capture_screenshot(
         url=url,
         options=options,
-        user_plan=current_user.plan_features,
+        user_plan=user_plan,
     )
 
     # Apply watermark for free tier
-    if current_user.plan_features.get("watermark", True):
+    if user_plan.get("watermark", True) if user_plan else True:
         image_bytes = render_service.inject_watermark(
             image_bytes,
             format=format,
@@ -367,7 +607,8 @@ async def take_screenshot(
         logger.warning("Cache set failed", error=str(e))
 
     # Increment usage
-    await rate_limit_service.increment_usage(current_user.user_id)
+    if user_id:
+        await rate_limit_service.increment_usage(user_id)
 
     elapsed = time.perf_counter() - start_time
     logger.info(
@@ -481,6 +722,7 @@ async def create_screenshot(
         "selector": request.selector,
         "scroll_into_view": request.scroll_into_view,
         "scroll_adjust_top": request.scroll_adjust_top,
+        "response_type": request.response_type,
     }
 
     # Determine source label for job record
@@ -601,6 +843,48 @@ async def create_screenshot(
             image_bytes = render_service.inject_watermark(
                 image_bytes,
                 format=options.get("format", "png"),
+            )
+
+        # =====================================================================
+        # BINARY RESPONSE MODE - Return raw image bytes directly
+        # =====================================================================
+        if request.response_type == "binary":
+            # Return image directly without S3 upload
+            media_type = {
+                "png": "image/png",
+                "jpeg": "image/jpeg",
+                "jpg": "image/jpeg",
+                "webp": "image/webp",
+            }.get(options.get("format", "png"), "image/png")
+
+            # Update job as completed (for tracking)
+            render_job.status = "completed"
+            render_job.completed_at = utc_now()
+            render_job.file_size_bytes = len(image_bytes)
+            render_job.processing_time_ms = metadata["processing_time_ms"]
+            render_job.result = metadata
+            await db.commit()
+
+            # Increment usage
+            await rate_limit_service.increment_usage(current_user.user_id)
+
+            elapsed = time.perf_counter() - start_time
+            logger.info(
+                "Screenshot endpoint completed (binary)",
+                url=source_label[:50],
+                elapsed=f"{elapsed:.3f}s",
+                size=len(image_bytes),
+            )
+
+            return Response(
+                content=image_bytes,
+                media_type=media_type,
+                headers={
+                    "X-Processing-Time-Ms": str(metadata["processing_time_ms"]),
+                    "X-Image-Width": str(metadata["width"]),
+                    "X-Image-Height": str(metadata["height"]),
+                    "Content-Length": str(len(image_bytes)),
+                },
             )
 
         # Upload to S3

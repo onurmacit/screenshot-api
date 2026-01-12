@@ -24,24 +24,25 @@ func NewRenderer(pool *BrowserPool) *Renderer {
 
 // ScreenshotOptions defines options for screenshot capture
 type ScreenshotOptions struct {
-	URL                string  `json:"url"`
-	Width              int     `json:"width"`
-	Height             int     `json:"height"`
-	Format             string  `json:"format"`
-	Quality            int     `json:"quality"`
-	FullPage           bool    `json:"full_page"`
-	Delay              int     `json:"delay"`
-	DeviceScaleFactor  float64 `json:"device_scale_factor"`
-	BlockAds           bool    `json:"block_ads"`
-	BlockTrackers      bool    `json:"block_trackers"`
-	BlockCookieBanners bool    `json:"block_cookie_banners"`
-	UserAgent          string  `json:"user_agent"`
-	Selector           string  `json:"selector"`
-	ScrollIntoView     string  `json:"scroll_into_view"`
-	ScrollAdjustTop    int     `json:"scroll_adjust_top"`
-	HTML               string  `json:"html"`
-	Markdown           string  `json:"markdown"`
-	Timeout            int     `json:"timeout"`
+	URL                   string  `json:"url"`
+	Width                 int     `json:"width"`
+	Height                int     `json:"height"`
+	Format                string  `json:"format"`
+	Quality               int     `json:"quality"`
+	FullPage              bool    `json:"full_page"`
+	Delay                 int     `json:"delay"`
+	DeviceScaleFactor     float64 `json:"device_scale_factor"`
+	BlockAds              bool    `json:"block_ads"`
+	BlockTrackers         bool    `json:"block_trackers"`
+	BlockCookieBanners    bool    `json:"block_cookie_banners"`
+	UserAgent             string  `json:"user_agent"`
+	Selector              string  `json:"selector"`
+	ScrollIntoView        string  `json:"scroll_into_view"`
+	ScrollAdjustTop       int     `json:"scroll_adjust_top"`
+	HTML                  string  `json:"html"`
+	Markdown              string  `json:"markdown"`
+	Timeout               int     `json:"timeout"`
+	CaptureBeyondViewport bool    `json:"capture_beyond_viewport"`
 }
 
 // ScreenshotResult contains the result of a screenshot capture
@@ -189,10 +190,16 @@ func (r *Renderer) CaptureScreenshot(opts ScreenshotOptions) (*ScreenshotResult,
 
 	// Scroll into view if specified
 	if opts.ScrollIntoView != "" {
-		el := page.MustElement(opts.ScrollIntoView)
-		el.MustScrollIntoView()
+		el, err := page.Timeout(10 * time.Second).Element(opts.ScrollIntoView)
+		if err != nil {
+			return nil, fmt.Errorf("scroll element not found: %s - %w", opts.ScrollIntoView, err)
+		}
+		err = el.ScrollIntoView()
+		if err != nil {
+			return nil, fmt.Errorf("failed to scroll into view: %w", err)
+		}
 		if opts.ScrollAdjustTop != 0 {
-			page.Mouse.MustScroll(0, float64(opts.ScrollAdjustTop))
+			page.Mouse.Scroll(0, float64(opts.ScrollAdjustTop), 1)
 		}
 	}
 
@@ -210,14 +217,26 @@ func (r *Renderer) CaptureScreenshot(opts ScreenshotOptions) (*ScreenshotResult,
 	}
 
 	if opts.Selector != "" {
-		// Capture specific element
-		el := page.MustElement(opts.Selector)
-		imageBytes, _ = el.Screenshot(format, opts.Quality)
+		// Capture specific element with timeout
+		el, err := page.Timeout(10 * time.Second).Element(opts.Selector)
+		if err != nil {
+			return nil, fmt.Errorf("element not found: %s - %w", opts.Selector, err)
+		}
+		// Wait for element to be visible
+		err = el.WaitVisible()
+		if err != nil {
+			return nil, fmt.Errorf("element not visible: %s - %w", opts.Selector, err)
+		}
+		imageBytes, err = el.Screenshot(format, opts.Quality)
+		if err != nil {
+			return nil, fmt.Errorf("failed to screenshot element: %w", err)
+		}
 	} else if opts.FullPage {
 		// Full page screenshot
 		imageBytes, _ = page.Screenshot(true, &proto.PageCaptureScreenshot{
-			Format:  format,
-			Quality: &opts.Quality,
+			Format:                format,
+			Quality:               &opts.Quality,
+			CaptureBeyondViewport: opts.CaptureBeyondViewport,
 		})
 	} else {
 		// Viewport screenshot

@@ -19,18 +19,18 @@ class TestKeyGeneration:
     """Test dual-key pair generation."""
     
     def test_generate_key_pair_format(self):
-        """Test that generated keys have correct format."""
+        """Test that generated keys have correct format (ScreenshotOne style)."""
         from app.utils.crypto import generate_key_pair
         
         access_key, secret_key = generate_key_pair()
         
-        # Access key should start with ak_
-        assert access_key.startswith("ak_")
-        # Secret key should start with sk_
-        assert secret_key.startswith("sk_")
-        # Keys should have reasonable length
-        assert len(access_key) >= 20
-        assert len(secret_key) >= 32
+        # Keys should be URL-safe strings without prefix (ScreenshotOne style)
+        # Format: ~14 characters, alphanumeric + underscore + hyphen
+        assert len(access_key) >= 10  # token_urlsafe(10) = ~14 chars
+        assert len(secret_key) >= 10
+        # No prefix (ScreenshotOne style)
+        assert not access_key.startswith("ak_")
+        assert not secret_key.startswith("sk_")
     
     def test_generate_key_pair_uniqueness(self):
         """Test that each call generates unique keys."""

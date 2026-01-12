@@ -183,40 +183,63 @@ export default function ScreenshotPlaygroundPage() {
             if (timeout !== 30000) requestBody.timeout = timeout;
             if (userAgent.trim()) requestBody.user_agent = userAgent.trim();
 
-            const response = await api.post("/api/v1/renders/screenshot", requestBody, {
-                headers: { "X-API-Key": apiKey }
-            });
+            // For binary response, we need to get blob
+            if (responseType === "binary") {
+                const response = await api.post("/api/v1/renders/screenshot", requestBody, {
+                    headers: { "X-API-Key": apiKey },
+                    responseType: 'blob'  // Important: get binary data as blob
+                });
 
-            if ((response.data.status === "completed" && response.data.url) || response.data.screenshot_url) {
-                const resultUrl = response.data.url || response.data.screenshot_url;
-                setResult(resultUrl);
+                // Create object URL from blob
+                const blob = response.data as Blob;
+                const imageUrl = URL.createObjectURL(blob);
+                setResult(imageUrl);
 
-                // If response type is JSON, store the full JSON payload
-                if (responseType === "json") {
-                    setJsonResult(JSON.stringify(response.data, null, 2));
-                } else {
-                    setJsonResult(null);
-                }
-
-                // Capture response metadata
-                const fileSizeBytes = response.data.file_size || 0;
+                // Capture response metadata from headers
+                const processingTime = response.headers['x-processing-time-ms'];
+                const contentLength = response.headers['content-length'];
                 setResponseMetadata({
                     status: 200,
-                    contentType: responseType === 'json' ? 'application/json' : `image/${format}`,
-                    fileSize: fileSizeBytes,
+                    contentType: blob.type || `image/${format}`,
+                    fileSize: blob.size || parseInt(contentLength || '0'),
                     headers: {
-                        'cache-control': 'private, no-cache, max-age=0, no-transform',
-                        'content-length': fileSizeBytes.toString(),
-                        'content-type': responseType === 'json' ? 'application/json' : `image/${format}`,
-                        ...(response.data.headers || {})
+                        'content-type': blob.type,
+                        'content-length': blob.size.toString(),
+                        'x-processing-time-ms': processingTime || '',
                     },
-                    renderTime: response.data.render_time
+                    renderTime: processingTime ? parseInt(processingTime) : undefined
                 });
-            } else if (response.data.id) {
-                setError("Job started asynchronously. Check Jobs page.");
                 setIsLoading(false);
             } else {
-                setError("Failed to generate screenshot");
+                // JSON response mode
+                const response = await api.post("/api/v1/renders/screenshot", requestBody, {
+                    headers: { "X-API-Key": apiKey }
+                });
+
+                if ((response.data.status === "completed" && response.data.url) || response.data.screenshot_url) {
+                    const resultUrl = response.data.url || response.data.screenshot_url;
+                    setResult(resultUrl);
+                    setJsonResult(JSON.stringify(response.data, null, 2));
+
+                    // Capture response metadata
+                    const fileSizeBytes = response.data.file_size || response.data.size || 0;
+                    setResponseMetadata({
+                        status: 200,
+                        contentType: 'application/json',
+                        fileSize: fileSizeBytes,
+                        headers: {
+                            'cache-control': 'private, no-cache, max-age=0, no-transform',
+                            'content-length': fileSizeBytes.toString(),
+                            'content-type': 'application/json',
+                            ...(response.data.headers || {})
+                        },
+                        renderTime: response.data.processing_time_ms || response.data.render_time
+                    });
+                } else if (response.data.id) {
+                    setError("Job started asynchronously. Check Jobs page.");
+                } else {
+                    setError("Failed to generate screenshot");
+                }
                 setIsLoading(false);
             }
         } catch (err: any) {

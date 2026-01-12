@@ -220,6 +220,24 @@ class SizeInfo(BaseModel):
     height: int
 
 
+class ScreenshotResponse(BaseModel):
+    """
+    Minimal developer-friendly screenshot response.
+    ScreenshotOne-compatible format for sync requests.
+    """
+
+    url: str = Field(..., description="Screenshot URL (S3)")
+    screenshot_url: str = Field(..., description="Alias for url (ScreenshotOne compatibility)")
+    width: int = Field(..., description="Image width in pixels")
+    height: int = Field(..., description="Image height in pixels")
+    format: str = Field(..., description="Image format (png, jpeg, webp)")
+    file_size: int = Field(..., description="File size in bytes")
+    processing_time_ms: int = Field(..., description="Render time in milliseconds")
+    status: str = Field(default="completed", description="Request status")
+
+    model_config = {"from_attributes": True}
+
+
 class RenderJobResponse(BaseModel):
     """Render job response."""
 

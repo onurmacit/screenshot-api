@@ -22,6 +22,7 @@ from app.schemas.render import (
     RenderJobResponse,
     RenderJobsListResponse,
     ScreenshotRequest,
+    ScreenshotResponse,
     SizeInfo,
 )
 from app.services.cache_service import cache_service
@@ -756,7 +757,7 @@ async def take_screenshot(
 
 @router.post(
     "/screenshot",
-    response_model=Union[RenderJobResponse, RenderJobAsyncResponse],
+    response_model=Union[ScreenshotResponse, RenderJobAsyncResponse],
     status_code=status.HTTP_200_OK,
     summary="Create screenshot",
     description="Capture a screenshot of a URL.",
@@ -765,7 +766,7 @@ async def create_screenshot(
     request: ScreenshotRequest,
     current_user: RateLimitedUser,
     db: DBSession,
-) -> RenderJobResponse | RenderJobAsyncResponse:
+) -> ScreenshotResponse | RenderJobAsyncResponse:
     """
     Create a screenshot.
 
@@ -1051,20 +1052,16 @@ async def create_screenshot(
             size=upload_result["file_size"],
         )
 
-        return RenderJobResponse(
-            job_id=render_job.id,
-            type="screenshot",
-            status="completed",
+        # Return minimal developer-friendly response (ScreenshotOne compatible)
+        return ScreenshotResponse(
             url=download_url,
+            screenshot_url=download_url,  # Alias for ScreenshotOne compatibility
+            width=metadata["width"],
+            height=metadata["height"],
             format=options.get("format", "png"),
-            size=SizeInfo(width=metadata["width"], height=metadata["height"]),
             file_size=upload_result["file_size"],
             processing_time_ms=metadata["processing_time_ms"],
-            cached=False,
-            created_at=render_job.created_at,
-            started_at=render_job.started_at,
-            completed_at=render_job.completed_at,
-            expires_at=render_job.expires_at,
+            status="completed",
         )
 
     except Exception as e:

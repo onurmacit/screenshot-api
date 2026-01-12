@@ -137,9 +137,6 @@ export default function ApiKeysPage() {
     const [isCreating, setIsCreating] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
     const [newKeyName, setNewKeyName] = useState("");
-    // Dual-key state
-    const [createdAccessKey, setCreatedAccessKey] = useState<string | null>(null);
-    const [createdSecretKey, setCreatedSecretKey] = useState<string | null>(null);
     const [createEnforceSigning, setCreateEnforceSigning] = useState(false);
     const [isDialogOpen, setIsDialogOpen] = useState(false);
 
@@ -148,9 +145,6 @@ export default function ApiKeysPage() {
 
     // Selection states
     const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
-
-    // Dialog copy state
-    const [dialogCopied, setDialogCopied] = useState<'access' | 'secret' | null>(null);
 
     useEffect(() => {
         fetchKeys();
@@ -221,12 +215,12 @@ export default function ApiKeysPage() {
                 name: newKeyName.trim(),
                 enforce_signing: createEnforceSigning
             });
-            // Dual-key response
-            setCreatedAccessKey(result.access_key);
-            setCreatedSecretKey(result.secret_key);
+            // Add to list and close dialog immediately (ScreenshotOne approach)
             setKeys([result, ...keys]);
             setNewKeyName("");
-            toast.success("API Key created successfully");
+            setCreateEnforceSigning(false);
+            setIsDialogOpen(false);
+            toast.success("API Key created");
         } catch (error: any) {
             const errorMessage = error?.response?.data?.detail || error?.message || "Failed to create API key";
             toast.error(errorMessage);
@@ -297,13 +291,8 @@ export default function ApiKeysPage() {
     };
 
     const closeDialog = () => {
-        if (createdAccessKey || createdSecretKey) {
-            setCreatedAccessKey(null);
-            setCreatedSecretKey(null);
-            setNewKeyName("");
-            setCreateEnforceSigning(false);
-        }
-        setDialogCopied(null);
+        setNewKeyName("");
+        setCreateEnforceSigning(false);
         setIsDialogOpen(false);
     };
 
@@ -329,177 +318,85 @@ export default function ApiKeysPage() {
                         </Button>
                     </DialogTrigger>
                     <DialogContent className="sm:max-w-lg">
-                        {createdAccessKey && createdSecretKey ? (
-                            /* ===== SUCCESS STATE - DUAL KEY ===== */
-                            <div className="space-y-6 py-2">
-                                {/* Header */}
-                                <div className="text-center space-y-3">
-                                    <div className="mx-auto w-16 h-16 bg-green-100 rounded-full flex items-center justify-center">
-                                        <Check className="h-8 w-8 text-green-600" />
-                                    </div>
-                                    <div>
-                                        <h2 className="text-2xl font-bold text-gray-900">API Key Created</h2>
-                                        <p className="text-gray-500 mt-1">Save both keys - you won't see them again</p>
-                                    </div>
+                        <form onSubmit={(e) => { e.preventDefault(); handleCreateKey(); }} className="space-y-6 py-2">
+                            {/* Header */}
+                            <div className="text-center space-y-3">
+                                <div className="mx-auto w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center">
+                                    <Key className="h-8 w-8 text-primary" />
                                 </div>
-
-                                {/* Access Key */}
-                                <div className="space-y-2">
-                                    <Label className="text-sm font-medium text-gray-700">
-                                        Access Key <span className="text-green-600">(Public - safe to share)</span>
-                                    </Label>
-                                    <div className="flex gap-2">
-                                        <Input
-                                            value={createdAccessKey}
-                                            readOnly
-                                            className="h-10 text-sm font-mono bg-slate-50"
-                                        />
-                                        <Button
-                                            variant="outline"
-                                            className={`h-10 px-3 ${dialogCopied === 'access' ? 'bg-green-100 text-green-700' : ''}`}
-                                            onClick={() => {
-                                                navigator.clipboard.writeText(createdAccessKey);
-                                                setDialogCopied('access');
-                                                setTimeout(() => setDialogCopied(null), 2000);
-                                            }}
-                                        >
-                                            {dialogCopied === 'access' ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                                        </Button>
-                                    </div>
-                                </div>
-
-                                {/* Secret Key */}
-                                <div className="space-y-2">
-                                    <Label className="text-sm font-medium text-gray-700">
-                                        Secret Key <span className="text-red-600">(Private - keep safe!)</span>
-                                    </Label>
-                                    <div className="flex gap-2">
-                                        <Input
-                                            value={createdSecretKey}
-                                            readOnly
-                                            className="h-10 text-sm font-mono bg-red-50 border-red-200"
-                                        />
-                                        <Button
-                                            variant="outline"
-                                            className={`h-10 px-3 ${dialogCopied === 'secret' ? 'bg-green-100 text-green-700' : ''}`}
-                                            onClick={() => {
-                                                navigator.clipboard.writeText(createdSecretKey);
-                                                setDialogCopied('secret');
-                                                setTimeout(() => setDialogCopied(null), 2000);
-                                            }}
-                                        >
-                                            {dialogCopied === 'secret' ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                                        </Button>
-                                    </div>
-                                    <p className="text-sm text-amber-600 font-medium">
-                                        ⚠️ The Secret Key is used for signing requests. Store it securely!
-                                    </p>
-                                </div>
-
-                                {/* Action Buttons */}
-                                <div className="flex gap-3 pt-2">
-                                    <Button
-                                        variant="outline"
-                                        onClick={closeDialog}
-                                        className="flex-1 h-12 text-base"
-                                    >
-                                        Close
-                                    </Button>
-                                    <Button
-                                        onClick={() => {
-                                            navigator.clipboard.writeText(`Access Key: ${createdAccessKey}\nSecret Key: ${createdSecretKey}`);
-                                            toast.success("Both keys copied!");
-                                            setTimeout(() => closeDialog(), 500);
-                                        }}
-                                        className="flex-1 h-12 text-base font-medium"
-                                    >
-                                        <Copy className="h-5 w-5 mr-2" />
-                                        Copy Both & Close
-                                    </Button>
+                                <div>
+                                    <h2 className="text-2xl font-bold text-gray-900">Create API Key</h2>
+                                    <p className="text-gray-500 mt-1">Generate a new key to access the Screenshot API</p>
                                 </div>
                             </div>
-                        ) : (
-                            /* ===== CREATE STATE ===== */
-                            <form onSubmit={(e) => { e.preventDefault(); handleCreateKey(); }} className="space-y-6 py-2">
-                                {/* Header */}
-                                <div className="text-center space-y-3">
-                                    <div className="mx-auto w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center">
-                                        <Key className="h-8 w-8 text-primary" />
-                                    </div>
-                                    <div>
-                                        <h2 className="text-2xl font-bold text-gray-900">Create API Key</h2>
-                                        <p className="text-gray-500 mt-1">Generate a new key to access the Screenshot API</p>
-                                    </div>
-                                </div>
 
-                                {/* Input Field */}
-                                <div className="space-y-2">
-                                    <Label htmlFor="name" className="text-sm font-medium text-gray-700">
-                                        Key Name
+                            {/* Input Field */}
+                            <div className="space-y-2">
+                                <Label htmlFor="name" className="text-sm font-medium text-gray-700">
+                                    Key Name
+                                </Label>
+                                <Input
+                                    id="name"
+                                    placeholder="e.g. Production, Development, My App"
+                                    value={newKeyName}
+                                    onChange={(e) => setNewKeyName(e.target.value)}
+                                    disabled={isCreating}
+                                    autoFocus
+                                    className="h-12 text-base"
+                                />
+                                <p className="text-sm text-muted-foreground">
+                                    A friendly name to identify this key in your dashboard.
+                                </p>
+                            </div>
+
+                            {/* Enforce Signing Toggle */}
+                            <div className="flex flex-row items-center justify-between rounded-lg border p-4 shadow-sm bg-slate-50">
+                                <div className="space-y-0.5">
+                                    <Label htmlFor="enforce-signing" className="text-base font-medium">
+                                        Accept only signed requests
                                     </Label>
-                                    <Input
-                                        id="name"
-                                        placeholder="e.g. Production, Development, My App"
-                                        value={newKeyName}
-                                        onChange={(e) => setNewKeyName(e.target.value)}
-                                        disabled={isCreating}
-                                        autoFocus
-                                        className="h-12 text-base"
-                                    />
-                                    <p className="text-sm text-muted-foreground">
-                                        A friendly name to identify this key in your dashboard.
-                                    </p>
-                                </div>
-
-                                {/* Enforce Signing Toggle */}
-                                <div className="flex flex-row items-center justify-between rounded-lg border p-4 shadow-sm bg-slate-50">
-                                    <div className="space-y-0.5">
-                                        <Label htmlFor="enforce-signing" className="text-base font-medium">
-                                            Accept only signed requests
-                                        </Label>
-                                        <div className="text-sm text-muted-foreground">
-                                            Enhanced security: requires HMAC signature for every request.
-                                        </div>
+                                    <div className="text-sm text-muted-foreground">
+                                        Enhanced security: requires HMAC signature for every request.
                                     </div>
-                                    <Switch
-                                        id="enforce-signing"
-                                        checked={createEnforceSigning}
-                                        onCheckedChange={setCreateEnforceSigning}
-                                        disabled={isCreating}
-                                    />
                                 </div>
+                                <Switch
+                                    id="enforce-signing"
+                                    checked={createEnforceSigning}
+                                    onCheckedChange={setCreateEnforceSigning}
+                                    disabled={isCreating}
+                                />
+                            </div>
 
-                                {/* Action Buttons */}
-                                <div className="flex gap-3 pt-2">
-                                    <Button
-                                        type="button"
-                                        variant="outline"
-                                        onClick={() => setIsDialogOpen(false)}
-                                        disabled={isCreating}
-                                        className="flex-1 h-12 text-base"
-                                    >
-                                        Cancel
-                                    </Button>
-                                    <Button
-                                        type="submit"
-                                        disabled={isCreating || !newKeyName.trim()}
-                                        className="flex-1 h-12 text-base font-medium"
-                                    >
-                                        {isCreating ? (
-                                            <>
-                                                <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                                                Creating...
-                                            </>
-                                        ) : (
-                                            <>
-                                                <Plus className="mr-2 h-5 w-5" />
-                                                Create Key
-                                            </>
-                                        )}
-                                    </Button>
-                                </div>
-                            </form>
-                        )}
+                            {/* Action Buttons */}
+                            <div className="flex gap-3 pt-2">
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    onClick={() => setIsDialogOpen(false)}
+                                    disabled={isCreating}
+                                    className="flex-1 h-12 text-base"
+                                >
+                                    Cancel
+                                </Button>
+                                <Button
+                                    type="submit"
+                                    disabled={isCreating || !newKeyName.trim()}
+                                    className="flex-1 h-12 text-base font-medium"
+                                >
+                                    {isCreating ? (
+                                        <>
+                                            <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                                            Creating...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Plus className="mr-2 h-5 w-5" />
+                                            Create Key
+                                        </>
+                                    )}
+                                </Button>
+                            </div>
+                        </form>
                     </DialogContent>
                 </Dialog>
             </div>

@@ -56,7 +56,6 @@ export default function ScreenshotPlaygroundPage() {
     // === STATE ===
     const [apiKey, setApiKey] = useState("");
     const [userKeys, setUserKeys] = useState<APIKey[]>([]);
-    const [useManualInput, setUseManualInput] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [result, setResult] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
@@ -88,7 +87,7 @@ export default function ScreenshotPlaygroundPage() {
         return () => window.removeEventListener('resize', measureHeight);
     }, []);
 
-    // Load API Keys
+    // Load API Keys - auto-select first key (ScreenshotOne style - seamless)
     useEffect(() => {
         const loadKeys = async () => {
             try {
@@ -97,15 +96,12 @@ export default function ScreenshotPlaygroundPage() {
                 const validKeys = keys.filter(k => k.access_key);
                 setUserKeys(validKeys);
 
-                // Auto-select first key if available and no key set
-                if (validKeys.length > 0 && !apiKey) {
+                // Auto-select first key (always available due to default key on registration)
+                if (validKeys.length > 0) {
                     setApiKey(validKeys[0].access_key || "");
-                } else if (validKeys.length === 0) {
-                    setUseManualInput(true); // Default to manual if no keys
                 }
             } catch (error) {
                 console.error("Failed to load keys", error);
-                setUseManualInput(true);
             }
         };
         loadKeys();
@@ -321,48 +317,11 @@ export default function ScreenshotPlaygroundPage() {
                         {/* API Key + Render Button + Response Info (expands after render) */}
                         <Card>
                             <CardContent className="pt-4 space-y-4">
-                                <div className="space-y-2">
-                                    <div className="flex items-center justify-between mb-2">
-                                        <Label>API Key</Label>
-                                        {userKeys.length > 0 && (
-                                            <Button
-                                                variant="link"
-                                                size="sm"
-                                                className="h-auto p-0 text-xs"
-                                                onClick={() => setUseManualInput(!useManualInput)}
-                                            >
-                                                {useManualInput ? "Select from list" : "Enter manually"}
-                                            </Button>
-                                        )}
-                                    </div>
-
-                                    {useManualInput || userKeys.length === 0 ? (
-                                        <Input
-                                            type="password"
-                                            placeholder="Enter your API Key"
-                                            value={apiKey}
-                                            onChange={(e) => setApiKey(e.target.value)}
-                                        />
-                                    ) : (
-                                        <Select value={apiKey} onValueChange={setApiKey}>
-                                            <SelectTrigger>
-                                                <SelectValue placeholder="Select an API Key" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                {userKeys.map((k) => (
-                                                    <SelectItem key={k.key_id} value={k.access_key || ""}>
-                                                        {k.name || "Unnamed Key"}
-                                                    </SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
-                                    )}
-                                </div>
                                 <Button
                                     className="w-full"
                                     size="lg"
                                     onClick={handleRender}
-                                    disabled={isLoading}
+                                    disabled={isLoading || !apiKey}
                                 >
                                     {isLoading ? (
                                         <>

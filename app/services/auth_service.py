@@ -91,6 +91,9 @@ class AuthService:
 
         logger.info("User registered", user_id=str(user.id), email=email)
 
+        # Create default API key for new user (ScreenshotOne style - always available)
+        await self._create_default_api_key(user.id)
+
         # Generate tokens
         access_token = self._create_user_access_token(user)
         refresh_token = await self._create_refresh_token(user)
@@ -222,6 +225,9 @@ class AuthService:
             await self.db.commit()
             await self.db.refresh(user)
             logger.info("New social user created", user_id=str(user.id), provider=provider)
+            
+            # Create default API key for new social user
+            await self._create_default_api_key(user.id)
         else:
             if not user.is_active:
                 raise AuthenticationError("Account is deactivated")
@@ -519,6 +525,37 @@ class AuthService:
                 "email": user.email,
                 "plan_id": user.plan_id,
             },
+        )
+
+    async def _create_default_api_key(self, user_id: UUID) -> None:
+        """
+        Create a default API key for new users.
+        
+        This ensures every user has at least one API key for the playground.
+        ScreenshotOne style: users always have a key available.
+        """
+        from app.utils.crypto import encrypt_secret_key, generate_key_pair
+        
+        access_key, secret_key = generate_key_pair()
+        
+        api_key = APIKey(
+            user_id=user_id,
+            access_key=access_key,
+            secret_key_encrypted=encrypt_secret_key(secret_key),
+            name="Default",
+            scopes=["renders:read", "renders:write"],
+            enforce_signing=False,
+            is_legacy=False,
+            is_active=True,
+        )
+        
+        self.db.add(api_key)
+        await self.db.commit()
+        
+        logger.info(
+            "Default API key created for new user",
+            user_id=str(user_id),
+            access_key=access_key[:8] + "...",
         )
 
     async def _create_refresh_token(

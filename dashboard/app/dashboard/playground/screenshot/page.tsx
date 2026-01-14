@@ -664,20 +664,16 @@ export default function ScreenshotPlaygroundPage() {
                         <div className="w-28 h-2 bg-gradient-to-b from-gray-600 to-gray-700 rounded-b-lg shadow-md"></div>
                     </div>
 
-                    {/* Unified Response Bar */}
-                    <div className="mt-4 flex justify-end items-stretch shadow-lg rounded-xl overflow-hidden bg-gray-800">
+                    {/* Response Bar Container */}
+                    <div className="mt-4 flex items-center gap-2">
 
-                        {/* Expandable Info Section */}
-                        <div
-                            className={`
-                                flex items-center justify-between
-                                transition-all duration-500 ease-[cubic-bezier(0.23,1,0.32,1)]
-                                ${responseMetadata && !isLoading
-                                    ? 'flex-1 opacity-100 px-4'
-                                    : 'w-0 opacity-0 px-0'
-                                }
-                            `}
-                        >
+                        {/* Main Info Bar (Left & Center) */}
+                        <div className={`
+                            flex-1 flex items-center justify-between
+                            bg-gray-800 text-white h-12 px-4 rounded-xl shadow-lg
+                            transition-all duration-500 ease-[cubic-bezier(0.23,1,0.32,1)]
+                            ${responseMetadata && !isLoading ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none'}
+                        `}>
 
                             {/* LEFT: Metadata Group */}
                             <div className="flex items-center gap-4">
@@ -725,23 +721,16 @@ export default function ScreenshotPlaygroundPage() {
                                 )}
                             </div>
 
-
-                        </div>
-
-                        {/* RIGHT: Actions (Always Visible + Conditional) */}
-                        <div className="flex items-center bg-gray-800 z-10">
-
-                            {/* Headers & Download (Visible only when result exists) */}
-                            <div className={`
-                                flex items-center 
-                                transition-all duration-300
-                                ${responseMetadata && !isLoading ? 'opacity-100 max-w-[300px]' : 'opacity-0 max-w-0 overflow-hidden'}
-                            `}>
-                                {/* Headers */}
+                            {/* RIGHT: Headers & Actions filler */}
+                            <div className="flex items-center gap-2">
+                                {/* Headers Button */}
                                 {responseMetadata?.headers && Object.keys(responseMetadata.headers).length > 0 && (
                                     <Popover>
                                         <PopoverTrigger asChild>
-                                            <button className="h-12 px-3 hover:bg-gray-700/50 text-gray-400 hover:text-blue-400 transition-colors border-l border-gray-700/50">
+                                            <button
+                                                className="p-2 rounded-lg hover:bg-gray-700 text-gray-400 hover:text-blue-400 transition-colors"
+                                                title="View Headers"
+                                            >
                                                 <List className="w-4 h-4" />
                                             </button>
                                         </PopoverTrigger>
@@ -761,38 +750,49 @@ export default function ScreenshotPlaygroundPage() {
                                         </PopoverContent>
                                     </Popover>
                                 )}
-
-                                {/* Download */}
-                                {result && (
-                                    <button
-                                        onClick={() => {
-                                            const link = document.createElement('a');
-                                            link.href = result;
-                                            link.download = `screenshot-${Date.now()}.${format}`;
-                                            link.target = '_blank';
-                                            link.click();
-                                        }}
-                                        className="h-12 px-5 flex items-center gap-2 text-sm font-medium text-gray-300 hover:text-white hover:bg-gray-700/50 transition-colors border-l border-gray-700/50"
-                                    >
-                                        <Download className="w-4 h-4" />
-                                        <span>Download</span>
-                                    </button>
-                                )}
                             </div>
+                        </div>
 
-                            {/* Render Button (Primary) */}
+                        {/* Action Buttons Group */}
+                        <div className="flex items-stretch gap-2 h-12">
+                            {/* Download Button */}
+                            {result && (
+                                <button
+                                    onClick={() => {
+                                        const link = document.createElement('a');
+                                        link.href = result;
+                                        link.download = `screenshot-${Date.now()}.${format}`;
+                                        link.target = '_blank';
+                                        link.click();
+                                    }}
+                                    className={`
+                                        flex items-center gap-2 px-5
+                                        bg-gray-800 hover:bg-gray-700 text-gray-200 hover:text-white
+                                        border border-gray-700 hover:border-gray-600
+                                        rounded-xl shadow-lg
+                                        transition-all duration-200 ease-out
+                                        font-medium text-sm
+                                        ${responseMetadata && !isLoading ? 'opacity-100 scale-100' : 'opacity-0 scale-95 hidden'}
+                                    `}
+                                >
+                                    <Download className="w-4 h-4" />
+                                    <span>Download</span>
+                                </button>
+                            )}
+
+                            {/* Render Button */}
                             <button
                                 onClick={handleRender}
                                 disabled={isLoading || !apiKey}
                                 className={`
-                                    min-w-[140px] h-12 px-6
+                                    min-w-[140px] px-6
                                     flex items-center justify-center gap-2
                                     font-semibold text-sm
                                     bg-gray-900 text-white
                                     hover:bg-black
+                                    rounded-xl shadow-lg
                                     transition-all duration-200 ease-out
                                     disabled:opacity-50 disabled:cursor-not-allowed
-                                    ${responseMetadata && !isLoading ? 'border-l border-gray-700' : ''}
                                     ${isLoading ? 'cursor-wait' : 'cursor-pointer'}
                                 `}
                             >

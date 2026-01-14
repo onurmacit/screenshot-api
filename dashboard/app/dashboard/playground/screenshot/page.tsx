@@ -658,39 +658,39 @@ export default function ScreenshotPlaygroundPage() {
                         <div className="w-28 h-2 bg-gradient-to-b from-gray-600 to-gray-700 rounded-b-lg shadow-md"></div>
                     </div>
 
-                    {/* Response Bar with Render Button - Premium Design */}
-                    <div className="mt-4 flex items-stretch">
-                        {/* Response Info Bar - Expands LEFT, full width when active */}
+                    {/* Response Bar with Render Button - Button always at right */}
+                    <div className="mt-4 flex justify-end items-stretch">
+                        {/* Response Info Bar - Expands LEFT from button */}
                         <div
                             className={`
-                                flex items-center gap-3 px-4 text-sm
-                                bg-white border rounded-l-lg
+                                flex items-center gap-3 px-5 text-sm
+                                bg-gray-800 text-white rounded-l-lg
                                 transition-all duration-500 ease-out overflow-hidden
                                 ${responseMetadata && !isLoading
-                                    ? 'flex-1 opacity-100 border-r-0'
-                                    : 'w-0 opacity-0 px-0 border-0'
+                                    ? 'max-w-[600px] opacity-100'
+                                    : 'max-w-0 opacity-0 px-0'
                                 }
                             `}
                         >
                             {/* Status Badge */}
-                            <span className="flex items-center gap-1.5 text-green-600 font-semibold whitespace-nowrap">
+                            <span className="flex items-center gap-1.5 text-emerald-400 font-semibold whitespace-nowrap">
                                 <span className="relative flex h-2 w-2">
-                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                                    <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400"></span>
                                 </span>
                                 200
                             </span>
 
                             {/* Separator */}
-                            <span className="h-4 w-px bg-gray-200"></span>
+                            <span className="h-4 w-px bg-gray-600"></span>
 
                             {/* Content Type */}
-                            <span className="text-gray-500 font-mono text-xs whitespace-nowrap hidden md:inline">
+                            <span className="text-gray-400 font-mono text-xs whitespace-nowrap hidden md:inline">
                                 {responseMetadata?.contentType}
                             </span>
 
                             {/* File Size */}
-                            <span className="text-gray-700 font-medium whitespace-nowrap">
+                            <span className="text-white font-medium whitespace-nowrap">
                                 {responseMetadata?.fileSize && responseMetadata.fileSize > 1024 * 1024
                                     ? `${(responseMetadata.fileSize / (1024 * 1024)).toFixed(1)} MB`
                                     : responseMetadata?.fileSize
@@ -699,11 +699,11 @@ export default function ScreenshotPlaygroundPage() {
                             </span>
 
                             {/* Separator */}
-                            <span className="h-4 w-px bg-gray-200"></span>
+                            <span className="h-4 w-px bg-gray-600"></span>
 
                             {/* Render Time */}
                             {responseMetadata?.renderTime && (
-                                <span className="text-gray-500 font-mono text-xs whitespace-nowrap">
+                                <span className="text-gray-400 font-mono text-xs whitespace-nowrap">
                                     {responseMetadata.renderTime}ms
                                 </span>
                             )}
@@ -712,17 +712,17 @@ export default function ScreenshotPlaygroundPage() {
                             {responseMetadata?.headers && Object.keys(responseMetadata.headers).length > 0 && (
                                 <Popover>
                                     <PopoverTrigger asChild>
-                                        <button className="cursor-pointer text-xs text-blue-600 hover:text-blue-700 font-medium px-2.5 py-1 rounded-md hover:bg-blue-50 transition-all whitespace-nowrap border border-blue-200/50 hover:border-blue-300">
+                                        <button className="cursor-pointer text-xs text-blue-400 hover:text-blue-300 font-medium px-2.5 py-1 rounded-md hover:bg-gray-700 transition-all whitespace-nowrap border border-gray-600 hover:border-gray-500">
                                             Headers
                                         </button>
                                     </PopoverTrigger>
-                                    <PopoverContent className="w-80 p-3" align="end">
-                                        <div className="text-xs font-semibold text-gray-600 mb-2 uppercase tracking-wider">Response Headers</div>
+                                    <PopoverContent className="w-80 p-3 bg-gray-900 border-gray-700" align="end">
+                                        <div className="text-xs font-semibold text-gray-400 mb-2 uppercase tracking-wider">Response Headers</div>
                                         <div className="space-y-1.5 max-h-48 overflow-y-auto">
                                             {Object.entries(responseMetadata.headers).map(([key, value]) => (
                                                 <div key={key} className="flex justify-between items-start gap-3 text-xs">
                                                     <span className="text-gray-500 shrink-0">{key}</span>
-                                                    <span className="font-mono text-gray-700 text-right break-all">{value}</span>
+                                                    <span className="font-mono text-gray-300 text-right break-all">{value}</span>
                                                 </div>
                                             ))}
                                         </div>
@@ -740,7 +740,7 @@ export default function ScreenshotPlaygroundPage() {
                                         link.target = '_blank';
                                         link.click();
                                     }}
-                                    className="cursor-pointer p-1.5 rounded-md text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-all"
+                                    className="cursor-pointer p-1.5 rounded-md text-gray-400 hover:text-white hover:bg-gray-700 transition-all"
                                     title={`Download ${format.toUpperCase()}`}
                                 >
                                     <Download className="w-4 h-4" />
@@ -748,7 +748,7 @@ export default function ScreenshotPlaygroundPage() {
                             )}
                         </div>
 
-                        {/* Render Button - Premium, Fixed Width, Always Right */}
+                        {/* Render Button - Premium, Fixed Position, Always Right */}
                         <button
                             onClick={handleRender}
                             disabled={isLoading || !apiKey}
@@ -756,15 +756,16 @@ export default function ScreenshotPlaygroundPage() {
                                 min-w-[140px] h-11 px-6
                                 flex items-center justify-center gap-2
                                 font-semibold text-sm
-                                transition-all duration-300 ease-out
+                                bg-gray-900 text-white
+                                shadow-lg transition-all duration-300 ease-out
                                 disabled:opacity-50 disabled:cursor-not-allowed
                                 ${responseMetadata && !isLoading
                                     ? 'rounded-r-lg rounded-l-none'
                                     : 'rounded-lg'
                                 }
                                 ${isLoading
-                                    ? 'bg-gray-400 text-white shadow-md cursor-wait'
-                                    : 'bg-gray-900 hover:bg-gray-800 text-white shadow-lg hover:shadow-xl hover:scale-[1.02] active:scale-[0.98] cursor-pointer'
+                                    ? 'cursor-wait'
+                                    : 'hover:bg-gray-800 hover:shadow-xl hover:scale-[1.02] active:scale-[0.98] cursor-pointer'
                                 }
                             `}
                         >

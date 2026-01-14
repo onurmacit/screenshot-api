@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, Camera, ChevronRight, Download, Check, X, ChevronDown } from "lucide-react";
+import { Loader2, Camera, ChevronRight, Download, Check, X } from "lucide-react";
 import { api, authApi, APIKey } from "@/services/api";
 import { CodeSnippet } from "@/components/playground";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -60,7 +60,6 @@ export default function ScreenshotPlaygroundPage() {
     const [result, setResult] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [isImageLoaded, setIsImageLoaded] = useState(false);
-    const [expandDetails, setExpandDetails] = useState(false);
 
     // === RESPONSE METADATA ===
     const [responseMetadata, setResponseMetadata] = useState<{
@@ -344,29 +343,6 @@ export default function ScreenshotPlaygroundPage() {
                 >
                     {/* Scrollable content area */}
                     <div className="h-full overflow-y-auto p-4 space-y-4">
-                        {/* Render Button Only */}
-                        <Card>
-                            <CardContent className="pt-4">
-                                <Button
-                                    className="w-full"
-                                    size="lg"
-                                    onClick={handleRender}
-                                    disabled={isLoading || !apiKey}
-                                >
-                                    {isLoading ? (
-                                        <>
-                                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                            Rendering...
-                                        </>
-                                    ) : (
-                                        <>
-                                            <Camera className="mr-2 h-4 w-4" />
-                                            Render Screenshot
-                                        </>
-                                    )}
-                                </Button>
-                            </CardContent>
-                        </Card>
 
                         {/* Accordion Options */}
                         <Accordion type="multiple" defaultValue={["essentials", "viewport"]} className="space-y-2">
@@ -682,99 +658,107 @@ export default function ScreenshotPlaygroundPage() {
                         <div className="w-28 h-2 bg-gradient-to-b from-gray-600 to-gray-700 rounded-b-lg shadow-md"></div>
                     </div>
 
-                    {/* Compact Response Bar - Shows after render */}
-                    {responseMetadata && !isLoading && (
-                        <div className="mt-4 rounded-lg border bg-white shadow-sm overflow-hidden">
-                            {/* Compact Bar - Always visible */}
+                    {/* Response Bar with Render Button - Animated expansion from right to left */}
+                    <div className="mt-4 flex justify-end">
+                        <div
+                            className={`rounded-lg border bg-white shadow-sm overflow-hidden flex items-center transition-all duration-500 ease-out ${responseMetadata && !isLoading
+                                ? 'w-full'
+                                : 'w-auto'
+                                }`}
+                        >
+                            {/* Response Info - Expands from right */}
                             <div
-                                className="px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-gray-50 transition-colors"
-                                onClick={() => setExpandDetails(!expandDetails)}
+                                className={`flex items-center gap-4 px-4 py-2.5 text-sm transition-all duration-500 ease-out overflow-hidden ${responseMetadata && !isLoading
+                                    ? 'max-w-[600px] opacity-100'
+                                    : 'max-w-0 opacity-0 px-0'
+                                    }`}
                             >
-                                <div className="flex items-center gap-4 text-sm">
-                                    {/* Status */}
-                                    <span className="flex items-center gap-1.5 text-green-600 font-medium">
-                                        <div className="w-2 h-2 rounded-full bg-green-500" />
-                                        200 OK
+                                {/* Status */}
+                                <span className="flex items-center gap-1.5 text-green-600 font-medium whitespace-nowrap">
+                                    <div className="w-2 h-2 rounded-full bg-green-500" />
+                                    200 OK
+                                </span>
+                                {/* Content Type */}
+                                <span className="text-gray-500 font-mono text-xs hidden sm:inline whitespace-nowrap">
+                                    {responseMetadata?.contentType}
+                                </span>
+                                {/* File Size */}
+                                <span className="text-gray-600 whitespace-nowrap">
+                                    {responseMetadata?.fileSize && responseMetadata.fileSize > 1024 * 1024
+                                        ? `${(responseMetadata.fileSize / (1024 * 1024)).toFixed(2)} MB`
+                                        : responseMetadata?.fileSize
+                                            ? `${(responseMetadata.fileSize / 1024).toFixed(1)} KB`
+                                            : ''}
+                                </span>
+                                {/* Render Time */}
+                                {responseMetadata?.renderTime && (
+                                    <span className="text-gray-500 whitespace-nowrap">
+                                        {responseMetadata.renderTime}ms
                                     </span>
-                                    {/* Content Type */}
-                                    <span className="text-gray-500 font-mono text-xs hidden sm:inline">
-                                        {responseMetadata.contentType}
-                                    </span>
-                                    {/* File Size */}
-                                    <span className="text-gray-600">
-                                        {responseMetadata.fileSize > 1024 * 1024
-                                            ? `${(responseMetadata.fileSize / (1024 * 1024)).toFixed(2)} MB`
-                                            : `${(responseMetadata.fileSize / 1024).toFixed(1)} KB`}
-                                    </span>
-                                    {/* Render Time */}
-                                    {responseMetadata.renderTime && (
-                                        <span className="text-gray-500">
-                                            {responseMetadata.renderTime}ms
-                                        </span>
-                                    )}
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    {/* Download Button */}
-                                    {result && (
-                                        <Button
-                                            variant="outline"
-                                            size="sm"
-                                            className="h-8"
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                const link = document.createElement('a');
-                                                link.href = result;
-                                                link.download = `screenshot-${Date.now()}.${format}`;
-                                                link.target = '_blank';
-                                                link.click();
-                                            }}
-                                        >
-                                            <Download className="w-4 h-4 mr-1" />
-                                            {format.toUpperCase()}
-                                        </Button>
-                                    )}
-                                    {/* Expand/Collapse Toggle */}
-                                    <ChevronDown
-                                        className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${expandDetails ? 'rotate-180' : ''}`}
-                                    />
-                                </div>
-                            </div>
+                                )}
 
-                            {/* Expandable Details */}
-                            <div className={`transition-all duration-300 ease-out overflow-hidden ${expandDetails ? 'max-h-96' : 'max-h-0'}`}>
-                                <div className="px-4 py-3 border-t bg-gray-50 space-y-2">
-                                    {/* Detailed Info */}
-                                    <div className="grid grid-cols-2 gap-3 text-sm">
-                                        <div className="flex justify-between">
-                                            <span className="text-gray-500">Content-Type</span>
-                                            <span className="font-mono text-xs text-gray-700">{responseMetadata.contentType}</span>
-                                        </div>
-                                        <div className="flex justify-between">
-                                            <span className="text-gray-500">File Size</span>
-                                            <span className="font-mono text-xs text-gray-700">
-                                                {responseMetadata.fileSize.toLocaleString()} bytes
-                                            </span>
-                                        </div>
-                                    </div>
-
-                                    {/* Headers */}
-                                    {responseMetadata.headers && Object.keys(responseMetadata.headers).length > 0 && (
-                                        <div className="pt-2 mt-2 border-t border-gray-200">
-                                            <div className="text-xs text-gray-500 mb-2 font-medium uppercase tracking-wide">Headers</div>
-                                            <div className="space-y-1 max-h-24 overflow-y-auto">
+                                {/* Headers Popover Button */}
+                                {responseMetadata?.headers && Object.keys(responseMetadata.headers).length > 0 && (
+                                    <Popover>
+                                        <PopoverTrigger asChild>
+                                            <button className="text-xs text-blue-600 hover:text-blue-800 font-medium px-2 py-1 rounded hover:bg-blue-50 transition-colors whitespace-nowrap">
+                                                Headers
+                                            </button>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="w-80 p-3" align="start">
+                                            <div className="text-xs font-medium text-gray-500 mb-2 uppercase tracking-wide">Response Headers</div>
+                                            <div className="space-y-1.5 max-h-48 overflow-y-auto">
                                                 {Object.entries(responseMetadata.headers).map(([key, value]) => (
-                                                    <div key={key} className="flex justify-between items-start gap-4 text-xs">
+                                                    <div key={key} className="flex justify-between items-start gap-3 text-xs">
                                                         <span className="text-gray-500 shrink-0">{key}</span>
                                                         <span className="font-mono text-gray-700 text-right break-all">{value}</span>
                                                     </div>
                                                 ))}
                                             </div>
-                                        </div>
-                                    )}
-                                </div>
+                                        </PopoverContent>
+                                    </Popover>
+                                )}
+
+                                {/* Download Button */}
+                                {result && (
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-7 px-2 text-gray-600 hover:text-gray-900"
+                                        onClick={() => {
+                                            const link = document.createElement('a');
+                                            link.href = result;
+                                            link.download = `screenshot-${Date.now()}.${format}`;
+                                            link.target = '_blank';
+                                            link.click();
+                                        }}
+                                    >
+                                        <Download className="w-4 h-4" />
+                                    </Button>
+                                )}
                             </div>
+
+                            {/* Render Button - Always on the right */}
+                            <Button
+                                className="rounded-l-none h-full px-6"
+                                size="lg"
+                                onClick={handleRender}
+                                disabled={isLoading || !apiKey}
+                            >
+                                {isLoading ? (
+                                    <>
+                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                        Rendering...
+                                    </>
+                                ) : (
+                                    <>
+                                        <Camera className="mr-2 h-4 w-4" />
+                                        Render
+                                    </>
+                                )}
+                            </Button>
                         </div>
-                    )}
+                    </div>
 
                     {/* Code Snippet - Full Width */}
                     <div className="mt-6">

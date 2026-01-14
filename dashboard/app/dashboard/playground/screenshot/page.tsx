@@ -660,117 +660,136 @@ export default function ScreenshotPlaygroundPage() {
                     <div className="flex justify-center">
                         <div className="w-16 h-5 bg-gradient-to-b from-gray-700 to-gray-800 rounded-b-sm"></div>
                     </div>
+                    {/* Monitor Base */}
                     <div className="flex justify-center">
                         <div className="w-28 h-2 bg-gradient-to-b from-gray-600 to-gray-700 rounded-b-lg shadow-md"></div>
                     </div>
 
-                    {/* Response Bar with Render Button - Button always at right */}
-                    {/* Unified Response Bar v3 - Grid Layout for Perfect Centering */}
-                    <div className="mt-4 grid grid-cols-3 items-center bg-gray-900 rounded-xl p-1.5 shadow-lg relative min-h-[56px] transition-all duration-500">
+                    {/* Unified Response Bar v4 - Expanding Pill Design */}
+                    <div className="mt-4 flex justify-end">
+                        <div className={`
+                            bg-gray-900 rounded-xl p-1.5 shadow-lg relative min-h-[56px] transition-all duration-700 ease-[cubic-bezier(0.34,1.56,0.64,1)] flex items-center
+                            ${responseMetadata && !isLoading ? 'w-full' : 'w-[140px]'}
+                        `}>
 
-                        {/* LEFT: Meta Group (Start aligned) */}
-                        <div className={`justify-self-start flex items-center gap-3 px-4 transition-all duration-500 overflow-hidden whitespace-nowrap ${responseMetadata && !isLoading ? 'opacity-100 max-w-[800px]' : 'opacity-0 max-w-0 px-0 border-none'}`}>
-                            {/* Status */}
-                            <div className="flex items-center gap-2 text-emerald-400 font-bold text-sm">
-                                <div className="relative flex h-2.5 w-2.5">
-                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]"></span>
+                            {/* LEFT: Meta Group */}
+                            <div className={`flex items-center gap-4 px-3 flex-1 transition-all duration-500 ${responseMetadata && !isLoading ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+                                {/* Status */}
+                                <div className="flex items-center gap-2 text-emerald-400 font-bold text-sm">
+                                    <div className="relative flex h-2.5 w-2.5">
+                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                        <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]"></span>
+                                    </div>
+                                    <span>200</span>
                                 </div>
-                                <span>200</span>
-                            </div>
 
-                            {/* Headers Button */}
-                            {responseMetadata?.headers && Object.keys(responseMetadata.headers).length > 0 && (
-                                <Popover>
-                                    <PopoverTrigger asChild>
-                                        <button className="px-3 py-1 rounded-md border border-gray-700 hover:bg-gray-800 text-gray-400 hover:text-white text-xs font-medium transition-all">
-                                            Headers
-                                        </button>
-                                    </PopoverTrigger>
-                                    <PopoverContent className="w-80 p-0 shadow-2xl border-gray-700 bg-gray-900 overflow-hidden rounded-xl" align="start" sideOffset={10}>
-                                        <div className="bg-gray-800/50 px-4 py-3 border-b border-gray-800 flex justify-between items-center">
-                                            <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Response Headers</div>
-                                            <span className="text-[10px] text-gray-600 bg-gray-800 px-1.5 py-0.5 rounded border border-gray-700">JSON</span>
-                                        </div>
-                                        <div className="max-h-64 overflow-y-auto p-2 scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-transparent">
-                                            {Object.entries(responseMetadata.headers).map(([key, value]) => (
-                                                <div key={key} className="flex justify-between items-start gap-4 px-3 py-2 text-xs hover:bg-gray-800/50 rounded-lg transition-colors group">
-                                                    <span className="text-blue-400 font-medium shrink-0 group-hover:text-blue-300">{key}</span>
-                                                    <span className="font-mono text-gray-400 text-right break-all">{value}</span>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </PopoverContent>
-                                </Popover>
-                            )}
+                                <div className="w-px h-4 bg-gray-800"></div>
 
-                            {/* Type & Size */}
-                            <div className="flex items-center gap-3 text-sm font-medium text-gray-400">
-                                <span>{responseMetadata?.contentType}</span>
-                                <span className="text-gray-700">•</span>
-                                <span className="text-gray-200">
-                                    {responseMetadata?.fileSize && responseMetadata.fileSize > 1024 * 1024
-                                        ? `${(responseMetadata.fileSize / (1024 * 1024)).toFixed(2)} MB`
-                                        : responseMetadata?.fileSize
-                                            ? `${(responseMetadata.fileSize / 1024).toFixed(1)} KB`
-                                            : ''}
-                                </span>
-                            </div>
-                        </div>
-
-                        {/* CENTER: Metrics (Center aligned) */}
-                        <div className={`justify-self-center flex items-center gap-4 hidden xl:flex transition-opacity duration-500 ${responseMetadata && !isLoading ? 'opacity-100' : 'opacity-0'}`}>
-                            {responseMetadata?.width && (
-                                <div className="flex items-center gap-2 text-xs font-mono text-gray-400">
-                                    <Layout className="w-3.5 h-3.5" />
-                                    <span>{responseMetadata.width} x {responseMetadata.height}</span>
-                                </div>
-                            )}
-                            {responseMetadata?.renderTime && (
-                                <div className="flex items-center gap-2 text-xs font-mono text-gray-400">
-                                    <div className="w-1 h-1 rounded-full bg-blue-500"></div>
-                                    <span>{responseMetadata.renderTime}ms</span>
-                                </div>
-                            )}
-                        </div>
-
-                        {/* RIGHT: Buttons (End aligned) */}
-                        <div className="justify-self-end flex items-center gap-2 px-1">
-                            {/* Download */}
-                            {result && (
-                                <button
-                                    onClick={() => {
-                                        const link = document.createElement('a');
-                                        link.href = result;
-                                        link.download = `screenshot-${Date.now()}.${format}`;
-                                        link.target = '_blank';
-                                        link.click();
-                                    }}
-                                    className="flex items-center gap-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 text-white rounded-lg transition-all text-sm font-medium"
-                                >
-                                    <Download className="w-4 h-4" />
-                                    <span>Download</span>
-                                </button>
-                            )}
-
-                            {/* Render */}
-                            <button
-                                onClick={handleRender}
-                                disabled={isLoading || !apiKey}
-                                className="flex items-center gap-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 text-white rounded-lg transition-all text-sm font-medium disabled:opacity-50 min-w-[100px] justify-center"
-                            >
-                                {isLoading ? (
-                                    <>
-                                        <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
-                                        <span className="text-gray-300">Rendering...</span>
-                                    </>
-                                ) : (
-                                    <>
-                                        <Camera className="w-4 h-4" />
-                                        <span>Render</span>
-                                    </>
+                                {/* Headers Button */}
+                                {responseMetadata?.headers && Object.keys(responseMetadata.headers).length > 0 && (
+                                    <Popover>
+                                        <PopoverTrigger asChild>
+                                            <button className="px-3 py-1.5 rounded-lg bg-gray-800/50 hover:bg-gray-800 text-gray-400 hover:text-white text-xs font-semibold transition-all border border-gray-700/50 cursor-pointer">
+                                                Headers
+                                            </button>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="w-80 p-0 shadow-2xl border-gray-700 bg-gray-900 overflow-hidden rounded-xl" align="start" sideOffset={10}>
+                                            <div className="bg-gray-800/50 px-4 py-3 border-b border-gray-800 flex justify-between items-center">
+                                                <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Response Headers</div>
+                                                <span className="text-[10px] text-gray-600 bg-gray-800 px-1.5 py-0.5 rounded border border-gray-700">JSON</span>
+                                            </div>
+                                            <div className="max-h-64 overflow-y-auto p-2 scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-transparent">
+                                                {Object.entries(responseMetadata.headers).map(([key, value]) => (
+                                                    <div key={key} className="flex justify-between items-start gap-4 px-3 py-2 text-xs hover:bg-gray-800/50 rounded-lg transition-colors group">
+                                                        <span className="text-blue-400 font-medium shrink-0 group-hover:text-blue-300">{key}</span>
+                                                        <span className="font-mono text-gray-400 text-right break-all">{value}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </PopoverContent>
+                                    </Popover>
                                 )}
-                            </button>
+
+                                {/* Type & Size */}
+                                <div className="flex items-center gap-3 text-sm font-medium">
+                                    <span className="text-gray-400 font-mono text-xs">{responseMetadata?.contentType}</span>
+                                    <span className="text-gray-700">•</span>
+                                    <span className="text-gray-200 uppercase text-xs tracking-tight">
+                                        {responseMetadata?.fileSize && responseMetadata.fileSize > 1024 * 1024
+                                            ? `${(responseMetadata.fileSize / (1024 * 1024)).toFixed(2)} MB`
+                                            : responseMetadata?.fileSize
+                                                ? `${(responseMetadata.fileSize / 1024).toFixed(1)} KB`
+                                                : ''}
+                                    </span>
+                                </div>
+                            </div>
+
+                            {/* CENTER: Metrics (Absolute Centered) */}
+                            <div className={`absolute left-1/2 -translate-x-1/2 flex items-center gap-6 hidden xl:flex transition-all duration-500 delay-100 ${responseMetadata && !isLoading ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2 pointer-events-none'}`}>
+                                {responseMetadata?.width && (
+                                    <div className="flex items-center gap-2 text-xs font-mono text-gray-400" title="Resolution">
+                                        <Layout className="w-3.5 h-3.5" />
+                                        <span>{responseMetadata.width} x {responseMetadata.height}</span>
+                                    </div>
+                                )}
+                                {responseMetadata?.renderTime && (
+                                    <div className="flex items-center gap-2 text-xs font-mono text-gray-400" title="Processing Time">
+                                        <div className="w-1.5 h-1.5 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)]"></div>
+                                        <span>{responseMetadata.renderTime}ms</span>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* RIGHT: Actions */}
+                            <div className="flex items-center gap-2 px-1 ml-auto">
+                                {/* Download */}
+                                {result && responseMetadata && !isLoading && (
+                                    <button
+                                        onClick={() => {
+                                            const link = document.createElement('a');
+                                            link.href = result;
+                                            link.download = `screenshot-${Date.now()}.${format}`;
+                                            link.target = '_blank';
+                                            link.click();
+                                        }}
+                                        className="h-11 flex items-center gap-2 px-5 bg-gray-800 hover:bg-gray-700 text-white rounded-lg transition-all text-sm font-semibold shadow-sm active:scale-95 border border-gray-700/50 cursor-pointer"
+                                    >
+                                        <Download className="w-4 h-4" />
+                                        <span>Download</span>
+                                    </button>
+                                )}
+
+                                {/* Render */}
+                                <button
+                                    onClick={handleRender}
+                                    disabled={isLoading || !apiKey}
+                                    className={`
+                                        h-11 px-6
+                                        flex items-center justify-center gap-2
+                                        font-semibold text-sm
+                                        bg-gray-800 text-white
+                                        hover:bg-gray-700
+                                        transition-all duration-200
+                                        disabled:opacity-50 disabled:cursor-not-allowed
+                                        rounded-lg shadow-sm
+                                        active:scale-95 border border-gray-700/50
+                                        ${isLoading ? 'cursor-wait' : 'cursor-pointer'}
+                                        ${!responseMetadata || isLoading ? 'w-[125px]' : ''}
+                                    `}
+                                >
+                                    {isLoading ? (
+                                        <>
+                                            <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
+                                            <span className="text-gray-300">Rendering</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Camera className="w-4 h-4" />
+                                            <span>Render</span>
+                                        </>
+                                    )}
+                                </button>
+                            </div>
                         </div>
                     </div>
 

@@ -667,7 +667,7 @@ export default function ScreenshotPlaygroundPage() {
                                 bg-gray-800 text-white rounded-l-lg
                                 transition-all duration-500 ease-out overflow-hidden
                                 ${responseMetadata && !isLoading
-                                    ? 'max-w-[600px] opacity-100'
+                                    ? 'flex-1 opacity-100'
                                     : 'max-w-0 opacity-0 px-0'
                                 }
                             `}
@@ -740,10 +740,10 @@ export default function ScreenshotPlaygroundPage() {
                                         link.target = '_blank';
                                         link.click();
                                     }}
-                                    className="cursor-pointer p-1.5 rounded-md text-gray-400 hover:text-white hover:bg-gray-700 transition-all"
-                                    title={`Download ${format.toUpperCase()}`}
+                                    className="cursor-pointer flex items-center gap-1.5 px-3 py-1.5 rounded-md text-gray-300 hover:text-white hover:bg-gray-700 transition-all text-xs font-medium"
                                 >
-                                    <Download className="w-4 h-4" />
+                                    <Download className="w-3.5 h-3.5" />
+                                    <span>Download</span>
                                 </button>
                             )}
                         </div>
@@ -756,16 +756,16 @@ export default function ScreenshotPlaygroundPage() {
                                 min-w-[140px] h-11 px-6
                                 flex items-center justify-center gap-2
                                 font-semibold text-sm
-                                bg-gray-900 text-white
-                                shadow-lg transition-all duration-300 ease-out
+                                bg-gray-800 text-white
+                                transition-all duration-200 ease-out
                                 disabled:opacity-50 disabled:cursor-not-allowed
                                 ${responseMetadata && !isLoading
                                     ? 'rounded-r-lg rounded-l-none'
-                                    : 'rounded-lg'
+                                    : 'rounded-lg shadow-lg'
                                 }
                                 ${isLoading
                                     ? 'cursor-wait'
-                                    : 'hover:bg-gray-800 hover:shadow-xl hover:scale-[1.02] active:scale-[0.98] cursor-pointer'
+                                    : 'hover:bg-gray-700 cursor-pointer'
                                 }
                             `}
                         >

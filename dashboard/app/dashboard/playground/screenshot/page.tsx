@@ -22,7 +22,7 @@ export default function ScreenshotPlaygroundPage() {
     const [htmlContent, setHtmlContent] = useState("<h1>Hello World</h1>\n<p>This is a test page rendered from HTML.</p>");
     const [markdownContent, setMarkdownContent] = useState("# Hello World\n\nThis is a **test page** rendered from Markdown.");
     const [signRequests, setSignRequests] = useState(false);
-    const [responseType, setResponseType] = useState("json");
+    const [responseType, setResponseType] = useState("binary");
     const [selector, setSelector] = useState("");
     const [jsonResult, setJsonResult] = useState<string | null>(null);
 
@@ -188,7 +188,8 @@ export default function ScreenshotPlaygroundPage() {
             if (responseType === "binary") {
                 const response = await api.post("/api/v1/renders/screenshot", requestBody, {
                     headers: { "X-API-Key": apiKey },
-                    responseType: 'blob'  // Important: get binary data as blob
+                    responseType: 'blob',
+                    timeout: 120000, // 2 minutes timeout
                 });
 
                 // Create object URL from blob
@@ -210,42 +211,47 @@ export default function ScreenshotPlaygroundPage() {
                     },
                     renderTime: processingTime ? parseInt(processingTime) : undefined
                 });
-                setIsLoading(false);
             } else {
                 // JSON response mode
                 const response = await api.post("/api/v1/renders/screenshot", requestBody, {
-                    headers: { "X-API-Key": apiKey }
+                    headers: { "X-API-Key": apiKey },
+                    timeout: 120000, // 2 minutes timeout
                 });
 
-                if ((response.data.status === "completed" && response.data.url) || response.data.screenshot_url) {
+                // New ScreenshotResponse format
+                if (response.data.url || response.data.screenshot_url) {
                     const resultUrl = response.data.url || response.data.screenshot_url;
                     setResult(resultUrl);
                     setJsonResult(JSON.stringify(response.data, null, 2));
 
                     // Capture response metadata
-                    const fileSizeBytes = response.data.file_size || response.data.size || 0;
+                    const fileSizeBytes = response.data.file_size || 0;
                     setResponseMetadata({
                         status: 200,
-                        contentType: 'application/json',
+                        contentType: `image/${response.data.format || format}`,
                         fileSize: fileSizeBytes,
                         headers: {
-                            'cache-control': 'private, no-cache, max-age=0, no-transform',
+                            'content-type': `image/${response.data.format || format}`,
                             'content-length': fileSizeBytes.toString(),
-                            'content-type': 'application/json',
-                            ...(response.data.headers || {})
                         },
-                        renderTime: response.data.processing_time_ms || response.data.render_time
+                        renderTime: response.data.processing_time_ms
                     });
-                } else if (response.data.id) {
+                } else if (response.data.id || response.data.job_id) {
                     setError("Job started asynchronously. Check Jobs page.");
                 } else {
-                    setError("Failed to generate screenshot");
+                    console.error("Unexpected response format:", response.data);
+                    setError("Unexpected response format from server");
                 }
-                setIsLoading(false);
             }
         } catch (err: any) {
-            console.error(err);
-            setError(err.response?.data?.message || err.message || "An error occurred");
+            console.error("Render error:", err);
+            const errorMessage = err.response?.data?.detail
+                || err.response?.data?.message
+                || err.message
+                || "An error occurred";
+            setError(errorMessage);
+        } finally {
+            // Always stop loading
             setIsLoading(false);
         }
     };

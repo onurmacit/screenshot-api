@@ -666,10 +666,10 @@ export default function ScreenshotPlaygroundPage() {
 
                     {/* Response Bar with Render Button - Button always at right */}
                     {/* Unified Response Bar v3 */}
-                    <div className={`mt-4 flex items-center justify-between bg-gray-900 rounded-xl p-1.5 shadow-lg relative min-h-[56px] transition-all duration-500 ${responseMetadata && !isLoading ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none'}`}>
+                    <div className="mt-4 flex items-center bg-gray-900 rounded-xl p-1.5 shadow-lg relative min-h-[56px] transition-all duration-500">
 
                         {/* LEFT: Meta Group */}
-                        <div className="flex items-center gap-6 px-4">
+                        <div className={`flex items-center gap-6 px-4 transition-all duration-500 overflow-hidden whitespace-nowrap ${responseMetadata && !isLoading ? 'opacity-100 max-w-[800px]' : 'opacity-0 max-w-0 px-0 border-none'}`}>
                             {/* Status */}
                             <div className="flex items-center gap-2 text-emerald-400 font-bold text-sm">
                                 <div className="relative flex h-2.5 w-2.5">
@@ -719,7 +719,7 @@ export default function ScreenshotPlaygroundPage() {
                         </div>
 
                         {/* CENTER: Metrics (Absolute Centered) */}
-                        <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-6 hidden xl:flex">
+                        <div className={`absolute left-1/2 -translate-x-1/2 flex items-center gap-6 hidden xl:flex transition-opacity duration-500 ${responseMetadata && !isLoading ? 'opacity-100' : 'opacity-0'}`}>
                             {responseMetadata?.width && (
                                 <div className="flex items-center gap-2 text-xs font-mono text-gray-400">
                                     <Layout className="w-3.5 h-3.5" />
@@ -735,7 +735,7 @@ export default function ScreenshotPlaygroundPage() {
                         </div>
 
                         {/* RIGHT: Buttons */}
-                        <div className="flex items-center gap-2 px-1">
+                        <div className="flex items-center gap-2 px-1 ml-auto">
                             {/* Download */}
                             {result && (
                                 <button

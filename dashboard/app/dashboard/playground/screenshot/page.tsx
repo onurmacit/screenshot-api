@@ -60,6 +60,7 @@ export default function ScreenshotPlaygroundPage() {
     const [result, setResult] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [isImageLoaded, setIsImageLoaded] = useState(false);
+    const [expandDetails, setExpandDetails] = useState(false);
 
     // === RESPONSE METADATA ===
     const [responseMetadata, setResponseMetadata] = useState<{
@@ -337,9 +338,9 @@ export default function ScreenshotPlaygroundPage() {
                 >
                     {/* Scrollable content area */}
                     <div className="h-full overflow-y-auto p-4 space-y-4">
-                        {/* API Key + Render Button + Response Info (expands after render) */}
+                        {/* Render Button Only */}
                         <Card>
-                            <CardContent className="pt-4 space-y-4">
+                            <CardContent className="pt-4">
                                 <Button
                                     className="w-full"
                                     size="lg"
@@ -358,86 +359,6 @@ export default function ScreenshotPlaygroundPage() {
                                         </>
                                     )}
                                 </Button>
-
-                                {/* Response Info - Expands inside card after render */}
-                                <div
-                                    className={`transition-all duration-500 ease-out overflow-hidden ${responseMetadata && !isLoading
-                                        ? 'max-h-[600px] opacity-100'
-                                        : 'max-h-0 opacity-0'
-                                        }`}
-                                >
-                                    <div className="pt-4 border-t border-gray-200 space-y-3">
-                                        {/* Status Row with success indicator */}
-                                        <div className="flex justify-between items-center">
-                                            <span className="text-sm text-gray-600">Status</span>
-                                            <span className="flex items-center gap-1.5 text-sm text-green-600 font-medium">
-                                                <div className="w-2 h-2 rounded-full bg-green-500" />
-                                                {responseMetadata?.status} OK
-                                            </span>
-                                        </div>
-
-                                        <div className="flex justify-between items-center">
-                                            <span className="text-sm text-gray-600">Content-Type</span>
-                                            <span className="font-mono text-xs text-gray-800">{responseMetadata?.contentType}</span>
-                                        </div>
-
-                                        <div className="flex justify-between items-center">
-                                            <span className="text-sm text-gray-600">File Size</span>
-                                            <span className="font-mono text-xs text-gray-800">
-                                                {responseMetadata?.fileSize
-                                                    ? responseMetadata.fileSize > 1024 * 1024
-                                                        ? `${(responseMetadata.fileSize / (1024 * 1024)).toFixed(2)} MB`
-                                                        : `${(responseMetadata.fileSize / 1024).toFixed(1)} KB`
-                                                    : '-'}
-                                            </span>
-                                        </div>
-
-                                        {responseMetadata?.renderTime && (
-                                            <div className="flex justify-between items-center">
-                                                <span className="text-sm text-gray-600">Render Time</span>
-                                                <span className="font-mono text-xs text-gray-800">
-                                                    {responseMetadata.renderTime}ms
-                                                </span>
-                                            </div>
-                                        )}
-
-                                        {/* Headers Section */}
-                                        {responseMetadata?.headers && Object.keys(responseMetadata.headers).length > 0 && (
-                                            <div className="pt-2 mt-2 border-t border-gray-100">
-                                                <div className="text-xs text-gray-500 mb-2 font-medium uppercase tracking-wide">Headers</div>
-                                                <div className="space-y-1.5 max-h-32 overflow-y-auto">
-                                                    {Object.entries(responseMetadata.headers).map(([key, value]) => (
-                                                        <div key={key} className="flex justify-between items-start gap-4">
-                                                            <span className="text-xs text-gray-500 shrink-0">{key}</span>
-                                                            <span className="font-mono text-xs text-gray-700 text-right break-all">{value}</span>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        )}
-
-                                        {/* Download Button */}
-                                        {result && (
-                                            <Button
-                                                variant="outline"
-                                                className="w-full mt-3"
-                                                size="default"
-                                                onClick={() => {
-                                                    const link = document.createElement('a');
-                                                    link.href = result;
-                                                    link.download = `screenshot-${Date.now()}.${format}`;
-                                                    link.target = '_blank';
-                                                    link.click();
-                                                }}
-                                            >
-                                                <svg className="mr-2 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                                                </svg>
-                                                Download {format.toUpperCase()}
-                                            </Button>
-                                        )}
-                                    </div>
-                                </div>
                             </CardContent>
                         </Card>
 
@@ -757,6 +678,100 @@ export default function ScreenshotPlaygroundPage() {
                     <div className="flex justify-center">
                         <div className="w-28 h-2 bg-gradient-to-b from-gray-600 to-gray-700 rounded-b-lg shadow-md"></div>
                     </div>
+
+                    {/* Compact Response Bar - Shows after render */}
+                    {responseMetadata && !isLoading && (
+                        <div className="mt-4 rounded-lg border bg-white shadow-sm overflow-hidden">
+                            {/* Compact Bar - Always visible */}
+                            <div
+                                className="px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-gray-50 transition-colors"
+                                onClick={() => setExpandDetails(!expandDetails)}
+                            >
+                                <div className="flex items-center gap-4 text-sm">
+                                    {/* Status */}
+                                    <span className="flex items-center gap-1.5 text-green-600 font-medium">
+                                        <div className="w-2 h-2 rounded-full bg-green-500" />
+                                        200 OK
+                                    </span>
+                                    {/* Content Type */}
+                                    <span className="text-gray-500 font-mono text-xs hidden sm:inline">
+                                        {responseMetadata.contentType}
+                                    </span>
+                                    {/* File Size */}
+                                    <span className="text-gray-600">
+                                        {responseMetadata.fileSize > 1024 * 1024
+                                            ? `${(responseMetadata.fileSize / (1024 * 1024)).toFixed(2)} MB`
+                                            : `${(responseMetadata.fileSize / 1024).toFixed(1)} KB`}
+                                    </span>
+                                    {/* Render Time */}
+                                    {responseMetadata.renderTime && (
+                                        <span className="text-gray-500">
+                                            {responseMetadata.renderTime}ms
+                                        </span>
+                                    )}
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    {/* Download Button */}
+                                    {result && (
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="h-8"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                const link = document.createElement('a');
+                                                link.href = result;
+                                                link.download = `screenshot-${Date.now()}.${format}`;
+                                                link.target = '_blank';
+                                                link.click();
+                                            }}
+                                        >
+                                            <Download className="w-4 h-4 mr-1" />
+                                            {format.toUpperCase()}
+                                        </Button>
+                                    )}
+                                    {/* Expand/Collapse Toggle */}
+                                    <ChevronDown
+                                        className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${expandDetails ? 'rotate-180' : ''}`}
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Expandable Details */}
+                            <div className={`transition-all duration-300 ease-out overflow-hidden ${expandDetails ? 'max-h-96' : 'max-h-0'}`}>
+                                <div className="px-4 py-3 border-t bg-gray-50 space-y-2">
+                                    {/* Detailed Info */}
+                                    <div className="grid grid-cols-2 gap-3 text-sm">
+                                        <div className="flex justify-between">
+                                            <span className="text-gray-500">Content-Type</span>
+                                            <span className="font-mono text-xs text-gray-700">{responseMetadata.contentType}</span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                            <span className="text-gray-500">File Size</span>
+                                            <span className="font-mono text-xs text-gray-700">
+                                                {responseMetadata.fileSize.toLocaleString()} bytes
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    {/* Headers */}
+                                    {responseMetadata.headers && Object.keys(responseMetadata.headers).length > 0 && (
+                                        <div className="pt-2 mt-2 border-t border-gray-200">
+                                            <div className="text-xs text-gray-500 mb-2 font-medium uppercase tracking-wide">Headers</div>
+                                            <div className="space-y-1 max-h-24 overflow-y-auto">
+                                                {Object.entries(responseMetadata.headers).map(([key, value]) => (
+                                                    <div key={key} className="flex justify-between items-start gap-4 text-xs">
+                                                        <span className="text-gray-500 shrink-0">{key}</span>
+                                                        <span className="font-mono text-gray-700 text-right break-all">{value}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    )}
 
                     {/* Code Snippet - Full Width */}
                     <div className="mt-6">

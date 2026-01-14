@@ -663,7 +663,7 @@ export default function ScreenshotPlaygroundPage() {
                         {/* Response Info Bar - Expands LEFT from button */}
                         <div
                             className={`
-                                flex items-center gap-3 px-5 text-sm
+                                flex items-center justify-between px-6 py-2 text-sm
                                 bg-gray-800 text-white rounded-l-lg
                                 transition-all duration-500 ease-out overflow-hidden
                                 ${responseMetadata && !isLoading
@@ -681,25 +681,22 @@ export default function ScreenshotPlaygroundPage() {
                                 200
                             </span>
 
-                            {/* Separator */}
-                            <span className="h-4 w-px bg-gray-600"></span>
+                            {/* Type & Size Group */}
+                            <div className="flex items-center gap-4">
+                                {/* Content Type */}
+                                <span className="text-gray-400 font-mono text-xs whitespace-nowrap hidden md:inline">
+                                    {responseMetadata?.contentType}
+                                </span>
 
-                            {/* Content Type */}
-                            <span className="text-gray-400 font-mono text-xs whitespace-nowrap hidden md:inline">
-                                {responseMetadata?.contentType}
-                            </span>
-
-                            {/* File Size */}
-                            <span className="text-white font-medium whitespace-nowrap">
-                                {responseMetadata?.fileSize && responseMetadata.fileSize > 1024 * 1024
-                                    ? `${(responseMetadata.fileSize / (1024 * 1024)).toFixed(1)} MB`
-                                    : responseMetadata?.fileSize
-                                        ? `${(responseMetadata.fileSize / 1024).toFixed(0)} KB`
-                                        : ''}
-                            </span>
-
-                            {/* Separator */}
-                            <span className="h-4 w-px bg-gray-600"></span>
+                                {/* File Size */}
+                                <span className="text-white font-medium whitespace-nowrap">
+                                    {responseMetadata?.fileSize && responseMetadata.fileSize > 1024 * 1024
+                                        ? `${(responseMetadata.fileSize / (1024 * 1024)).toFixed(1)} MB`
+                                        : responseMetadata?.fileSize
+                                            ? `${(responseMetadata.fileSize / 1024).toFixed(0)} KB`
+                                            : ''}
+                                </span>
+                            </div>
 
                             {/* Render Time */}
                             {responseMetadata?.renderTime && (

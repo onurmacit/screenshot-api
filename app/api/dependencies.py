@@ -26,7 +26,6 @@ from app.utils.exceptions import (
 from app.utils.helpers import utc_now
 from app.utils.logger import get_logger
 
-
 logger = get_logger(__name__)
 
 # Security schemes

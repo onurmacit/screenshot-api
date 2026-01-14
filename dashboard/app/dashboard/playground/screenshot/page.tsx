@@ -659,16 +659,16 @@ export default function ScreenshotPlaygroundPage() {
                     </div>
 
                     {/* Response Bar with Render Button - Premium Design */}
-                    <div className="mt-4 flex justify-end items-center">
-                        {/* Response Info Bar - Expands LEFT from render button */}
+                    <div className="mt-4 flex items-stretch">
+                        {/* Response Info Bar - Expands LEFT, full width when active */}
                         <div
                             className={`
-                                flex items-center gap-3 px-4 py-2.5 text-sm
-                                bg-white border border-r-0 rounded-l-xl shadow-sm
-                                transition-all duration-500 ease-out overflow-hidden origin-right
+                                flex items-center gap-3 px-4 text-sm
+                                bg-white border rounded-l-lg
+                                transition-all duration-500 ease-out overflow-hidden
                                 ${responseMetadata && !isLoading
-                                    ? 'max-w-[500px] opacity-100 scale-x-100'
-                                    : 'max-w-0 opacity-0 scale-x-0 px-0 border-0'
+                                    ? 'flex-1 opacity-100 border-r-0'
+                                    : 'w-0 opacity-0 px-0 border-0'
                                 }
                             `}
                         >
@@ -712,7 +712,7 @@ export default function ScreenshotPlaygroundPage() {
                             {responseMetadata?.headers && Object.keys(responseMetadata.headers).length > 0 && (
                                 <Popover>
                                     <PopoverTrigger asChild>
-                                        <button className="text-xs text-blue-600 hover:text-blue-700 font-medium px-2 py-0.5 rounded-md hover:bg-blue-50 transition-all whitespace-nowrap border border-transparent hover:border-blue-200">
+                                        <button className="cursor-pointer text-xs text-blue-600 hover:text-blue-700 font-medium px-2.5 py-1 rounded-md hover:bg-blue-50 transition-all whitespace-nowrap border border-blue-200/50 hover:border-blue-300">
                                             Headers
                                         </button>
                                     </PopoverTrigger>
@@ -740,7 +740,7 @@ export default function ScreenshotPlaygroundPage() {
                                         link.target = '_blank';
                                         link.click();
                                     }}
-                                    className="p-1.5 rounded-md text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-all"
+                                    className="cursor-pointer p-1.5 rounded-md text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-all"
                                     title={`Download ${format.toUpperCase()}`}
                                 >
                                     <Download className="w-4 h-4" />
@@ -756,15 +756,15 @@ export default function ScreenshotPlaygroundPage() {
                                 min-w-[140px] h-11 px-6
                                 flex items-center justify-center gap-2
                                 font-semibold text-sm
-                                rounded-xl transition-all duration-300 ease-out
+                                transition-all duration-300 ease-out
                                 disabled:opacity-50 disabled:cursor-not-allowed
                                 ${responseMetadata && !isLoading
-                                    ? 'rounded-l-none border-l-0'
-                                    : ''
+                                    ? 'rounded-r-lg rounded-l-none'
+                                    : 'rounded-lg'
                                 }
                                 ${isLoading
-                                    ? 'bg-gray-400 text-white shadow-md'
-                                    : 'bg-gray-900 hover:bg-gray-800 text-white shadow-lg hover:shadow-xl hover:scale-[1.02] active:scale-[0.98]'
+                                    ? 'bg-gray-400 text-white shadow-md cursor-wait'
+                                    : 'bg-gray-900 hover:bg-gray-800 text-white shadow-lg hover:shadow-xl hover:scale-[1.02] active:scale-[0.98] cursor-pointer'
                                 }
                             `}
                         >

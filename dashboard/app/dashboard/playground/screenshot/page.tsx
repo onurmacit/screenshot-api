@@ -658,106 +658,128 @@ export default function ScreenshotPlaygroundPage() {
                         <div className="w-28 h-2 bg-gradient-to-b from-gray-600 to-gray-700 rounded-b-lg shadow-md"></div>
                     </div>
 
-                    {/* Response Bar with Render Button - Animated expansion from right to left */}
-                    <div className="mt-4 flex justify-end">
+                    {/* Response Bar with Render Button - Premium Design */}
+                    <div className="mt-4 flex justify-end items-center">
+                        {/* Response Info Bar - Expands LEFT from render button */}
                         <div
-                            className={`rounded-lg border bg-white shadow-sm overflow-hidden flex items-center transition-all duration-500 ease-out ${responseMetadata && !isLoading
-                                ? 'w-full'
-                                : 'w-auto'
-                                }`}
+                            className={`
+                                flex items-center gap-3 px-4 py-2.5 text-sm
+                                bg-white border border-r-0 rounded-l-xl shadow-sm
+                                transition-all duration-500 ease-out overflow-hidden origin-right
+                                ${responseMetadata && !isLoading
+                                    ? 'max-w-[500px] opacity-100 scale-x-100'
+                                    : 'max-w-0 opacity-0 scale-x-0 px-0 border-0'
+                                }
+                            `}
                         >
-                            {/* Response Info - Expands from right */}
-                            <div
-                                className={`flex items-center gap-4 px-4 py-2.5 text-sm transition-all duration-500 ease-out overflow-hidden ${responseMetadata && !isLoading
-                                    ? 'max-w-[600px] opacity-100'
-                                    : 'max-w-0 opacity-0 px-0'
-                                    }`}
-                            >
-                                {/* Status */}
-                                <span className="flex items-center gap-1.5 text-green-600 font-medium whitespace-nowrap">
-                                    <div className="w-2 h-2 rounded-full bg-green-500" />
-                                    200 OK
+                            {/* Status Badge */}
+                            <span className="flex items-center gap-1.5 text-green-600 font-semibold whitespace-nowrap">
+                                <span className="relative flex h-2 w-2">
+                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                                    <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
                                 </span>
-                                {/* Content Type */}
-                                <span className="text-gray-500 font-mono text-xs hidden sm:inline whitespace-nowrap">
-                                    {responseMetadata?.contentType}
+                                200
+                            </span>
+
+                            {/* Separator */}
+                            <span className="h-4 w-px bg-gray-200"></span>
+
+                            {/* Content Type */}
+                            <span className="text-gray-500 font-mono text-xs whitespace-nowrap hidden md:inline">
+                                {responseMetadata?.contentType}
+                            </span>
+
+                            {/* File Size */}
+                            <span className="text-gray-700 font-medium whitespace-nowrap">
+                                {responseMetadata?.fileSize && responseMetadata.fileSize > 1024 * 1024
+                                    ? `${(responseMetadata.fileSize / (1024 * 1024)).toFixed(1)} MB`
+                                    : responseMetadata?.fileSize
+                                        ? `${(responseMetadata.fileSize / 1024).toFixed(0)} KB`
+                                        : ''}
+                            </span>
+
+                            {/* Separator */}
+                            <span className="h-4 w-px bg-gray-200"></span>
+
+                            {/* Render Time */}
+                            {responseMetadata?.renderTime && (
+                                <span className="text-gray-500 font-mono text-xs whitespace-nowrap">
+                                    {responseMetadata.renderTime}ms
                                 </span>
-                                {/* File Size */}
-                                <span className="text-gray-600 whitespace-nowrap">
-                                    {responseMetadata?.fileSize && responseMetadata.fileSize > 1024 * 1024
-                                        ? `${(responseMetadata.fileSize / (1024 * 1024)).toFixed(2)} MB`
-                                        : responseMetadata?.fileSize
-                                            ? `${(responseMetadata.fileSize / 1024).toFixed(1)} KB`
-                                            : ''}
-                                </span>
-                                {/* Render Time */}
-                                {responseMetadata?.renderTime && (
-                                    <span className="text-gray-500 whitespace-nowrap">
-                                        {responseMetadata.renderTime}ms
-                                    </span>
-                                )}
+                            )}
 
-                                {/* Headers Popover Button */}
-                                {responseMetadata?.headers && Object.keys(responseMetadata.headers).length > 0 && (
-                                    <Popover>
-                                        <PopoverTrigger asChild>
-                                            <button className="text-xs text-blue-600 hover:text-blue-800 font-medium px-2 py-1 rounded hover:bg-blue-50 transition-colors whitespace-nowrap">
-                                                Headers
-                                            </button>
-                                        </PopoverTrigger>
-                                        <PopoverContent className="w-80 p-3" align="start">
-                                            <div className="text-xs font-medium text-gray-500 mb-2 uppercase tracking-wide">Response Headers</div>
-                                            <div className="space-y-1.5 max-h-48 overflow-y-auto">
-                                                {Object.entries(responseMetadata.headers).map(([key, value]) => (
-                                                    <div key={key} className="flex justify-between items-start gap-3 text-xs">
-                                                        <span className="text-gray-500 shrink-0">{key}</span>
-                                                        <span className="font-mono text-gray-700 text-right break-all">{value}</span>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </PopoverContent>
-                                    </Popover>
-                                )}
+                            {/* Headers Popover */}
+                            {responseMetadata?.headers && Object.keys(responseMetadata.headers).length > 0 && (
+                                <Popover>
+                                    <PopoverTrigger asChild>
+                                        <button className="text-xs text-blue-600 hover:text-blue-700 font-medium px-2 py-0.5 rounded-md hover:bg-blue-50 transition-all whitespace-nowrap border border-transparent hover:border-blue-200">
+                                            Headers
+                                        </button>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-80 p-3" align="end">
+                                        <div className="text-xs font-semibold text-gray-600 mb-2 uppercase tracking-wider">Response Headers</div>
+                                        <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                                            {Object.entries(responseMetadata.headers).map(([key, value]) => (
+                                                <div key={key} className="flex justify-between items-start gap-3 text-xs">
+                                                    <span className="text-gray-500 shrink-0">{key}</span>
+                                                    <span className="font-mono text-gray-700 text-right break-all">{value}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </PopoverContent>
+                                </Popover>
+                            )}
 
-                                {/* Download Button */}
-                                {result && (
-                                    <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        className="h-7 px-2 text-gray-600 hover:text-gray-900"
-                                        onClick={() => {
-                                            const link = document.createElement('a');
-                                            link.href = result;
-                                            link.download = `screenshot-${Date.now()}.${format}`;
-                                            link.target = '_blank';
-                                            link.click();
-                                        }}
-                                    >
-                                        <Download className="w-4 h-4" />
-                                    </Button>
-                                )}
-                            </div>
-
-                            {/* Render Button - Always on the right */}
-                            <Button
-                                className="rounded-l-none h-full px-6"
-                                size="lg"
-                                onClick={handleRender}
-                                disabled={isLoading || !apiKey}
-                            >
-                                {isLoading ? (
-                                    <>
-                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                        Rendering...
-                                    </>
-                                ) : (
-                                    <>
-                                        <Camera className="mr-2 h-4 w-4" />
-                                        Render
-                                    </>
-                                )}
-                            </Button>
+                            {/* Download Button */}
+                            {result && (
+                                <button
+                                    onClick={() => {
+                                        const link = document.createElement('a');
+                                        link.href = result;
+                                        link.download = `screenshot-${Date.now()}.${format}`;
+                                        link.target = '_blank';
+                                        link.click();
+                                    }}
+                                    className="p-1.5 rounded-md text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-all"
+                                    title={`Download ${format.toUpperCase()}`}
+                                >
+                                    <Download className="w-4 h-4" />
+                                </button>
+                            )}
                         </div>
+
+                        {/* Render Button - Premium, Fixed Width, Always Right */}
+                        <button
+                            onClick={handleRender}
+                            disabled={isLoading || !apiKey}
+                            className={`
+                                min-w-[140px] h-11 px-6
+                                flex items-center justify-center gap-2
+                                font-semibold text-sm
+                                rounded-xl transition-all duration-300 ease-out
+                                disabled:opacity-50 disabled:cursor-not-allowed
+                                ${responseMetadata && !isLoading
+                                    ? 'rounded-l-none border-l-0'
+                                    : ''
+                                }
+                                ${isLoading
+                                    ? 'bg-gray-400 text-white shadow-md'
+                                    : 'bg-gray-900 hover:bg-gray-800 text-white shadow-lg hover:shadow-xl hover:scale-[1.02] active:scale-[0.98]'
+                                }
+                            `}
+                        >
+                            {isLoading ? (
+                                <>
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                    <span>Rendering</span>
+                                </>
+                            ) : (
+                                <>
+                                    <Camera className="h-4 w-4" />
+                                    <span>Render</span>
+                                </>
+                            )}
+                        </button>
                     </div>
 
                     {/* Code Snippet - Full Width */}

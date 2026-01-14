@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, Camera, ChevronRight, Download, Check, X, List, Layout } from "lucide-react";
+import { Loader2, Camera, ChevronRight, Download, Check, X } from "lucide-react";
 import { api, authApi, APIKey } from "@/services/api";
 import { CodeSnippet } from "@/components/playground";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -68,8 +68,6 @@ export default function ScreenshotPlaygroundPage() {
         fileSize: number;
         headers: Record<string, string>;
         renderTime?: number;
-        width?: number;
-        height?: number;
     } | null>(null);
 
     // Ref to measure right panel height
@@ -210,9 +208,7 @@ export default function ScreenshotPlaygroundPage() {
                         'content-length': blob.size.toString(),
                         'x-processing-time-ms': processingTime || '',
                     },
-                    renderTime: processingTime ? parseInt(processingTime) : undefined,
-                    width: width,
-                    height: height,
+                    renderTime: processingTime ? parseInt(processingTime) : undefined
                 });
             } else {
                 // JSON response mode
@@ -237,9 +233,7 @@ export default function ScreenshotPlaygroundPage() {
                             'content-type': `image/${response.data.format || format}`,
                             'content-length': fileSizeBytes.toString(),
                         },
-                        renderTime: response.data.processing_time_ms,
-                        width: response.data.width,
-                        height: response.data.height,
+                        renderTime: response.data.processing_time_ms
                     });
                 } else if (response.data.id || response.data.job_id) {
                     setError("Job started asynchronously. Check Jobs page.");
@@ -664,97 +658,75 @@ export default function ScreenshotPlaygroundPage() {
                         <div className="w-28 h-2 bg-gradient-to-b from-gray-600 to-gray-700 rounded-b-lg shadow-md"></div>
                     </div>
 
-                    {/* Response Bar Container */}
-                    <div className="mt-4 flex items-center gap-2">
+                    {/* Response Bar with Render Button - Button always at right */}
+                    <div className="mt-4 flex justify-end items-stretch">
+                        {/* Response Info Bar - Expands LEFT from button */}
+                        <div
+                            className={`
+                                flex items-center justify-between px-6 py-2 text-sm
+                                bg-gray-800 text-white rounded-l-lg
+                                transition-all duration-500 ease-out overflow-hidden
+                                ${responseMetadata && !isLoading
+                                    ? 'flex-1 opacity-100'
+                                    : 'max-w-0 opacity-0 px-0'
+                                }
+                            `}
+                        >
+                            {/* Status Badge */}
+                            <span className="flex items-center gap-1.5 text-emerald-400 font-semibold whitespace-nowrap">
+                                <span className="relative flex h-2 w-2">
+                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400"></span>
+                                </span>
+                                200
+                            </span>
 
-                        {/* Main Info Bar (Left & Center) */}
-                        <div className={`
-                            flex-1 flex items-center justify-between
-                            bg-gray-800 text-white h-12 px-4 rounded-xl shadow-lg
-                            transition-all duration-500 ease-[cubic-bezier(0.23,1,0.32,1)]
-                            ${responseMetadata && !isLoading ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none'}
-                        `}>
-
-                            {/* LEFT: Metadata Group */}
+                            {/* Type & Size Group */}
                             <div className="flex items-center gap-4">
-                                {/* Status */}
-                                <div className="flex items-center gap-2 text-emerald-400 font-semibold text-sm">
-                                    <span className="relative flex h-2.5 w-2.5">
-                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                                        <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
-                                    </span>
-                                    <span>200</span>
-                                </div>
+                                {/* Content Type */}
+                                <span className="text-gray-400 font-mono text-xs whitespace-nowrap hidden md:inline">
+                                    {responseMetadata?.contentType}
+                                </span>
 
-                                <div className="w-px h-4 bg-gray-700"></div>
-
-                                {/* Type & Size */}
-                                <div className="flex items-center gap-3 text-sm">
-                                    <span className="text-gray-400 font-mono text-xs">{responseMetadata?.contentType}</span>
-                                    <span className="text-gray-600">•</span>
-                                    <span className="text-gray-200 font-medium font-mono">
-                                        {responseMetadata?.fileSize && responseMetadata.fileSize > 1024 * 1024
-                                            ? `${(responseMetadata.fileSize / (1024 * 1024)).toFixed(2)} MB`
-                                            : responseMetadata?.fileSize
-                                                ? `${(responseMetadata.fileSize / 1024).toFixed(1)} KB`
-                                                : ''}
-                                    </span>
-                                </div>
+                                {/* File Size */}
+                                <span className="text-white font-medium whitespace-nowrap">
+                                    {responseMetadata?.fileSize && responseMetadata.fileSize > 1024 * 1024
+                                        ? `${(responseMetadata.fileSize / (1024 * 1024)).toFixed(1)} MB`
+                                        : responseMetadata?.fileSize
+                                            ? `${(responseMetadata.fileSize / 1024).toFixed(0)} KB`
+                                            : ''}
+                                </span>
                             </div>
 
-                            {/* CENTER: Developer Metrics */}
-                            <div className="flex items-center gap-6 hidden md:flex">
-                                {/* Dimensions */}
-                                {responseMetadata?.width && (
-                                    <div className="flex items-center gap-2 text-xs font-mono text-gray-400" title="Image Dimensions">
-                                        <Layout className="w-3.5 h-3.5" />
-                                        <span>{responseMetadata.width} x {responseMetadata.height}</span>
-                                    </div>
-                                )}
+                            {/* Render Time */}
+                            {responseMetadata?.renderTime && (
+                                <span className="text-gray-400 font-mono text-xs whitespace-nowrap">
+                                    {responseMetadata.renderTime}ms
+                                </span>
+                            )}
 
-                                {/* Time */}
-                                {responseMetadata?.renderTime && (
-                                    <div className="flex items-center gap-2 text-xs font-mono text-gray-400" title="Render Time">
-                                        <div className="w-1 h-1 rounded-full bg-blue-500"></div>
-                                        <span>{responseMetadata.renderTime}ms</span>
-                                    </div>
-                                )}
-                            </div>
+                            {/* Headers Popover */}
+                            {responseMetadata?.headers && Object.keys(responseMetadata.headers).length > 0 && (
+                                <Popover>
+                                    <PopoverTrigger asChild>
+                                        <button className="cursor-pointer text-xs text-blue-400 hover:text-blue-300 font-medium px-2.5 py-1 rounded-md hover:bg-gray-700 transition-all whitespace-nowrap border border-gray-600 hover:border-gray-500">
+                                            Headers
+                                        </button>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-80 p-3 bg-gray-900 border-gray-700" align="end">
+                                        <div className="text-xs font-semibold text-gray-400 mb-2 uppercase tracking-wider">Response Headers</div>
+                                        <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                                            {Object.entries(responseMetadata.headers).map(([key, value]) => (
+                                                <div key={key} className="flex justify-between items-start gap-3 text-xs">
+                                                    <span className="text-gray-500 shrink-0">{key}</span>
+                                                    <span className="font-mono text-gray-300 text-right break-all">{value}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </PopoverContent>
+                                </Popover>
+                            )}
 
-                            {/* RIGHT: Headers & Actions filler */}
-                            <div className="flex items-center gap-2">
-                                {/* Headers Button */}
-                                {responseMetadata?.headers && Object.keys(responseMetadata.headers).length > 0 && (
-                                    <Popover>
-                                        <PopoverTrigger asChild>
-                                            <button
-                                                className="p-2 rounded-lg hover:bg-gray-700 text-gray-400 hover:text-blue-400 transition-colors"
-                                                title="View Headers"
-                                            >
-                                                <List className="w-4 h-4" />
-                                            </button>
-                                        </PopoverTrigger>
-                                        <PopoverContent className="w-80 p-0 shadow-2xl border-gray-700 bg-gray-900 overflow-hidden rounded-xl" align="end" sideOffset={10}>
-                                            <div className="bg-gray-800/50 px-4 py-3 border-b border-gray-800 flex justify-between items-center">
-                                                <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Response Headers</div>
-                                                <span className="text-[10px] text-gray-600 bg-gray-800 px-1.5 py-0.5 rounded border border-gray-700">JSON</span>
-                                            </div>
-                                            <div className="max-h-64 overflow-y-auto p-2 scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-transparent">
-                                                {Object.entries(responseMetadata.headers).map(([key, value]) => (
-                                                    <div key={key} className="flex justify-between items-start gap-4 px-3 py-2 text-xs hover:bg-gray-800/50 rounded-lg transition-colors group">
-                                                        <span className="text-blue-400 font-medium shrink-0 group-hover:text-blue-300">{key}</span>
-                                                        <span className="font-mono text-gray-400 text-right break-all">{value}</span>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </PopoverContent>
-                                    </Popover>
-                                )}
-                            </div>
-                        </div>
-
-                        {/* Action Buttons Group */}
-                        <div className="flex items-stretch gap-2 h-12">
                             {/* Download Button */}
                             {result && (
                                 <button
@@ -765,50 +737,47 @@ export default function ScreenshotPlaygroundPage() {
                                         link.target = '_blank';
                                         link.click();
                                     }}
-                                    className={`
-                                        flex items-center gap-2 px-5
-                                        bg-gray-800 hover:bg-gray-700 text-gray-200 hover:text-white
-                                        border border-gray-700 hover:border-gray-600
-                                        rounded-xl shadow-lg
-                                        transition-all duration-200 ease-out
-                                        font-medium text-sm
-                                        ${responseMetadata && !isLoading ? 'opacity-100 scale-100' : 'opacity-0 scale-95 hidden'}
-                                    `}
+                                    className="cursor-pointer flex items-center gap-1.5 px-3 py-1.5 rounded-md text-gray-300 hover:text-white hover:bg-gray-700 transition-all text-xs font-medium"
                                 >
-                                    <Download className="w-4 h-4" />
+                                    <Download className="w-3.5 h-3.5" />
                                     <span>Download</span>
                                 </button>
                             )}
-
-                            {/* Render Button */}
-                            <button
-                                onClick={handleRender}
-                                disabled={isLoading || !apiKey}
-                                className={`
-                                    min-w-[140px] px-6
-                                    flex items-center justify-center gap-2
-                                    font-semibold text-sm
-                                    bg-gray-900 text-white
-                                    hover:bg-black
-                                    rounded-xl shadow-lg
-                                    transition-all duration-200 ease-out
-                                    disabled:opacity-50 disabled:cursor-not-allowed
-                                    ${isLoading ? 'cursor-wait' : 'cursor-pointer'}
-                                `}
-                            >
-                                {isLoading ? (
-                                    <>
-                                        <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
-                                        <span className="text-gray-300">Rendering...</span>
-                                    </>
-                                ) : (
-                                    <>
-                                        <Camera className="w-4 h-4" />
-                                        <span>Render</span>
-                                    </>
-                                )}
-                            </button>
                         </div>
+
+                        {/* Render Button - Premium, Fixed Position, Always Right */}
+                        <button
+                            onClick={handleRender}
+                            disabled={isLoading || !apiKey}
+                            className={`
+                                min-w-[140px] h-11 px-6
+                                flex items-center justify-center gap-2
+                                font-semibold text-sm
+                                bg-gray-800 text-white
+                                transition-all duration-200 ease-out
+                                disabled:opacity-50 disabled:cursor-not-allowed
+                                ${responseMetadata && !isLoading
+                                    ? 'rounded-r-lg rounded-l-none'
+                                    : 'rounded-lg shadow-lg'
+                                }
+                                ${isLoading
+                                    ? 'cursor-wait'
+                                    : 'hover:bg-gray-700 cursor-pointer'
+                                }
+                            `}
+                        >
+                            {isLoading ? (
+                                <>
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                    <span>Rendering</span>
+                                </>
+                            ) : (
+                                <>
+                                    <Camera className="h-4 w-4" />
+                                    <span>Render</span>
+                                </>
+                            )}
+                        </button>
                     </div>
 
                     {/* Code Snippet - Full Width */}

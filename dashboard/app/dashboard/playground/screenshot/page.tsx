@@ -22,7 +22,7 @@ export default function ScreenshotPlaygroundPage() {
     const [htmlContent, setHtmlContent] = useState("<h1>Hello World</h1>\n<p>This is a test page rendered from HTML.</p>");
     const [markdownContent, setMarkdownContent] = useState("# Hello World\n\nThis is a **test page** rendered from Markdown.");
     const [signRequests, setSignRequests] = useState(false);
-    const [responseType, setResponseType] = useState("binary");
+    const [responseType, setResponseType] = useState("json");
     const [selector, setSelector] = useState("");
     const [jsonResult, setJsonResult] = useState<string | null>(null);
 

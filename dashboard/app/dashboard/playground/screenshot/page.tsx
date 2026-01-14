@@ -44,7 +44,7 @@ export default function ScreenshotPlaygroundPage() {
 
     // === FULL PAGE & CLIP ===
     const [fullPage, setFullPage] = useState(false);
-    const [captureBeyondViewport, setCaptureBeyondViewport] = useState(true);
+    const [captureBeyondViewport, setCaptureBeyondViewport] = useState(false);
     const [scrollIntoView, setScrollIntoView] = useState("");
     const [scrollAdjustTop, setScrollAdjustTop] = useState(0);
 
@@ -653,10 +653,7 @@ export default function ScreenshotPlaygroundPage() {
                                         src={result}
                                         alt="Screenshot Preview"
                                         className={`w-full h-full object-cover transition-opacity duration-300 ${isLoading ? 'opacity-0' : 'opacity-100'}`}
-                                        onLoad={() => {
-                                            setIsImageLoaded(true);
-                                            setIsLoading(false);
-                                        }}
+                                        onLoad={() => setIsImageLoaded(true)}
                                     />
                                 )
                             )}

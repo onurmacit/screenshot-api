@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, Camera, ChevronRight, Download, Check, X, List } from "lucide-react";
+import { Loader2, Camera, ChevronRight, Download, Check, X } from "lucide-react";
 import { api, authApi, APIKey } from "@/services/api";
 import { CodeSnippet } from "@/components/playground";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -660,38 +660,36 @@ export default function ScreenshotPlaygroundPage() {
 
                     {/* Response Bar with Render Button - Button always at right */}
                     <div className="mt-4 flex justify-end items-stretch">
-                        {/* Response Info Bar - Expands LEFT from button with Glassmorphism */}
+                        {/* Response Info Bar - Expands LEFT from button */}
                         <div
                             className={`
                                 flex items-center justify-between px-6 py-2 text-sm
-                                bg-white/80 backdrop-blur-md border border-r-0 border-gray-200 rounded-l-xl
-                                transition-all duration-500 ease-[cubic-bezier(0.23,1,0.32,1)] overflow-hidden origin-right shadow-sm
+                                bg-gray-800 text-white rounded-l-lg
+                                transition-all duration-500 ease-out overflow-hidden
                                 ${responseMetadata && !isLoading
                                     ? 'flex-1 opacity-100'
-                                    : 'max-w-0 opacity-0 px-0 border-0'
+                                    : 'max-w-0 opacity-0 px-0'
                                 }
                             `}
                         >
-                            {/* Status Badge - Stagger Item 1 */}
-                            <div className={`transition-all duration-500 delay-100 ${responseMetadata && !isLoading ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-4'}`}>
-                                <span className="flex items-center gap-2 text-emerald-600 font-semibold whitespace-nowrap bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-100/50">
-                                    <span className="relative flex h-2 w-2">
-                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                                        <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                                    </span>
-                                    200 OK
+                            {/* Status Badge */}
+                            <span className="flex items-center gap-1.5 text-emerald-400 font-semibold whitespace-nowrap">
+                                <span className="relative flex h-2 w-2">
+                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400"></span>
                                 </span>
-                            </div>
+                                200
+                            </span>
 
-                            {/* Type & Size Group - Stagger Item 2 */}
-                            <div className={`flex items-center gap-2 transition-all duration-500 delay-200 ${responseMetadata && !isLoading ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-4'}`}>
+                            {/* Type & Size Group */}
+                            <div className="flex items-center gap-4">
                                 {/* Content Type */}
-                                <span className="text-gray-500 font-mono text-xs whitespace-nowrap hidden md:inline bg-gray-50 px-2 py-1 rounded-md border border-gray-100">
+                                <span className="text-gray-400 font-mono text-xs whitespace-nowrap hidden md:inline">
                                     {responseMetadata?.contentType}
                                 </span>
-                                <span className="text-gray-300">•</span>
+
                                 {/* File Size */}
-                                <span className="text-gray-700 font-semibold whitespace-nowrap">
+                                <span className="text-white font-medium whitespace-nowrap">
                                     {responseMetadata?.fileSize && responseMetadata.fileSize > 1024 * 1024
                                         ? `${(responseMetadata.fileSize / (1024 * 1024)).toFixed(1)} MB`
                                         : responseMetadata?.fileSize
@@ -700,62 +698,51 @@ export default function ScreenshotPlaygroundPage() {
                                 </span>
                             </div>
 
-                            {/* Render Time - Stagger Item 3 */}
+                            {/* Render Time */}
                             {responseMetadata?.renderTime && (
-                                <div className={`transition-all duration-500 delay-300 ${responseMetadata && !isLoading ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-4'}`}>
-                                    <span className="flex items-center gap-1.5 text-gray-500 font-mono text-xs whitespace-nowrap">
-                                        <div className="w-1 h-1 rounded-full bg-gray-300"></div>
-                                        {responseMetadata.renderTime}ms
-                                    </span>
-                                </div>
+                                <span className="text-gray-400 font-mono text-xs whitespace-nowrap">
+                                    {responseMetadata.renderTime}ms
+                                </span>
                             )}
 
-                            {/* Actions Group - Stagger Item 4 */}
-                            <div className={`flex items-center gap-3 transition-all duration-500 delay-[400ms] ${responseMetadata && !isLoading ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-4'}`}>
-                                {/* Headers Popover */}
-                                {responseMetadata?.headers && Object.keys(responseMetadata.headers).length > 0 && (
-                                    <Popover>
-                                        <PopoverTrigger asChild>
-                                            <button
-                                                className="cursor-pointer group flex items-center justify-center p-2 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-all border border-transparent hover:border-gray-200"
-                                                title="View Headers"
-                                            >
-                                                <List className="w-4 h-4" />
-                                            </button>
-                                        </PopoverTrigger>
-                                        <PopoverContent className="w-80 p-0 shadow-xl border-gray-100 overflow-hidden rounded-xl" align="end">
-                                            <div className="bg-gray-50/50 px-4 py-3 border-b border-gray-100">
-                                                <div className="text-xs font-semibold text-gray-900 uppercase tracking-wider">Response Headers</div>
-                                            </div>
-                                            <div className="max-h-60 overflow-y-auto p-2">
-                                                {Object.entries(responseMetadata.headers).map(([key, value]) => (
-                                                    <div key={key} className="flex justify-between items-start gap-4 px-3 py-2 text-xs hover:bg-gray-50 rounded-lg transition-colors group">
-                                                        <span className="text-gray-500 font-medium shrink-0 group-hover:text-gray-700">{key}</span>
-                                                        <span className="font-mono text-gray-600 text-right break-all">{value}</span>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </PopoverContent>
-                                    </Popover>
-                                )}
+                            {/* Headers Popover */}
+                            {responseMetadata?.headers && Object.keys(responseMetadata.headers).length > 0 && (
+                                <Popover>
+                                    <PopoverTrigger asChild>
+                                        <button className="cursor-pointer text-xs text-blue-400 hover:text-blue-300 font-medium px-2.5 py-1 rounded-md hover:bg-gray-700 transition-all whitespace-nowrap border border-gray-600 hover:border-gray-500">
+                                            Headers
+                                        </button>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-80 p-3 bg-gray-900 border-gray-700" align="end">
+                                        <div className="text-xs font-semibold text-gray-400 mb-2 uppercase tracking-wider">Response Headers</div>
+                                        <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                                            {Object.entries(responseMetadata.headers).map(([key, value]) => (
+                                                <div key={key} className="flex justify-between items-start gap-3 text-xs">
+                                                    <span className="text-gray-500 shrink-0">{key}</span>
+                                                    <span className="font-mono text-gray-300 text-right break-all">{value}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </PopoverContent>
+                                </Popover>
+                            )}
 
-                                {/* Download Button */}
-                                {result && (
-                                    <button
-                                        onClick={() => {
-                                            const link = document.createElement('a');
-                                            link.href = result;
-                                            link.download = `screenshot-${Date.now()}.${format}`;
-                                            link.target = '_blank';
-                                            link.click();
-                                        }}
-                                        className="cursor-pointer flex items-center gap-2 px-3.5 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 transition-all text-xs font-medium border border-gray-200 hover:border-gray-300"
-                                    >
-                                        <Download className="w-3.5 h-3.5" />
-                                        <span>Download</span>
-                                    </button>
-                                )}
-                            </div>
+                            {/* Download Button */}
+                            {result && (
+                                <button
+                                    onClick={() => {
+                                        const link = document.createElement('a');
+                                        link.href = result;
+                                        link.download = `screenshot-${Date.now()}.${format}`;
+                                        link.target = '_blank';
+                                        link.click();
+                                    }}
+                                    className="cursor-pointer flex items-center gap-1.5 px-3 py-1.5 rounded-md text-gray-300 hover:text-white hover:bg-gray-700 transition-all text-xs font-medium"
+                                >
+                                    <Download className="w-3.5 h-3.5" />
+                                    <span>Download</span>
+                                </button>
+                            )}
                         </div>
 
                         {/* Render Button - Premium, Fixed Position, Always Right */}
@@ -766,23 +753,23 @@ export default function ScreenshotPlaygroundPage() {
                                 min-w-[140px] h-11 px-6
                                 flex items-center justify-center gap-2
                                 font-semibold text-sm
-                                bg-gray-900 text-white
-                                shadow-lg transition-all duration-300 ease-out z-10
+                                bg-gray-800 text-white
+                                transition-all duration-200 ease-out
                                 disabled:opacity-50 disabled:cursor-not-allowed
                                 ${responseMetadata && !isLoading
-                                    ? 'rounded-r-xl rounded-l-none border-l-0 shadow-none'
-                                    : 'rounded-xl shadow-xl'
+                                    ? 'rounded-r-lg rounded-l-none'
+                                    : 'rounded-lg shadow-lg'
                                 }
                                 ${isLoading
-                                    ? 'cursor-wait bg-gray-800'
-                                    : 'hover:bg-black cursor-pointer'
+                                    ? 'cursor-wait'
+                                    : 'hover:bg-gray-700 cursor-pointer'
                                 }
                             `}
                         >
                             {isLoading ? (
                                 <>
-                                    <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
-                                    <span className="text-gray-300">Rendering</span>
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                    <span>Rendering</span>
                                 </>
                             ) : (
                                 <>

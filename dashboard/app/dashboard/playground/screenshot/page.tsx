@@ -665,7 +665,7 @@ export default function ScreenshotPlaygroundPage() {
                     </div>
 
                     {/* Response Bar with Render Button - Button always at right */}
-                    <div className="mt-4 flex items-stretch">
+                    <div className="mt-4 flex justify-end items-stretch">
                         {/* Response Info Bar - Expands LEFT from button */}
                         <div
                             className={`

@@ -729,7 +729,7 @@ export default function ScreenshotPlaygroundPage() {
                             </div>
 
                             {/* CENTER GROUP: Dimensions + Render Time (pushed towards right) */}
-                            <div className="flex-1 flex items-center justify-end gap-4 mr-4">
+                            <div className="flex-1 flex items-center justify-end gap-4 mr-2">
                                 {/* Dimensions */}
                                 {responseMetadata?.width && responseMetadata?.height && (
                                     <span className="text-gray-300 font-mono text-xs">

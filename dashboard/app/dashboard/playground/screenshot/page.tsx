@@ -743,7 +743,7 @@ export default function ScreenshotPlaygroundPage() {
                                 )}
                             </div>
 
-                            {/* RIGHT GROUP: Download Button (inside info bar, next to Render) */}
+                            {/* RIGHT GROUP: Download Button (identical styling to Render) */}
                             {result && (
                                 <button
                                     onClick={() => {
@@ -753,9 +753,9 @@ export default function ScreenshotPlaygroundPage() {
                                         link.target = '_blank';
                                         link.click();
                                     }}
-                                    className="cursor-pointer flex items-center justify-center gap-2 min-w-[120px] h-9 px-4 rounded-lg text-white hover:bg-gray-700 transition-all text-sm font-semibold"
+                                    className="min-w-[140px] h-11 px-6 flex items-center justify-center gap-2 font-semibold text-sm bg-gray-800 text-white rounded-lg hover:bg-gray-700 transition-all cursor-pointer"
                                 >
-                                    <Download className="w-4 h-4" />
+                                    <Download className="h-4 w-4" />
                                     <span>Download</span>
                                 </button>
                             )}

@@ -201,14 +201,15 @@ export default function ScreenshotPlaygroundPage() {
                 // Capture response metadata from headers
                 const processingTime = response.headers['x-processing-time-ms'];
                 const contentLength = response.headers['content-length'];
+                const cacheControl = response.headers['cache-control'];
                 setResponseMetadata({
                     status: 200,
                     contentType: blob.type || `image/${format}`,
                     fileSize: blob.size || parseInt(contentLength || '0'),
                     headers: {
-                        'content-type': blob.type,
-                        'content-length': blob.size.toString(),
-                        'x-processing-time-ms': processingTime || '',
+                        'cache-control': cacheControl || 'private, no-cache, max-age=0, no-transform',
+                        'content-length': (blob.size || contentLength || 0).toString(),
+                        'content-type': blob.type || `image/${format}`,
                     },
                     renderTime: processingTime ? parseInt(processingTime) : undefined,
                     width: width,
@@ -234,8 +235,9 @@ export default function ScreenshotPlaygroundPage() {
                         contentType: `image/${response.data.format || format}`,
                         fileSize: fileSizeBytes,
                         headers: {
-                            'content-type': `image/${response.data.format || format}`,
+                            'cache-control': 'private, no-cache, max-age=0, no-transform',
                             'content-length': fileSizeBytes.toString(),
+                            'content-type': `image/${response.data.format || format}`,
                         },
                         renderTime: response.data.processing_time_ms,
                         width: response.data.width || width,

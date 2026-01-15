@@ -427,7 +427,7 @@ func markdownToHTML(markdown string) string {
 body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     background-color: #ffffff;
-    width: 100%;
+    width: 100%%;
     margin: 0;
     padding: 40px 60px;
     box-sizing: border-box;

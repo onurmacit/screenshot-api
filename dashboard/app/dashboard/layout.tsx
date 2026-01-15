@@ -29,8 +29,8 @@ const sidebarItems = [
     // { icon: Settings, label: "Settings", href: "/dashboard/settings" },
 ];
 
-// Token check interval (every 30 seconds)
-const TOKEN_CHECK_INTERVAL = 30 * 1000;
+// Token check interval (every 60 seconds - reduced from 30s for performance)
+const TOKEN_CHECK_INTERVAL = 60 * 1000;
 
 export default function DashboardLayout({
     children,

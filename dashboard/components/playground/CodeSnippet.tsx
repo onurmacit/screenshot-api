@@ -125,17 +125,20 @@ export function CodeSnippet({ curl, apiUrl, params, apiKey = "YOUR_API_KEY" }: C
     const codeSnippets = useMemo(() => {
         const snippets: Record<string, string> = {};
 
-        // URL with query string
-        const queryParams = new URLSearchParams();
-        if (apiKey) queryParams.set("access_key", apiKey); // Use access_key for GET
+        // URL with query string (multi-line format like ScreenshotOne)
+        const urlParams: string[] = [];
+        if (apiKey) urlParams.push(`access_key=${apiKey}`);
         Object.entries(params).forEach(([key, value]) => {
             if (value !== undefined && value !== "" && value !== false && key !== "api_key") {
-                queryParams.set(key, String(value));
+                // URL encode the value
+                const encodedValue = encodeURIComponent(String(value));
+                urlParams.push(`${key}=${encodedValue}`);
             }
         });
         // Convert API URL from /screenshot (POST) to /take (GET)
         const takeUrl = apiUrl.replace("/screenshot", "/take");
-        snippets.url = `${takeUrl}?${queryParams.toString()}`;
+        // Format with each param on new line, indented
+        snippets.url = `${takeUrl}?\n  ${urlParams.join('\n  &')}`;
 
         // cURL
         snippets.curl = curl;

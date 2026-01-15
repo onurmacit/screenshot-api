@@ -5,6 +5,7 @@ import (
 	"io"
 	"net"
 	"net/url"
+	"regexp"
 	"strings"
 	"time"
 
@@ -175,9 +176,13 @@ func (r *Renderer) CaptureScreenshot(opts ScreenshotOptions) (*ScreenshotResult,
 		defer router.Stop()
 	}
 
-	// Navigate to URL or set HTML content
+	// Navigate to URL or set HTML/Markdown content
 	if opts.HTML != "" {
 		page.MustSetDocumentContent(opts.HTML)
+	} else if opts.Markdown != "" {
+		// Convert Markdown to HTML and render
+		htmlContent := markdownToHTML(opts.Markdown)
+		page.MustSetDocumentContent(htmlContent)
 	} else if opts.URL != "" {
 		page.Timeout(time.Duration(opts.Timeout) * time.Millisecond).MustNavigate(opts.URL)
 		page.MustWaitLoad()
@@ -376,4 +381,74 @@ func isPrivateIP(ip net.IP) bool {
 	}
 
 	return false
+}
+
+// markdownToHTML converts Markdown content to a styled HTML page
+func markdownToHTML(markdown string) string {
+	content := markdown
+
+	// Headers (process in reverse order to avoid ## matching # first)
+	h3Re := regexp.MustCompile(`(?m)^### (.+)$`)
+	content = h3Re.ReplaceAllString(content, "<h3>$1</h3>")
+
+	h2Re := regexp.MustCompile(`(?m)^## (.+)$`)
+	content = h2Re.ReplaceAllString(content, "<h2>$1</h2>")
+
+	h1Re := regexp.MustCompile(`(?m)^# (.+)$`)
+	content = h1Re.ReplaceAllString(content, "<h1>$1</h1>")
+
+	// Bold
+	boldRe := regexp.MustCompile(`\*\*(.+?)\*\*`)
+	content = boldRe.ReplaceAllString(content, "<strong>$1</strong>")
+
+	// Italic
+	italicRe := regexp.MustCompile(`\*(.+?)\*`)
+	content = italicRe.ReplaceAllString(content, "<em>$1</em>")
+
+	// Inline code
+	codeRe := regexp.MustCompile("`(.+?)`")
+	content = codeRe.ReplaceAllString(content, "<code>$1</code>")
+
+	// Links
+	linkRe := regexp.MustCompile(`\[(.+?)\]\((.+?)\)`)
+	content = linkRe.ReplaceAllString(content, `<a href="$2">$1</a>`)
+
+	// Line breaks to paragraphs
+	content = "<p>" + strings.ReplaceAll(content, "\n\n", "</p><p>") + "</p>"
+	content = strings.ReplaceAll(content, "\n", "<br>")
+
+	// Wrap in HTML template with styling
+	htmlTemplate := `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background-color: #ffffff;
+    width: 100%;
+    margin: 0;
+    padding: 40px 60px;
+    box-sizing: border-box;
+    line-height: 1.7;
+    color: #1a1a1a;
+}
+h1, h2, h3, h4, h5, h6 { color: #111; margin-top: 1.5em; margin-bottom: 0.5em; }
+h1 { font-size: 2.5em; border-bottom: 2px solid #eee; padding-bottom: 0.3em; }
+h2 { font-size: 2em; border-bottom: 1px solid #eee; padding-bottom: 0.2em; }
+h3 { font-size: 1.5em; }
+code { background: #f4f4f4; padding: 2px 6px; border-radius: 3px; font-size: 0.9em; }
+pre { background: #f4f4f4; padding: 16px; border-radius: 6px; overflow-x: auto; }
+a { color: #0366d6; text-decoration: none; }
+a:hover { text-decoration: underline; }
+p { margin: 0.5em 0; }
+</style>
+</head>
+<body>
+%s
+</body>
+</html>`
+
+	return fmt.Sprintf(htmlTemplate, content)
 }

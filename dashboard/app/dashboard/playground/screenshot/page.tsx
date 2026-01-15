@@ -669,7 +669,7 @@ export default function ScreenshotPlaygroundPage() {
                         {/* Response Info Bar - Expands LEFT from button */}
                         <div
                             className={`
-                                flex items-center px-6 py-2 text-sm
+                                flex items-center px-6 text-sm h-11
                                 bg-gray-800 text-white rounded-l-lg
                                 transition-all duration-500 ease-out overflow-hidden
                                 ${responseMetadata && !isLoading
@@ -742,24 +742,24 @@ export default function ScreenshotPlaygroundPage() {
                                     </span>
                                 )}
                             </div>
-
-                            {/* RIGHT GROUP: Download Button (identical styling to Render) */}
-                            {result && (
-                                <button
-                                    onClick={() => {
-                                        const link = document.createElement('a');
-                                        link.href = result;
-                                        link.download = `screenshot-${Date.now()}.${format}`;
-                                        link.target = '_blank';
-                                        link.click();
-                                    }}
-                                    className="min-w-[140px] h-11 px-6 flex items-center justify-center gap-2 font-semibold text-sm bg-gray-800 text-white rounded-lg hover:bg-gray-700 transition-all cursor-pointer"
-                                >
-                                    <Download className="h-4 w-4" />
-                                    <span>Download</span>
-                                </button>
-                            )}
                         </div>
+
+                        {/* Download Button - Clone of Render, shown when result exists */}
+                        {result && responseMetadata && !isLoading && (
+                            <button
+                                onClick={() => {
+                                    const link = document.createElement('a');
+                                    link.href = result;
+                                    link.download = `screenshot-${Date.now()}.${format}`;
+                                    link.target = '_blank';
+                                    link.click();
+                                }}
+                                className="min-w-[140px] h-11 px-6 flex items-center justify-center gap-2 font-semibold text-sm bg-gray-800 text-white transition-all duration-200 ease-out hover:bg-gray-700 cursor-pointer"
+                            >
+                                <Download className="h-4 w-4" />
+                                <span>Download</span>
+                            </button>
+                        )}
 
                         {/* Render Button - Premium, Fixed Position, Always Right */}
                         <button

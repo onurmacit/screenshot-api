@@ -68,6 +68,8 @@ export default function ScreenshotPlaygroundPage() {
         fileSize: number;
         headers: Record<string, string>;
         renderTime?: number;
+        width?: number;
+        height?: number;
     } | null>(null);
 
     // Ref to measure right panel height
@@ -208,7 +210,9 @@ export default function ScreenshotPlaygroundPage() {
                         'content-length': blob.size.toString(),
                         'x-processing-time-ms': processingTime || '',
                     },
-                    renderTime: processingTime ? parseInt(processingTime) : undefined
+                    renderTime: processingTime ? parseInt(processingTime) : undefined,
+                    width: width,
+                    height: height,
                 });
             } else {
                 // JSON response mode
@@ -233,7 +237,9 @@ export default function ScreenshotPlaygroundPage() {
                             'content-type': `image/${response.data.format || format}`,
                             'content-length': fileSizeBytes.toString(),
                         },
-                        renderTime: response.data.processing_time_ms
+                        renderTime: response.data.processing_time_ms,
+                        width: response.data.width || width,
+                        height: response.data.height || height,
                     });
                 } else if (response.data.id || response.data.job_id) {
                     setError("Job started asynchronously. Check Jobs page.");
@@ -659,11 +665,11 @@ export default function ScreenshotPlaygroundPage() {
                     </div>
 
                     {/* Response Bar with Render Button - Button always at right */}
-                    <div className="mt-4 flex justify-end items-stretch">
+                    <div className="mt-4 flex items-stretch">
                         {/* Response Info Bar - Expands LEFT from button */}
                         <div
                             className={`
-                                flex items-center justify-between px-6 py-2 text-sm
+                                flex items-center px-6 py-2 text-sm
                                 bg-gray-800 text-white rounded-l-lg
                                 transition-all duration-500 ease-out overflow-hidden
                                 ${responseMetadata && !isLoading
@@ -672,62 +678,72 @@ export default function ScreenshotPlaygroundPage() {
                                 }
                             `}
                         >
-                            {/* Status Badge */}
-                            <span className="flex items-center gap-1.5 text-emerald-400 font-semibold whitespace-nowrap">
-                                <span className="relative flex h-2 w-2">
-                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400"></span>
+                            {/* LEFT GROUP: Status + Type + Size + Headers */}
+                            <div className="flex items-center gap-4 whitespace-nowrap">
+                                {/* Status Badge */}
+                                <span className="flex items-center gap-1.5 text-emerald-400 font-semibold">
+                                    <span className="relative flex h-2 w-2">
+                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                        <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400"></span>
+                                    </span>
+                                    200
                                 </span>
-                                200
-                            </span>
 
-                            {/* Type & Size Group */}
-                            <div className="flex items-center gap-4">
                                 {/* Content Type */}
-                                <span className="text-gray-400 font-mono text-xs whitespace-nowrap hidden md:inline">
+                                <span className="text-gray-400 font-mono text-xs hidden md:inline">
                                     {responseMetadata?.contentType}
                                 </span>
 
                                 {/* File Size */}
-                                <span className="text-white font-medium whitespace-nowrap">
+                                <span className="text-white font-medium">
                                     {responseMetadata?.fileSize && responseMetadata.fileSize > 1024 * 1024
                                         ? `${(responseMetadata.fileSize / (1024 * 1024)).toFixed(1)} MB`
                                         : responseMetadata?.fileSize
                                             ? `${(responseMetadata.fileSize / 1024).toFixed(0)} KB`
                                             : ''}
                                 </span>
+
+                                {/* Headers Popover */}
+                                {responseMetadata?.headers && Object.keys(responseMetadata.headers).length > 0 && (
+                                    <Popover>
+                                        <PopoverTrigger asChild>
+                                            <button className="cursor-pointer text-xs text-blue-400 hover:text-blue-300 font-medium px-2.5 py-1 rounded-md hover:bg-gray-700 transition-all border border-gray-600 hover:border-gray-500">
+                                                Headers
+                                            </button>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="w-80 p-3 bg-gray-900 border-gray-700" align="start">
+                                            <div className="text-xs font-semibold text-gray-400 mb-2 uppercase tracking-wider">Response Headers</div>
+                                            <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                                                {Object.entries(responseMetadata.headers).map(([key, value]) => (
+                                                    <div key={key} className="flex justify-between items-start gap-3 text-xs">
+                                                        <span className="text-gray-500 shrink-0">{key}</span>
+                                                        <span className="font-mono text-gray-300 text-right break-all">{value}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </PopoverContent>
+                                    </Popover>
+                                )}
                             </div>
 
-                            {/* Render Time */}
-                            {responseMetadata?.renderTime && (
-                                <span className="text-gray-400 font-mono text-xs whitespace-nowrap">
-                                    {responseMetadata.renderTime}ms
-                                </span>
-                            )}
+                            {/* CENTER GROUP: Dimensions + Render Time (flex-1 to push to center) */}
+                            <div className="flex-1 flex items-center justify-center gap-6">
+                                {/* Dimensions */}
+                                {responseMetadata?.width && responseMetadata?.height && (
+                                    <span className="text-gray-300 font-mono text-xs">
+                                        {responseMetadata.width} x {responseMetadata.height}
+                                    </span>
+                                )}
 
-                            {/* Headers Popover */}
-                            {responseMetadata?.headers && Object.keys(responseMetadata.headers).length > 0 && (
-                                <Popover>
-                                    <PopoverTrigger asChild>
-                                        <button className="cursor-pointer text-xs text-blue-400 hover:text-blue-300 font-medium px-2.5 py-1 rounded-md hover:bg-gray-700 transition-all whitespace-nowrap border border-gray-600 hover:border-gray-500">
-                                            Headers
-                                        </button>
-                                    </PopoverTrigger>
-                                    <PopoverContent className="w-80 p-3 bg-gray-900 border-gray-700" align="end">
-                                        <div className="text-xs font-semibold text-gray-400 mb-2 uppercase tracking-wider">Response Headers</div>
-                                        <div className="space-y-1.5 max-h-48 overflow-y-auto">
-                                            {Object.entries(responseMetadata.headers).map(([key, value]) => (
-                                                <div key={key} className="flex justify-between items-start gap-3 text-xs">
-                                                    <span className="text-gray-500 shrink-0">{key}</span>
-                                                    <span className="font-mono text-gray-300 text-right break-all">{value}</span>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </PopoverContent>
-                                </Popover>
-                            )}
+                                {/* Render Time */}
+                                {responseMetadata?.renderTime && (
+                                    <span className="text-gray-400 font-mono text-xs">
+                                        {responseMetadata.renderTime}ms
+                                    </span>
+                                )}
+                            </div>
 
-                            {/* Download Button */}
+                            {/* RIGHT GROUP: Download Button (inside info bar, next to Render) */}
                             {result && (
                                 <button
                                     onClick={() => {
@@ -737,9 +753,9 @@ export default function ScreenshotPlaygroundPage() {
                                         link.target = '_blank';
                                         link.click();
                                     }}
-                                    className="cursor-pointer flex items-center gap-1.5 px-3 py-1.5 rounded-md text-gray-300 hover:text-white hover:bg-gray-700 transition-all text-xs font-medium"
+                                    className="cursor-pointer flex items-center justify-center gap-2 min-w-[120px] h-9 px-4 rounded-lg text-white hover:bg-gray-700 transition-all text-sm font-semibold"
                                 >
-                                    <Download className="w-3.5 h-3.5" />
+                                    <Download className="w-4 h-4" />
                                     <span>Download</span>
                                 </button>
                             )}

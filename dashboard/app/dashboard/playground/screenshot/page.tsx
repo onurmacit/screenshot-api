@@ -671,7 +671,7 @@ export default function ScreenshotPlaygroundPage() {
                         {/* Response Info Bar - Expands LEFT from button */}
                         <div
                             className={`
-                                flex items-center px-6 text-sm h-11
+                                flex items-center px-6 text-sm h-11 whitespace-nowrap
                                 bg-gray-800 text-white rounded-l-lg
                                 transition-all duration-500 ease-out overflow-hidden
                                 ${responseMetadata && !isLoading

@@ -222,19 +222,11 @@ func (r *Renderer) CaptureScreenshot(opts ScreenshotOptions) (*ScreenshotResult,
 	}
 
 	if opts.Selector != "" {
-		// Capture specific element with timeout
-		el, err := page.Timeout(10 * time.Second).Element(opts.Selector)
+		// Enhanced selector capture with bounding box clip
+		var err error
+		imageBytes, err = r.captureSelector(page, opts, format)
 		if err != nil {
-			return nil, fmt.Errorf("element not found: %s - %w", opts.Selector, err)
-		}
-		// Wait for element to be visible
-		err = el.WaitVisible()
-		if err != nil {
-			return nil, fmt.Errorf("element not visible: %s - %w", opts.Selector, err)
-		}
-		imageBytes, err = el.Screenshot(format, opts.Quality)
-		if err != nil {
-			return nil, fmt.Errorf("failed to screenshot element: %w", err)
+			return nil, err
 		}
 	} else if opts.FullPage {
 		// Full page screenshot
@@ -259,6 +251,120 @@ func (r *Renderer) CaptureScreenshot(opts ScreenshotOptions) (*ScreenshotResult,
 		Height:           opts.Height,
 		ProcessingTimeMs: processingTime,
 	}, nil
+}
+
+// captureSelector captures a specific element with enhanced logic
+func (r *Renderer) captureSelector(page *rod.Page, opts ScreenshotOptions, format proto.PageCaptureScreenshotFormat) ([]byte, error) {
+	// Validate selector syntax
+	if !isValidSelector(opts.Selector) {
+		return nil, &SelectorError{
+			Selector:  opts.Selector,
+			Operation: "validate",
+			Err:       ErrInvalidSelector,
+		}
+	}
+
+	// Configuration
+	findTimeout := 10 * time.Second
+	stableTimeout := 500 * time.Millisecond
+	scrollDelay := 100 * time.Millisecond
+
+	// 1. Find element with timeout
+	el, err := page.Timeout(findTimeout).Element(opts.Selector)
+	if err != nil {
+		return nil, &SelectorError{
+			Selector:  opts.Selector,
+			Operation: "find",
+			Err:       fmt.Errorf("%w: %v", ErrSelectorNotFound, err),
+		}
+	}
+
+	// 2. Wait for element to be stable (handles animations)
+	err = el.WaitStable(stableTimeout)
+	if err != nil {
+		// Fallback to WaitVisible
+		err = el.WaitVisible()
+		if err != nil {
+			return nil, &SelectorError{
+				Selector:  opts.Selector,
+				Operation: "wait",
+				Err:       fmt.Errorf("%w: %v", ErrSelectorNotVisible, err),
+			}
+		}
+	}
+
+	// 3. Scroll element into view
+	if scrollErr := el.ScrollIntoView(); scrollErr != nil {
+		// Non-fatal: element might already be visible, log and continue
+		_ = scrollErr
+	}
+
+	// 4. Brief delay for render stabilization
+	time.Sleep(scrollDelay)
+
+	// 5. Get bounding box for precise clip
+	shape, err := el.Shape()
+	if err != nil {
+		return nil, &SelectorError{
+			Selector:  opts.Selector,
+			Operation: "bounds",
+			Err:       err,
+		}
+	}
+
+	box := shape.Box()
+
+	// Ensure valid dimensions
+	if box.Width <= 0 || box.Height <= 0 {
+		return nil, &SelectorError{
+			Selector:  opts.Selector,
+			Operation: "bounds",
+			Err:       fmt.Errorf("element has invalid dimensions: %.0fx%.0f", box.Width, box.Height),
+		}
+	}
+
+	// 6. Create clip from bounding box
+	scale := opts.DeviceScaleFactor
+	if scale == 0 {
+		scale = 1.0
+	}
+
+	clip := &proto.PageViewport{
+		X:      box.X,
+		Y:      box.Y,
+		Width:  box.Width,
+		Height: box.Height,
+		Scale:  scale,
+	}
+
+	// 7. Capture with clip
+	quality := opts.Quality
+	imageBytes, err := page.Screenshot(false, &proto.PageCaptureScreenshot{
+		Format:  format,
+		Quality: &quality,
+		Clip:    clip,
+	})
+	if err != nil {
+		return nil, &SelectorError{
+			Selector:  opts.Selector,
+			Operation: "capture",
+			Err:       err,
+		}
+	}
+
+	return imageBytes, nil
+}
+
+// isValidSelector performs basic CSS selector validation
+func isValidSelector(s string) bool {
+	if s == "" {
+		return false
+	}
+	// Check for common invalid patterns (XSS prevention)
+	if strings.ContainsAny(s, "<>{}") {
+		return false
+	}
+	return true
 }
 
 // GeneratePDF generates a PDF from the given URL

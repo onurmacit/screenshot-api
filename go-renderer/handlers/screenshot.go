@@ -115,8 +115,19 @@ func (h *ScreenshotHandler) CaptureScreenshot(c *fiber.Ctx) error {
 	// Capture screenshot
 	result, err := h.renderer.CaptureScreenshot(opts)
 	if err != nil {
-		return c.Status(500).JSON(fiber.Map{
-			"error":   "render_error",
+		// Map error to appropriate HTTP status
+		status := 500
+		errorCode := "render_error"
+
+		if services.IsClientError(err) {
+			status = 400
+			if services.IsSelectorError(err) {
+				errorCode = "selector_error"
+			}
+		}
+
+		return c.Status(status).JSON(fiber.Map{
+			"error":   errorCode,
 			"message": err.Error(),
 		})
 	}

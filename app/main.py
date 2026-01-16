@@ -158,7 +158,14 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
-    expose_headers=["x-processing-time-ms", "x-api-version", "x-request-id"],
+    expose_headers=[
+        "x-processing-time-ms",
+        "x-api-version",
+        "x-request-id",
+        "x-image-width",
+        "x-image-height",
+        "x-cache",
+    ],
 )
 
 # Request ID middleware (first, so all subsequent middleware have access)

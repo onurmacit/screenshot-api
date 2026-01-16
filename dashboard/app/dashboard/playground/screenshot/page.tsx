@@ -202,6 +202,8 @@ export default function ScreenshotPlaygroundPage() {
                 const processingTime = response.headers['x-processing-time-ms'];
                 const contentLength = response.headers['content-length'];
                 const cacheControl = response.headers['cache-control'];
+                const imageWidth = response.headers['x-image-width'];
+                const imageHeight = response.headers['x-image-height'];
                 setResponseMetadata({
                     status: 200,
                     contentType: blob.type || `image/${format}`,
@@ -212,8 +214,8 @@ export default function ScreenshotPlaygroundPage() {
                         'content-type': blob.type || `image/${format}`,
                     },
                     renderTime: processingTime ? parseInt(processingTime) : undefined,
-                    width: width,
-                    height: height,
+                    width: imageWidth ? parseInt(imageWidth) : width,
+                    height: imageHeight ? parseInt(imageHeight) : height,
                 });
             } else {
                 // JSON response mode

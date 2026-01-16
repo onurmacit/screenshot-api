@@ -920,6 +920,39 @@ async def create_screenshot(
                 render_job.result = cached_result.get("metadata", {})
                 await db.commit()
 
+                # Handle binary response mode for cache hits
+                if request.response_type == "binary":
+                    # Download image from S3 and return as binary
+                    import httpx
+                    async with httpx.AsyncClient() as client:
+                        s3_response = await client.get(cached_result["s3_url"])
+                        if s3_response.status_code == 200:
+                            image_bytes = s3_response.content
+                            media_type = {
+                                "png": "image/png",
+                                "jpeg": "image/jpeg",
+                                "jpg": "image/jpeg",
+                                "webp": "image/webp",
+                            }.get(options.get("format", "png"), "image/png")
+                            
+                            # Increment usage
+                            await rate_limit_service.increment_usage(current_user.user_id)
+                            
+                            return Response(
+                                content=image_bytes,
+                                media_type=media_type,
+                                headers={
+                                    "X-Processing-Time-Ms": str(int(elapsed * 1000)),
+                                    "X-Image-Width": str(cached_result.get("metadata", {}).get("width", options["width"])),
+                                    "X-Image-Height": str(cached_result.get("metadata", {}).get("height", options["height"])),
+                                    "Content-Length": str(len(image_bytes)),
+                                    "X-Cache": "HIT",
+                                },
+                            )
+                
+                # Increment usage for JSON response
+                await rate_limit_service.increment_usage(current_user.user_id)
+                
                 return ScreenshotResponse(
                     url=cached_result["s3_url"],
                     screenshot_url=cached_result["s3_url"],

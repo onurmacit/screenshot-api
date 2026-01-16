@@ -920,23 +920,15 @@ async def create_screenshot(
                 render_job.result = cached_result.get("metadata", {})
                 await db.commit()
 
-                return RenderJobResponse(
-                    job_id=render_job.id,
-                    type="screenshot",
-                    status="completed",
+                return ScreenshotResponse(
                     url=cached_result["s3_url"],
+                    screenshot_url=cached_result["s3_url"],
+                    width=cached_result.get("metadata", {}).get("width", options["width"]),
+                    height=cached_result.get("metadata", {}).get("height", options["height"]),
                     format=options.get("format", "png"),
-                    size=SizeInfo(
-                        width=cached_result.get("metadata", {}).get("width", options["width"]),
-                        height=cached_result.get("metadata", {}).get("height", options["height"]),
-                    ),
                     file_size=cached_result["file_size"],
                     processing_time_ms=int(elapsed * 1000),
-                    cached=True,
-                    created_at=render_job.created_at,
-                    started_at=render_job.started_at,
-                    completed_at=render_job.completed_at,
-                    expires_at=render_job.expires_at,
+                    status="completed",
                 )
         except Exception as e:
             logger.warning("Cache check failed", error=str(e))

@@ -895,6 +895,7 @@ async def create_screenshot(
             "quality": options["quality"],
             "full_page": options["full_page"],
             "device_scale_factor": options["device_scale_factor"],
+            "selector": options.get("selector", ""),  # Include selector in cache key
         }
 
         try:

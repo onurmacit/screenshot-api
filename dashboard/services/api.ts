@@ -79,6 +79,7 @@ export interface APIKey {
     name: string;
     // Dual-key system
     access_key?: string;
+    secret_key?: string; // For signing
     key_prefix?: string; // Legacy
     enforce_signing?: boolean;
     // Other fields

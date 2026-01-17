@@ -12,6 +12,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Loader2, Camera, ChevronRight, Download, Check, X } from "lucide-react";
 import { api, authApi, APIKey } from "@/services/api";
+import CryptoJS from "crypto-js";
 import { CodeSnippet } from "@/components/playground";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
@@ -135,6 +136,15 @@ export default function ScreenshotPlaygroundPage() {
             return;
         }
 
+        // Validate Sign Requests capability
+        const selectedKeyObj = userKeys.find(k => k.access_key === apiKey);
+        if (signRequests && sourceType === "url") {
+            if (!selectedKeyObj?.secret_key) {
+                setError("Selected API Key does not have a secret key available for signing.");
+                return;
+            }
+        }
+
         setIsLoading(true);
         setError(null);
         setResult(null);
@@ -143,6 +153,95 @@ export default function ScreenshotPlaygroundPage() {
         setResponseMetadata(null);
 
         try {
+            // SHARED PARAMS LOGIC
+            const params: Record<string, string | number | boolean> = getCodeSnippetParams();
+            // Ensure format consistency
+            if (sourceType === "url") params.url = url; // getCodeSnippetParams adds it but let's be sure
+
+            // === SIGNED GET REQUEST FLOW ===
+            if (signRequests && sourceType === "url" && selectedKeyObj?.secret_key) {
+                // 1. Prepare params for signing (Strings only)
+                const signParams: Record<string, string> = {};
+
+                // Add access_key to params if needed? 
+                // ScreenshotOne: access_key is query param.
+                signParams["access_key"] = apiKey;
+
+                Object.entries(params).forEach(([k, v]) => {
+                    signParams[k] = String(v);
+                });
+
+                // 2. Sort and Build Query String
+                const keys = Object.keys(signParams).sort();
+                const queryParts = keys.map(k => `${k}=${encodeURIComponent(signParams[k])}`);
+                const queryString = queryParts.join("&");
+
+                // 3. Sign
+                const signature = CryptoJS.HmacSHA256(queryString, selectedKeyObj.secret_key!).toString(CryptoJS.enc.Hex);
+
+                // 4. Request (GET)
+                // We use api.get but with responseType blob/json
+                const endpoint = "/api/v1/renders/"; // FastScreenshot endpoint
+
+                const requestConfig: any = {
+                    params: {
+                        ...signParams,
+                        signature: signature
+                    },
+                    timeout: 120000,
+                };
+
+                if (responseType === "binary") {
+                    requestConfig.responseType = 'blob';
+                    const response = await api.get(endpoint, requestConfig);
+
+                    const blob = response.data as Blob;
+                    const imageUrl = URL.createObjectURL(blob);
+                    setResult(imageUrl);
+
+                    // Metadata extraction (same as POST)
+                    const processingTime = response.headers['x-processing-time-ms'];
+                    const contentLength = response.headers['content-length'];
+                    const cacheControl = response.headers['cache-control'];
+                    const imageWidth = response.headers['x-image-width'];
+                    const imageHeight = response.headers['x-image-height'];
+
+                    setResponseMetadata({
+                        status: 200,
+                        contentType: blob.type || `image/${format}`,
+                        fileSize: blob.size || parseInt(contentLength || '0'),
+                        headers: {
+                            'cache-control': cacheControl || 'private, no-cache, max-age=0, no-transform',
+                            'content-length': (blob.size || contentLength || 0).toString(),
+                            'content-type': blob.type || `image/${format}`,
+                        },
+                        renderTime: processingTime ? parseInt(processingTime) : undefined,
+                        width: imageWidth ? parseInt(imageWidth) : width,
+                        height: imageHeight ? parseInt(imageHeight) : height,
+                    });
+
+                } else {
+                    // JSON response
+                    const response = await api.get(endpoint, requestConfig);
+                    // Logic checks response
+                    const resultUrl = response.data.url || response.data.screenshot_url;
+                    setResult(resultUrl);
+                    setJsonResult(JSON.stringify(response.data, null, 2));
+
+                    // Metadata... (Simplified for brevity)
+                    setResponseMetadata({
+                        status: 200,
+                        contentType: "application/json",
+                        fileSize: 0,
+                        headers: {},
+                        renderTime: response.data.processing_time_ms
+                    });
+                }
+
+                return;
+            }
+
+            // === LEGACY/POST REQUEST FLOW (Original) ===
             const requestBody: Record<string, unknown> = {
                 format,
                 width,
@@ -272,6 +371,28 @@ export default function ScreenshotPlaygroundPage() {
                 ? `"html": "${htmlContent.replace(/"/g, '\\"').replace(/\n/g, '\\n')}"`
                 : `"markdown": "${markdownContent.replace(/"/g, '\\"').replace(/\n/g, '\\n')}"`;
 
+        // SIGNED REQUEST CURL (GET)
+        const selectedKeyObj = userKeys.find(k => k.access_key === apiKey);
+
+        if (signRequests && sourceType === "url" && selectedKeyObj?.secret_key) {
+            const params: Record<string, string | number | boolean> = getCodeSnippetParams();
+            params.url = url;
+
+            // Signing Logic duplication (Refactor later?)
+            const signParams: Record<string, string> = { access_key: apiKey };
+            Object.entries(params).forEach(([k, v]) => signParams[k] = String(v));
+
+            const keys = Object.keys(signParams).sort();
+            const queryParts = keys.map(k => `${k}=${encodeURIComponent(signParams[k])}`);
+            const queryString = queryParts.join("&");
+            const signature = CryptoJS.HmacSHA256(queryString, selectedKeyObj.secret_key).toString(CryptoJS.enc.Hex);
+
+            const fullQuery = `${queryString}&signature=${signature}`;
+
+            return `curl -X GET "${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/v1/renders/?${fullQuery}"`;
+        }
+
+        // POST REQUEST CURL
         let extras = "";
         if (selector.trim()) extras += `,\n    "selector": "${selector.trim()}"`;
 
@@ -397,10 +518,25 @@ export default function ScreenshotPlaygroundPage() {
                                         </div>
                                     )}
 
-                                    {/* Sign Requests */}
-                                    <div className="flex items-center gap-2 pt-1 pb-1">
-                                        <Switch id="sign-req" checked={signRequests} onCheckedChange={setSignRequests} />
-                                        <Label htmlFor="sign-req" className="font-medium">Sign requests</Label>
+                                    {/* Sign Requests - Only active for URL source */}
+                                    <div className="flex flex-col gap-1 pt-1 pb-1">
+                                        <div className="flex items-center gap-2">
+                                            <Switch
+                                                id="sign-req"
+                                                checked={signRequests}
+                                                onCheckedChange={setSignRequests}
+                                                disabled={sourceType !== "url"}
+                                            />
+                                            <Label htmlFor="sign-req" className={`font-medium ${sourceType !== "url" ? 'text-gray-400' : ''}`}>
+                                                Sign requests
+                                            </Label>
+                                        </div>
+                                        {sourceType !== "url" && (
+                                            <p className="text-[10px] text-muted-foreground pl-10">Signed requests available only for URL source</p>
+                                        )}
+                                        {signRequests && (
+                                            <p className="text-[10px] text-blue-500 pl-10">Generates secure Signed URL for public sharing</p>
+                                        )}
                                     </div>
 
                                     {/* Response Type */}

@@ -630,41 +630,13 @@ func (s *AuthService) GetOrCreateDemoUser(ctx context.Context) (*models.User, er
 
 // createDefaultAPIKey creates a default API key for new users
 func (s *AuthService) createDefaultAPIKey(userID uuid.UUID) {
-	// Generate Keys
-	randomBytes := make([]byte, 12)
-	if _, err := rand.Read(randomBytes); err != nil {
-		return
-	}
-	accessKey := fmt.Sprintf("pk_live_%s", hex.EncodeToString(randomBytes))
-
-	secretBytes := make([]byte, 32)
-	if _, err := rand.Read(secretBytes); err != nil {
-		return
-	}
-	secretKeyRaw := fmt.Sprintf("sk_live_%s", hex.EncodeToString(secretBytes))
-
-	keyHash := sha256.Sum256([]byte(accessKey))
-	keyHashStr := hex.EncodeToString(keyHash[:])
-
-	encryptedSecret, err := utils.Encrypt(secretKeyRaw, s.cfg.SecretKeyEncryptionKey)
-	if err != nil {
-		return
+	req := dto.APIKeyCreateRequest{
+		Name:           "Default",
+		Scopes:         []string{"renders:read", "renders:write"},
+		EnforceSigning: false,
 	}
 
-	name := "Default"
-	apiKey := &models.APIKey{
-		UserID:             userID,
-		Name:               &name,
-		AccessKey:          accessKey,
-		SecretKey:          "REDACTED",
-		SecretKeyEncrypted: &encryptedSecret,
-		KeyHash:            keyHashStr,
-		KeyPrefix:          accessKey[:10],
-		Scopes:             pq.StringArray{"renders:read", "renders:write"},
-		EnforceSigning:     false,
-		IsActive:           true,
-		ID:                 uuid.New(),
-	}
-
-	s.db.Create(apiKey)
+	// Create key using standard logic (generates legacy format now)
+	// We ignore error here as this is triggered async/during flow
+	_, _ = s.CreateAPIKey(context.Background(), req, userID)
 }

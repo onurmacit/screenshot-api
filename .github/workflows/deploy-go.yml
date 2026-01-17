@@ -55,9 +55,9 @@ jobs:
       - name: Deploy to DigitalOcean
         uses: appleboy/ssh-action@master
         with:
-          host: ${{ secrets.DROPLET_HOST }}
+          host: ${{ secrets.SERVER_IP }}
           username: root
-          key: ${{ secrets.SSH_KEY }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
             # Navigate to project
             cd /root/screenshot-api
@@ -67,10 +67,8 @@ jobs:
             git reset --hard
             git pull origin main
             
-            # Login to GHCR (Needs PAT because GITHUB_TOKEN from action is not available/valid here nicely without passing)
-            # Assuming GHCR_PAT is set. If not, public packages might work if repo is public.
-            # Start simple: login
-            echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            # Login to GHCR using GITHUB_TOKEN (Transient token, valid for this workflow run)
+            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
             
             # Pull and Restart
             docker compose -f docker-compose.go-only.yml pull api-go

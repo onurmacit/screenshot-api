@@ -121,9 +121,8 @@ func (h *BillingHandler) Subscribe(c *fiber.Ctx) error {
 func (h *BillingHandler) CancelSubscription(c *fiber.Ctx) error {
 	// Ideally redirect to Customer Portal
 	return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
-		"error":   true,
-		"message": "Cancellation not implemented yet. Please use the Billing Portal.",
-		"code":    "NOT_IMPLEMENTED",
+		"detail": "Cancellation not implemented yet. Please use the Billing Portal.",
+		"code":   "NOT_IMPLEMENTED",
 	})
 }
 
@@ -147,13 +146,13 @@ func (h *BillingHandler) StripeWebhook(c *fiber.Ctx) error {
 	event, err := h.billingService.ConstructWebhookEvent(body, signature)
 	if err != nil {
 		log.Printf("Webhook signature verification failed: %v", err)
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid signature"})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"detail": "Invalid signature"})
 	}
 
 	// 4. Handle Event
 	if err := h.billingService.HandleWebhookEvent(c.Context(), event); err != nil {
 		log.Printf("Webhook handler failed: %v", err)
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Callback failed"})
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"detail": "Callback failed"})
 	}
 
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{"received": true})

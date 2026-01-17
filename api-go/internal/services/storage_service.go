@@ -39,7 +39,7 @@ func (s *StorageService) UploadRender(ctx context.Context, data []byte, format s
 	// Generate Key
 	year, month, day := time.Now().Date()
 	fileName := fmt.Sprintf("%s.%s", uuid.New().String(), format)
-	key := fmt.Sprintf("renders/%s/%d/%02d/%02d/%s", userID, year, month, day, fileName)
+	key := fmt.Sprintf("screenshots/%s/%d/%02d/%02d/%s", userID, year, month, day, fileName)
 
 	// Format content type
 	contentType := "image/jpeg"

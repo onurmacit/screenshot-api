@@ -10,44 +10,22 @@ import (
 	rpkg "github.com/onurmacit/screenshot-api/api-go/pkg/redis"
 )
 
-func RateLimit(cfg *config.Config) fiber.Handler {
+// IPRateLimit provides global IP-based rate limiting (Phase 2.1)
+func IPRateLimit(cfg *config.Config) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		if !cfg.RateLimitEnabled {
 			return c.Next()
 		}
 
-		user, ok := c.Locals("user").(*models.User)
-		var key string
-		var limit int64
-
-		if ok && user != nil {
-			// Authenticated user
-			key = fmt.Sprintf("ratelimit:user:%s", user.ID)
-			// Use plan limit or default?
-			// Ideally we could add a RateLimit per minute to the Plan model
-			// For now, let's assume a generous limit for authenticated users
-			limit = 60 // 60 requests per minute by default
-
-			// If plan has high concurrency, maybe allow more
-			if user.Plan.MaxConcurrentRequests > 5 {
-				limit = 300 // Pro users gets more
-			}
-		} else {
-			// Anonymous - limit by IP
-			key = fmt.Sprintf("ratelimit:ip:%s", c.IP())
-			limit = 20 // 20 requests per minute for anonymous
-		}
+		limit := int64(120) // 120 requests per minute per IP globally
+		key := fmt.Sprintf("ratelimit:ip:%s", c.IP())
 
 		client := rpkg.Get()
 		if client == nil {
-			// If redis is down, fail open
 			return c.Next()
 		}
 
 		ctx := c.Context()
-
-		// Simple fixed window counter
-		// Key expires every minute
 		window := time.Now().Format("2006-01-02-15:04")
 		finalKey := fmt.Sprintf("%s:%s", key, window)
 
@@ -57,7 +35,55 @@ func RateLimit(cfg *config.Config) fiber.Handler {
 		_, err := pipe.Exec(ctx)
 
 		if err != nil {
-			// Redis error, fail open
+			return c.Next()
+		}
+
+		if incr.Val() > limit {
+			return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{
+				"detail": "Too many requests from this IP. Please try again later.",
+			})
+		}
+
+		return c.Next()
+	}
+}
+
+// UserRateLimit provides per-user quota and concurrency limiting
+func UserRateLimit(cfg *config.Config) fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		if !cfg.RateLimitEnabled {
+			return c.Next()
+		}
+
+		user, ok := c.Locals("user").(*models.User)
+		if !ok || user == nil {
+			// If no user (e.g. public route that reached here), skip or fallback to IP
+			// But IPRateLimit should have caught pure IP spikes already.
+			return c.Next()
+		}
+
+		key := fmt.Sprintf("ratelimit:user:%s", user.ID)
+		limit := int64(60) // 60 requests per minute by default
+
+		if user.Plan.MaxConcurrentRequests > 5 {
+			limit = 300 // Pro users get more
+		}
+
+		client := rpkg.Get()
+		if client == nil {
+			return c.Next()
+		}
+
+		ctx := c.Context()
+		window := time.Now().Format("2006-01-02-15:04")
+		finalKey := fmt.Sprintf("%s:%s", key, window)
+
+		pipe := client.Pipeline()
+		incr := pipe.Incr(ctx, finalKey)
+		pipe.Expire(ctx, finalKey, 1*time.Minute)
+		_, err := pipe.Exec(ctx)
+
+		if err != nil {
 			return c.Next()
 		}
 
@@ -70,8 +96,7 @@ func RateLimit(cfg *config.Config) fiber.Handler {
 
 		if current > limit {
 			return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{
-				"error":   true,
-				"message": "Too many requests. Please try again later.",
+				"detail": "Plan rate limit exceeded. Please upgrade for more throughput.",
 			})
 		}
 

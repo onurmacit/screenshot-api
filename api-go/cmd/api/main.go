@@ -108,8 +108,7 @@ func main() {
 			}
 
 			return c.Status(code).JSON(fiber.Map{
-				"error":   true,
-				"message": message,
+				"detail": message,
 			})
 		},
 	})
@@ -118,6 +117,7 @@ func main() {
 	app.Use(middleware.RecoverWithLog())   // Panic recovery with logging
 	app.Use(middleware.RequestLogger())    // Structured request logging
 	app.Use(middleware.MetricsCollector()) // Basic metrics
+	app.Use(middleware.IPRateLimit(cfg))   // Phase 2.1: Global IP-based protection
 	app.Use(cors.New(cors.Config{
 		AllowOrigins:     strings.Join(cfg.CORSOrigins, ","),
 		AllowHeaders:     "Origin, Content-Type, Accept, X-API-Key, Authorization, X-Request-ID",
@@ -160,7 +160,7 @@ func main() {
 	// --- PROTECTED ROUTES ---
 	protected := api.Group("/")
 	protected.Use(middleware.APIKeyAuth(authService, cfg))
-	protected.Use(middleware.RateLimit(cfg))
+	protected.Use(middleware.UserRateLimit(cfg))
 
 	// Auth (Protected) & Users
 	authProtected := protected.Group("/auth")

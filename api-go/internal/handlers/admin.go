@@ -117,7 +117,7 @@ func (h *AdminHandler) UpdateUserPlan(c *fiber.Ctx) error {
 
 	if err := h.billingService.SetUserPlan(c.Context(), userID, req.PlanID); err != nil {
 		if appErr, ok := err.(*utils.AppError); ok {
-			return c.Status(appErr.Code).JSON(fiber.Map{"error": appErr.Message})
+			return c.Status(appErr.Code).JSON(fiber.Map{"detail": appErr.Message})
 		}
 		return fiber.NewError(fiber.StatusInternalServerError, err.Error())
 	}

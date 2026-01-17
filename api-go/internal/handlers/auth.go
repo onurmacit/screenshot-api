@@ -162,7 +162,7 @@ func (h *AuthHandler) ToggleEnforceSigning(c *fiber.Ctx) error {
 
 func (h *AuthHandler) handleError(c *fiber.Ctx, err error) error {
 	if appErr, ok := err.(*utils.AppError); ok {
-		return c.Status(appErr.Code).JSON(fiber.Map{"error": appErr.Message})
+		return c.Status(appErr.Code).JSON(fiber.Map{"detail": appErr.Message})
 	}
-	return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"detail": err.Error()})
 }

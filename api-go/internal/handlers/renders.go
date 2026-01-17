@@ -1,7 +1,9 @@
 package handlers
 
 import (
+	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -55,12 +57,16 @@ func (h *RenderHandler) CreateScreenshot(c *fiber.Ctx) error {
 	result, err := h.renderService.CaptureScreenshot(c.Context(), req, user)
 	if err != nil {
 		if appErr, ok := err.(*utils.AppError); ok {
-			return c.Status(appErr.Code).JSON(fiber.Map{"error": true, "message": appErr.Message})
+			return c.Status(appErr.Code).JSON(fiber.Map{"detail": appErr.Message})
 		}
 		return utils.ErrInternal
 	}
 
 	// 5. Return Response
+	if h.isBinaryRequest(c, &req) {
+		return h.handleBinaryResponse(c, result)
+	}
+
 	return c.JSON(result)
 }
 
@@ -87,7 +93,7 @@ func (h *RenderHandler) CreateJob(c *fiber.Ctx) error {
 	job, err := h.renderService.CreateRenderJob(c.Context(), req, user)
 	if err != nil {
 		if appErr, ok := err.(*utils.AppError); ok {
-			return c.Status(appErr.Code).JSON(fiber.Map{"error": true, "message": appErr.Message})
+			return c.Status(appErr.Code).JSON(fiber.Map{"detail": appErr.Message})
 		}
 		return utils.ErrInternal
 	}
@@ -112,7 +118,7 @@ func (h *RenderHandler) CreatePDF(c *fiber.Ctx) error {
 	result, err := h.renderService.CreatePDF(c.Context(), req, user)
 	if err != nil {
 		if appErr, ok := err.(*utils.AppError); ok {
-			return c.Status(appErr.Code).JSON(fiber.Map{"error": true, "message": appErr.Message})
+			return c.Status(appErr.Code).JSON(fiber.Map{"detail": appErr.Message})
 		}
 		return utils.ErrInternal
 	}
@@ -164,7 +170,7 @@ func (h *RenderHandler) SignURL(c *fiber.Ctx) error {
 	result, err := h.renderService.SignURL(c.Context(), req, rawAccessKey, secretKey)
 	if err != nil {
 		if appErr, ok := err.(*utils.AppError); ok {
-			return c.Status(appErr.Code).JSON(fiber.Map{"error": true, "message": appErr.Message})
+			return c.Status(appErr.Code).JSON(fiber.Map{"detail": appErr.Message})
 		}
 		return utils.ErrInternal
 	}
@@ -234,9 +240,13 @@ func (h *RenderHandler) RenderSigned(c *fiber.Ctx) error {
 	result, err := h.renderService.CaptureScreenshot(c.Context(), req, user)
 	if err != nil {
 		if appErr, ok := err.(*utils.AppError); ok {
-			return c.Status(appErr.Code).JSON(fiber.Map{"error": true, "message": appErr.Message})
+			return c.Status(appErr.Code).JSON(fiber.Map{"detail": appErr.Message})
 		}
 		return utils.ErrInternal
+	}
+
+	if h.isBinaryRequest(c, &req) {
+		return h.handleBinaryResponse(c, result)
 	}
 
 	return c.JSON(result)
@@ -279,7 +289,7 @@ func (h *RenderHandler) CreateDemo(c *fiber.Ctx) error {
 	result, err := h.renderService.CaptureScreenshot(c.Context(), renderReq, user)
 	if err != nil {
 		if appErr, ok := err.(*utils.AppError); ok {
-			return c.Status(appErr.Code).JSON(fiber.Map{"error": true, "message": appErr.Message})
+			return c.Status(appErr.Code).JSON(fiber.Map{"detail": appErr.Message})
 		}
 		return utils.ErrInternal
 	}
@@ -315,9 +325,13 @@ func (h *RenderHandler) FastScreenshot(c *fiber.Ctx) error {
 	result, err := h.renderService.CaptureScreenshot(c.Context(), req, user)
 	if err != nil {
 		if appErr, ok := err.(*utils.AppError); ok {
-			return c.Status(appErr.Code).JSON(fiber.Map{"error": true, "message": appErr.Message})
+			return c.Status(appErr.Code).JSON(fiber.Map{"detail": appErr.Message})
 		}
 		return utils.ErrInternal
+	}
+
+	if h.isBinaryRequest(c, &req) {
+		return h.handleBinaryResponse(c, result)
 	}
 
 	return c.JSON(result)
@@ -332,7 +346,7 @@ func (h *RenderHandler) ListJobs(c *fiber.Ctx) error {
 	jobs, total, err := h.renderService.ListJobs(c.Context(), user.ID, limit, offset)
 	if err != nil {
 		if appErr, ok := err.(*utils.AppError); ok {
-			return c.Status(appErr.Code).JSON(fiber.Map{"error": true, "message": appErr.Message})
+			return c.Status(appErr.Code).JSON(fiber.Map{"detail": appErr.Message})
 		}
 		return utils.ErrInternal
 	}
@@ -357,7 +371,7 @@ func (h *RenderHandler) GetJob(c *fiber.Ctx) error {
 	job, err := h.renderService.GetJob(c.Context(), user.ID, jobID)
 	if err != nil {
 		if appErr, ok := err.(*utils.AppError); ok {
-			return c.Status(appErr.Code).JSON(fiber.Map{"error": true, "message": appErr.Message})
+			return c.Status(appErr.Code).JSON(fiber.Map{"detail": appErr.Message})
 		}
 		return utils.ErrInternal
 	}
@@ -376,10 +390,62 @@ func (h *RenderHandler) DeleteJob(c *fiber.Ctx) error {
 
 	if err := h.renderService.DeleteJob(c.Context(), jobID, user.ID); err != nil {
 		if appErr, ok := err.(*utils.AppError); ok {
-			return c.Status(appErr.Code).JSON(fiber.Map{"error": true, "message": appErr.Message})
+			return c.Status(appErr.Code).JSON(fiber.Map{"detail": appErr.Message})
 		}
 		return utils.ErrInternal
 	}
 
 	return c.SendStatus(fiber.StatusNoContent)
+}
+
+// Helpers for Binary Response (Migration Fix)
+
+func (h *RenderHandler) isBinaryRequest(c *fiber.Ctx, req *dto.RenderRequest) bool {
+	// 1. Check Query/Body param
+	if req.ResponseType == "binary" || req.ResponseType == "by_format" {
+		return true
+	}
+
+	// 2. Check Accept header
+	accept := c.Get("Accept")
+	if accept != "" && accept != "*/*" && !strings.Contains(accept, "application/json") {
+		if strings.Contains(accept, "image/") || strings.Contains(accept, "application/pdf") {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (h *RenderHandler) handleBinaryResponse(c *fiber.Ctx, result *dto.ScreenshotResponse) error {
+	// Fetch the file from S3 URL
+	resp, err := http.Get(result.URL)
+	if err != nil {
+		return fiber.NewError(fiber.StatusInternalServerError, "Failed to fetch binary data from storage")
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fiber.NewError(fiber.StatusInternalServerError, "Storage returned error during binary fetch")
+	}
+
+	// Set Content-Type
+	contentType := resp.Header.Get("Content-Type")
+	if contentType == "" {
+		// Fallback based on format
+		switch result.Format {
+		case "png":
+			contentType = "image/png"
+		case "webp":
+			contentType = "image/webp"
+		case "pdf":
+			contentType = "application/pdf"
+		default:
+			contentType = "image/jpeg"
+		}
+	}
+	c.Set("Content-Type", contentType)
+
+	// Stream the body
+	return c.SendStream(resp.Body, int(resp.ContentLength))
 }

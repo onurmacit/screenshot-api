@@ -330,14 +330,13 @@ func (s *AuthService) generateTokens(userID uuid.UUID, email, ip, userAgent stri
 
 func (s *AuthService) CreateAPIKey(ctx context.Context, req dto.APIKeyCreateRequest, userID uuid.UUID) (*dto.APIKeyCreateResponse, error) {
 	// 1. Generate Keys
-	// Access Key: pk_live_... (32 chars random)
-	// Access Key: pk_live_... (32 chars max)
-	// pk_live_ (8) + 12 bytes hex (24) = 32 chars
-	randomBytes := make([]byte, 12)
+	// Access Key: string (32 chars)
+	// Legacy: Just random hex
+	randomBytes := make([]byte, 16) // 32 chars hex
 	if _, err := rand.Read(randomBytes); err != nil {
 		return nil, err
 	}
-	accessKey := fmt.Sprintf("pk_live_%s", hex.EncodeToString(randomBytes))
+	accessKey := hex.EncodeToString(randomBytes)
 
 	// Secret Key: sk_live_... (48 chars random)
 	secretBytes := make([]byte, 32)
@@ -511,20 +510,58 @@ func (s *AuthService) ToggleEnforceSigning(ctx context.Context, userID uuid.UUID
 
 // ValidateAPIKey validates an API key and returns the user and key (Legacy/Hybrid)
 func (s *AuthService) ValidateAPIKey(ctx context.Context, apiKey string) (*models.User, *models.APIKey, error) {
-	// 1. Hash the key (SHA256)
-	hash := sha256.New()
-	hash.Write([]byte(apiKey))
-	keyHash := hex.EncodeToString(hash.Sum(nil))
+	// 1. Identify key type/lookup strategy
+	// Check if input is potentially a Hash (64 chars hex) or a Raw Key
+	// If it matches KeyHash directly (Legacy Playground credential), use it.
+	// Otherwise, hash it and check.
 
-	// 2. Check cache first
-	user, key, err := s.cache.GetAPIKey(ctx, keyHash)
+	hashedInput := sha256.New()
+	hashedInput.Write([]byte(apiKey))
+	keyHashFromInput := hex.EncodeToString(hashedInput.Sum(nil))
+
+	// Optimistic Check: Is input ITSELF the key_hash? (length 64)
+	var queryKey string
+	if len(apiKey) == 64 {
+		// Possibly a hash. Check validity? Logic: Try both or check cache.
+		// We'll trust DB lookup.
+		// NOTE: If Raw key is 64 chars, we might have collision/ambiguity?
+		// Raw keys are usually shorter (32-50 chars). Hash is 64.
+		// So if len=64, likely it IS the hash.
+		queryKey = apiKey
+	} else {
+		queryKey = keyHashFromInput
+	}
+	// Fallback/Dual Check?
+	// To be safe: If user sends Raw Key that happens to be 64 chars?
+	// We should probably check:
+	// Where("key_hash = ? OR key_hash = ?", apiKey, keyHashFromInput)
+	// But `queryKey` logic assumes one.
+
+	// Let's implement robust dual check:
+	// Try `key_hash = apiKey` (Direct).
+	// If not found, try `key_hash = hash(apiKey)`.
+
+	// 2. Check cache first (Try keyHashFromInput - standard flow)
+	user, key, err := s.cache.GetAPIKey(ctx, keyHashFromInput)
 	if err == nil && user != nil && key != nil {
 		return user, key, nil
+	}
+	// Try cache with apiKey (if it's a hash)
+	if queryKey == apiKey {
+		user, key, err := s.cache.GetAPIKey(ctx, apiKey)
+		if err == nil && user != nil && key != nil {
+			return user, key, nil
+		}
 	}
 
 	// 3. Query database
 	var apiKeyModel models.APIKey
-	if err := s.db.Preload("User").Preload("User.Plan").Where("key_hash = ?", keyHash).First(&apiKeyModel).Error; err != nil {
+
+	// Strategy: Search for EITHER matches
+	err = s.db.Preload("User").Preload("User.Plan").
+		Where("key_hash = ? OR key_hash = ?", apiKey, keyHashFromInput).
+		First(&apiKeyModel).Error
+	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil, utils.ErrInvalidAPIKey
 		}
@@ -541,8 +578,9 @@ func (s *AuthService) ValidateAPIKey(ctx context.Context, apiKey string) (*model
 	}
 
 	// 5. Update last used (async)
-	// 6. Cache result
-	_ = s.cache.SetAPIKey(ctx, keyHash, &apiKeyModel.User, &apiKeyModel)
+	// 6. Cache result (Cache under the Hashed Key to normalize?)
+	// If user used Hash(Direct), we should cache under Hash(Direct).
+	_ = s.cache.SetAPIKey(ctx, apiKeyModel.KeyHash, &apiKeyModel.User, &apiKeyModel)
 
 	return &apiKeyModel.User, &apiKeyModel, nil
 }

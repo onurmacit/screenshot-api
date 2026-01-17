@@ -3,17 +3,21 @@ package handlers
 import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/onurmacit/screenshot-api/api-go/internal/config"
+	"github.com/onurmacit/screenshot-api/api-go/internal/middleware"
 	"github.com/onurmacit/screenshot-api/api-go/internal/models"
+	"github.com/onurmacit/screenshot-api/api-go/internal/services"
+	"github.com/onurmacit/screenshot-api/api-go/internal/utils"
 	"gorm.io/gorm"
 )
 
 type AdminHandler struct {
-	db  *gorm.DB
-	cfg *config.Config
+	db             *gorm.DB
+	cfg            *config.Config
+	billingService *services.BillingService
 }
 
-func NewAdminHandler(db *gorm.DB, cfg *config.Config) *AdminHandler {
-	return &AdminHandler{db: db, cfg: cfg}
+func NewAdminHandler(db *gorm.DB, cfg *config.Config, billingService *services.BillingService) *AdminHandler {
+	return &AdminHandler{db: db, cfg: cfg, billingService: billingService}
 }
 
 func (h *AdminHandler) checkAdmin(c *fiber.Ctx) bool {
@@ -23,6 +27,7 @@ func (h *AdminHandler) checkAdmin(c *fiber.Ctx) bool {
 			return true
 		}
 	}
+	// Be careful with nil user. Middleware ensures it.
 	return false
 }
 
@@ -91,4 +96,77 @@ func (h *AdminHandler) GetUserUsage(c *fiber.Ctx) error {
 	}
 
 	return c.JSON(records)
+}
+
+func (h *AdminHandler) UpdateUserPlan(c *fiber.Ctx) error {
+	if !h.checkAdmin(c) {
+		return fiber.NewError(fiber.StatusForbidden, "Admin access required")
+	}
+
+	userID := c.Params("id")
+	if userID == "" {
+		return fiber.NewError(fiber.StatusBadRequest, "User ID required")
+	}
+
+	var req struct {
+		PlanID int `json:"plan_id"`
+	}
+	if err := c.BodyParser(&req); err != nil {
+		return utils.ErrBadRequest
+	}
+
+	if err := h.billingService.SetUserPlan(c.Context(), userID, req.PlanID); err != nil {
+		if appErr, ok := err.(*utils.AppError); ok {
+			return c.Status(appErr.Code).JSON(fiber.Map{"error": appErr.Message})
+		}
+		return fiber.NewError(fiber.StatusInternalServerError, err.Error())
+	}
+
+	return c.JSON(fiber.Map{"status": "success", "message": "Plan updated"})
+}
+
+func (h *AdminHandler) ListPlans(c *fiber.Ctx) error {
+	if !h.checkAdmin(c) {
+		return fiber.NewError(fiber.StatusForbidden, "Admin access required")
+	}
+
+	plans, err := h.billingService.GetPlans(c.Context())
+	if err != nil {
+		return fiber.NewError(fiber.StatusInternalServerError, err.Error())
+	}
+
+	return c.JSON(plans)
+}
+
+func (h *AdminHandler) GetMetrics(c *fiber.Ctx) error {
+	if !h.checkAdmin(c) {
+		return fiber.NewError(fiber.StatusForbidden, "Admin access required")
+	}
+
+	metrics := middleware.GetMetrics()
+
+	return c.JSON(fiber.Map{
+		"total_requests":   metrics.TotalRequests,
+		"total_errors":     metrics.TotalErrors,
+		"error_rate":       float64(metrics.TotalErrors) / float64(max(metrics.TotalRequests, 1)) * 100,
+		"requests_by_code": metrics.RequestsByCode,
+		"top_paths":        getTopPaths(metrics.RequestsByPath, 10),
+	})
+}
+
+func max(a, b int64) int64 {
+	if a > b {
+		return a
+	}
+	return b
+}
+
+func getTopPaths(paths map[string]int64, limit int) []fiber.Map {
+	result := make([]fiber.Map, 0, limit)
+	for path, count := range paths {
+		if len(result) < limit {
+			result = append(result, fiber.Map{"path": path, "count": count})
+		}
+	}
+	return result
 }

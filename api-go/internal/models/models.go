@@ -35,18 +35,17 @@ func (User) TableName() string {
 type Plan struct {
 	ID                    int            `gorm:"primaryKey" json:"id"`
 	Name                  string         `gorm:"type:varchar(50);uniqueIndex;not null" json:"name"`
-	DisplayName           string         `gorm:"type:varchar(100);not null" json:"display_name"`
-	PriceMonthly          int            `gorm:"default:0" json:"price_monthly"` // cents
-	PriceYearly           int            `gorm:"default:0" json:"price_yearly"`  // cents
-	RequestsPerMonth      int            `gorm:"default:100" json:"requests_per_month"`
-	MaxConcurrentRequests int            `gorm:"default:1" json:"max_concurrent_requests"`
-	MaxTimeoutMS          int            `gorm:"default:30000" json:"max_timeout_ms"`
-	MaxFileSizeMB         int            `gorm:"default:5" json:"max_file_size_mb"`
+	DisplayName           string         `gorm:"column:display_name;type:varchar(100);not null" json:"display_name"`
+	PriceMonthly          float64        `gorm:"column:price_monthly;type:numeric(10,2)" json:"price_monthly"`
+	PriceYearly           *float64       `gorm:"column:price_yearly;type:numeric(10,2)" json:"price_yearly"`
+	RequestsPerMonth      int            `gorm:"column:requests_per_month" json:"requests_per_month"`
+	MaxConcurrentRequests int            `gorm:"column:max_concurrent_requests" json:"max_concurrent_requests"`
+	MaxTimeoutMS          int            `gorm:"column:max_timeout_ms" json:"max_timeout_ms"`
+	MaxFileSizeMB         int            `gorm:"column:max_file_size_mb" json:"max_file_size_mb"`
 	Features              map[string]any `gorm:"type:jsonb;serializer:json" json:"features"`
-	StripePriceIDMonthly  *string        `gorm:"type:varchar(255)" json:"-"`
-	StripePriceIDYearly   *string        `gorm:"type:varchar(255)" json:"-"`
-	IsActive              bool           `gorm:"default:true" json:"is_active"`
-	CreatedAt             time.Time      `gorm:"autoCreateTime" json:"created_at"`
+	StripePriceID         *string        `gorm:"column:stripe_price_id;type:varchar(255)" json:"-"`
+	IsActive              bool           `gorm:"column:is_active" json:"is_active"`
+	CreatedAt             time.Time      `gorm:"column:created_at;autoCreateTime" json:"created_at"`
 }
 
 func (Plan) TableName() string {
@@ -55,18 +54,20 @@ func (Plan) TableName() string {
 
 // APIKey represents an API key for authentication
 type APIKey struct {
-	ID             uuid.UUID  `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
-	UserID         uuid.UUID  `gorm:"type:uuid;not null;index" json:"user_id"`
-	Name           *string    `gorm:"type:varchar(255)" json:"name"`
-	KeyHash        string     `gorm:"type:varchar(64);uniqueIndex;not null" json:"-"`
-	KeyPrefix      string     `gorm:"type:varchar(10);not null" json:"key_prefix"`
-	SecretKey      string     `gorm:"type:text;not null" json:"-"` // Encrypted
-	Scopes         []string   `gorm:"type:text[];serializer:json" json:"scopes"`
-	IsActive       bool       `gorm:"default:true" json:"is_active"`
-	EnforceSigning bool       `gorm:"default:false" json:"enforce_signing"`
-	ExpiresAt      *time.Time `gorm:"" json:"expires_at"`
-	LastUsedAt     *time.Time `gorm:"" json:"last_used_at"`
-	CreatedAt      time.Time  `gorm:"autoCreateTime" json:"created_at"`
+	ID                 uuid.UUID  `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
+	UserID             uuid.UUID  `gorm:"type:uuid;not null;index" json:"user_id"`
+	Name               *string    `gorm:"type:varchar(255)" json:"name"`
+	KeyHash            string     `gorm:"type:varchar(64);uniqueIndex;not null" json:"-"`
+	KeyPrefix          string     `gorm:"type:varchar(10);not null" json:"key_prefix"`
+	AccessKey          string     `gorm:"type:varchar(50);not null" json:"access_key"` // Public identifier (pk_...)
+	SecretKey          string     `gorm:"type:text;not null" json:"-"`                 // Legacy/Encrypted
+	SecretKeyEncrypted *string    `gorm:"type:text" json:"-"`                          // Dual-key Encrypted (sk_...)
+	Scopes             []string   `gorm:"type:text[];serializer:json" json:"scopes"`
+	IsActive           bool       `gorm:"default:true" json:"is_active"`
+	EnforceSigning     bool       `gorm:"default:false" json:"enforce_signing"`
+	ExpiresAt          *time.Time `gorm:"" json:"expires_at"`
+	LastUsedAt         *time.Time `gorm:"" json:"last_used_at"`
+	CreatedAt          time.Time  `gorm:"autoCreateTime" json:"created_at"`
 
 	// Relations
 	User User `gorm:"foreignKey:UserID" json:"user,omitempty"`

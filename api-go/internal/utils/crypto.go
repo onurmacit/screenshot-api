@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/fernet/fernet-go"
+	"golang.org/x/crypto/bcrypt"
 )
 
 // GenerateSignature generates HMAC-SHA256 signature for parameters
@@ -60,4 +61,29 @@ func Decrypt(token string, key string) (string, error) {
 		return "", fmt.Errorf("decryption failed")
 	}
 	return string(msg), nil
+}
+
+// Encrypt encrypts a message using Fernet
+func Encrypt(msg string, key string) (string, error) {
+	k, err := fernet.DecodeKey(key)
+	if err != nil {
+		return "", err
+	}
+	token, err := fernet.EncryptAndSign([]byte(msg), k)
+	if err != nil {
+		return "", err
+	}
+	return string(token), nil
+}
+
+// HashPassword hashes a password using bcrypt
+func HashPassword(password string) (string, error) {
+	bytes, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	return string(bytes), err
+}
+
+// CheckPasswordHash checks if password matches the hash
+func CheckPasswordHash(password, hash string) bool {
+	err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
+	return err == nil
 }

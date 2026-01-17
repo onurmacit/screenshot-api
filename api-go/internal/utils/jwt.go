@@ -33,3 +33,8 @@ func ValidateToken(tokenString string, secret string) (*JWTClaims, error) {
 
 	return nil, ErrInvalidToken
 }
+
+func GenerateToken(claims jwt.Claims, secret string) (string, error) {
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	return token.SignedString([]byte(secret))
+}

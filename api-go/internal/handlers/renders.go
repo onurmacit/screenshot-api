@@ -345,6 +345,26 @@ func (h *RenderHandler) ListJobs(c *fiber.Ctx) error {
 	})
 }
 
+// GetJob handles GET /jobs/:id
+func (h *RenderHandler) GetJob(c *fiber.Ctx) error {
+	user := c.Locals("user").(*models.User)
+	jobID := c.Params("id")
+
+	if jobID == "" {
+		return fiber.NewError(fiber.StatusBadRequest, "Job ID required")
+	}
+
+	job, err := h.renderService.GetJob(c.Context(), user.ID, jobID)
+	if err != nil {
+		if appErr, ok := err.(*utils.AppError); ok {
+			return c.Status(appErr.Code).JSON(fiber.Map{"error": true, "message": appErr.Message})
+		}
+		return utils.ErrInternal
+	}
+
+	return c.JSON(job)
+}
+
 // DeleteJob handles DELETE /jobs/:id
 func (h *RenderHandler) DeleteJob(c *fiber.Ctx) error {
 	user := c.Locals("user").(*models.User)

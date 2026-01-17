@@ -333,6 +333,20 @@ func (s *RenderService) ListJobs(ctx context.Context, userID uuid.UUID, limit, o
 	return s.jobRepo.ListByUserID(userID.String(), limit, offset)
 }
 
+// GetJob retrieves a specific job by ID with user authorization
+func (s *RenderService) GetJob(ctx context.Context, userID uuid.UUID, jobID string) (*models.RenderJob, error) {
+	job, err := s.jobRepo.FindByID(jobID)
+	if err != nil {
+		return nil, &utils.AppError{Code: 404, Message: "Job not found"}
+	}
+
+	if job.UserID != userID {
+		return nil, &utils.AppError{Code: 403, Message: "Forbidden"}
+	}
+
+	return job, nil
+}
+
 func (s *RenderService) DeleteJob(ctx context.Context, jobID string, userID uuid.UUID) error {
 	// 1. Get Job
 	job, err := s.jobRepo.FindByID(jobID)

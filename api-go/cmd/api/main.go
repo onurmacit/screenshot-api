@@ -6,8 +6,6 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
-	"github.com/gofiber/fiber/v2/middleware/logger"
-	"github.com/gofiber/fiber/v2/middleware/recover"
 
 	"github.com/onurmacit/screenshot-api/api-go/internal/config"
 	"github.com/onurmacit/screenshot-api/api-go/internal/handlers"
@@ -55,12 +53,22 @@ func main() {
 	}
 
 	authService := services.NewAuthService(db, cfg)
+	billingService := services.NewBillingService(db, cfg)
+	// Seed Plans
+	if err := billingService.SeedPlans(); err != nil {
+		log.Printf("Warning: Failed to seed plans: %v", err)
+	}
+
 	renderService := services.NewRenderService(rendererClient, storageService, cacheService, usageService, jobRepo, cfg, db)
 
 	// Initialize Handlers
 	renderHandler := handlers.NewRenderHandler(renderService, authService)
 	authHandler := handlers.NewAuthHandler(authService)
-	adminHandler := handlers.NewAdminHandler(db, cfg)
+	adminHandler := handlers.NewAdminHandler(db, cfg, billingService)
+	usageHandler := handlers.NewUsageHandler(db, cfg, usageService)
+	healthHandler := handlers.NewHealthHandler(db)
+	billingHandler := handlers.NewBillingHandler(db, billingService)
+	webhooksHandler := handlers.NewWebhooksHandler(db)
 
 	// Create Fiber app
 	app := fiber.New(fiber.Config{
@@ -89,68 +97,108 @@ func main() {
 		},
 	})
 
-	// Middleware
-	app.Use(recover.New())
-	app.Use(logger.New())
+	// Middleware - Order matters!
+	app.Use(middleware.RecoverWithLog())   // Panic recovery with logging
+	app.Use(middleware.RequestLogger())    // Structured request logging
+	app.Use(middleware.MetricsCollector()) // Basic metrics
 	app.Use(cors.New(cors.Config{
 		AllowOrigins:     strings.Join(cfg.CORSOrigins, ","),
-		AllowHeaders:     "Origin, Content-Type, Accept, X-API-Key, Authorization",
+		AllowHeaders:     "Origin, Content-Type, Accept, X-API-Key, Authorization, X-Request-ID",
 		AllowCredentials: true,
-		ExposeHeaders:    "X-Processing-Time-Ms, X-Image-Width, X-Image-Height, X-Cache",
+		ExposeHeaders:    "X-Processing-Time-Ms, X-Image-Width, X-Image-Height, X-Cache, X-Request-ID",
 	}))
 
 	// API V1 Config
+	// API V1 Config
 	api := app.Group("/api/v1")
 
-	// Public Routes
-	api.Post("/renders/demo", renderHandler.CreateDemo)
+	// --- PUBLIC ROUTES ---
 
-	// Protected Routes
-	api.Use(middleware.APIKeyAuth(authService, cfg))
+	// Auth (Public)
+	authPublic := api.Group("/auth")
+	authPublic.Post("/register", authHandler.Register)
+	authPublic.Post("/login", authHandler.Login)
+	authPublic.Post("/social-login", authHandler.SocialLogin)
+	authPublic.Post("/refresh", authHandler.RefreshToken)
+	authPublic.Post("/logout", authHandler.Logout)
+
+	// Demo & Signed
+	api.Post("/renders/demo", renderHandler.CreateDemo)
+	api.Get("/renders/signed", renderHandler.RenderSigned)
+	api.Post("/renders/signed", renderHandler.RenderSigned)
+
+	// Billing (Public routes - must be before protected group)
+	api.Get("/billing/plans", billingHandler.ListPlans)
+	api.Get("/billing/plans/:id", billingHandler.GetPlan)
+	api.Post("/billing/webhook/stripe", billingHandler.StripeWebhook)
+
+	// Webhooks (Public utilities)
+	api.Post("/webhooks/verify", webhooksHandler.VerifySignature)
+	api.Get("/webhooks/events", webhooksHandler.ListEvents)
+
+	// Health (Public - under API prefix)
+	api.Get("/health", healthHandler.Health)
+	api.Get("/health/detailed", healthHandler.DetailedHealth)
+
+	// --- PROTECTED ROUTES ---
+	protected := api.Group("/")
+	protected.Use(middleware.APIKeyAuth(authService, cfg))
+
+	// Auth (Protected) & Users
+	authProtected := protected.Group("/auth")
+	authProtected.Post("/api-keys", authHandler.CreateAPIKey)
+	authProtected.Get("/api-keys", authHandler.ListAPIKeys)
+	authProtected.Delete("/api-keys/:id", authHandler.DeleteAPIKey)
+	authProtected.Patch("/api-keys/:id/enforce-signing", authHandler.ToggleEnforceSigning)
+
+	users := protected.Group("/users")
+	users.Get("/me", authHandler.GetMe)
 
 	// Admin Routes
-	admin := api.Group("/admin")
+	admin := protected.Group("/admin")
 	admin.Get("/stats", adminHandler.GetStats)
 	admin.Get("/users", adminHandler.ListUsers)
+	admin.Patch("/users/:id/plan", adminHandler.UpdateUserPlan)
 	admin.Get("/users/:id/usage", adminHandler.GetUserUsage)
+	admin.Get("/plans", adminHandler.ListPlans)
+	admin.Get("/metrics", adminHandler.GetMetrics)
 
-	// Auth Routes (API Keys)
-	auth := api.Group("/auth")
-	auth.Post("/api-keys", authHandler.CreateAPIKey)
-	auth.Get("/api-keys", authHandler.ListAPIKeys)
-	auth.Delete("/api-keys/:id", authHandler.DeleteAPIKey)
-
-	// Public Routes (Webhooks)
-	// webhooks := app.Group("/webhooks")
-	// webhooks.Post("/stripe", webhookHandler.HandleStripe)
-
-	renders := api.Group("/renders")
+	// Renders
+	renders := protected.Group("/renders")
 	renders.Get("/", renderHandler.FastScreenshot)
 	renders.Post("/screenshot", renderHandler.CreateScreenshot)
 	renders.Post("/pdf", renderHandler.CreatePDF)
 	renders.Post("/sign-url", renderHandler.SignURL)
-	renders.Get("/signed", renderHandler.RenderSigned)  // Support GET
-	renders.Post("/signed", renderHandler.RenderSigned) // Support POST
 
-	jobs := api.Group("/jobs")
+	// Jobs
+	jobs := protected.Group("/jobs")
 	jobs.Post("/", renderHandler.CreateJob)
 	jobs.Get("/", renderHandler.ListJobs)
+	jobs.Get("/:id", renderHandler.GetJob)
 	jobs.Delete("/:id", renderHandler.DeleteJob)
 
-	// Health Check
-	app.Get("/health", func(c *fiber.Ctx) error {
-		sqlDB, err := db.DB()
-		dbStatus := "connected"
-		if err != nil || sqlDB.Ping() != nil {
-			dbStatus = "disconnected"
-		}
+	// Usage
+	usage := protected.Group("/usage")
+	usage.Get("/current", usageHandler.GetCurrentUsage)
+	usage.Get("/history", usageHandler.GetUsageHistory)
 
-		return c.Status(fiber.StatusOK).JSON(fiber.Map{
-			"status":   "healthy",
-			"env":      cfg.AppEnv,
-			"database": dbStatus,
-		})
-	})
+	// Billing (Protected subscription routes)
+	billingProtected := protected.Group("/billing")
+	billingProtected.Post("/subscribe", billingHandler.Subscribe)
+	billingProtected.Post("/cancel", billingHandler.CancelSubscription)
+	billingProtected.Get("/invoices", billingHandler.ListInvoices)
+
+	// Webhooks (Protected CRUD routes)
+	webhooks := protected.Group("/webhooks")
+	webhooks.Get("/", webhooksHandler.ListWebhooks)
+	webhooks.Post("/", webhooksHandler.CreateWebhook)
+	webhooks.Get("/:id", webhooksHandler.GetWebhook)
+	webhooks.Patch("/:id", webhooksHandler.UpdateWebhook)
+	webhooks.Delete("/:id", webhooksHandler.DeleteWebhook)
+	webhooks.Post("/:id/rotate-secret", webhooksHandler.RotateSecret)
+
+	// Root health check (Public - outside /api/v1)
+	app.Get("/health", healthHandler.Health)
 
 	// Start server
 	log.Printf("Server starting on port %s", cfg.Port)

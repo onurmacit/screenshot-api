@@ -511,24 +511,39 @@ func (s *AuthService) ToggleEnforceSigning(ctx context.Context, userID uuid.UUID
 
 // ValidateAPIKey validates an API key and returns the user and key (Legacy/Hybrid)
 func (s *AuthService) ValidateAPIKey(ctx context.Context, apiKey string) (*models.User, *models.APIKey, error) {
-	// 1. Hash the key (SHA256)
-	hash := sha256.New()
-	hash.Write([]byte(apiKey))
-	keyHash := hex.EncodeToString(hash.Sum(nil))
+	// 1. Determine key type/lookup strategy
+	var queryKey string
+	isAccessKey := len(apiKey) > 3 && apiKey[:3] == "pk_"
+
+	if isAccessKey {
+		queryKey = apiKey
+	} else {
+		hash := sha256.New()
+		hash.Write([]byte(apiKey))
+		queryKey = hex.EncodeToString(hash.Sum(nil))
+	}
 
 	// 2. Check cache first
-	user, key, err := s.cache.GetAPIKey(ctx, keyHash)
+	user, key, err := s.cache.GetAPIKey(ctx, queryKey)
 	if err == nil && user != nil && key != nil {
 		return user, key, nil
 	}
 
 	// 3. Query database
 	var apiKeyModel models.APIKey
-	if err := s.db.Preload("User").Preload("User.Plan").Where("key_hash = ?", keyHash).First(&apiKeyModel).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
+	var dbErr error
+
+	if isAccessKey {
+		dbErr = s.db.Preload("User").Preload("User.Plan").Where("access_key = ?", apiKey).First(&apiKeyModel).Error
+	} else {
+		dbErr = s.db.Preload("User").Preload("User.Plan").Where("key_hash = ?", queryKey).First(&apiKeyModel).Error
+	}
+
+	if dbErr != nil {
+		if errors.Is(dbErr, gorm.ErrRecordNotFound) {
 			return nil, nil, utils.ErrInvalidAPIKey
 		}
-		return nil, nil, err
+		return nil, nil, dbErr
 	}
 
 	// 4. Validate
@@ -542,7 +557,7 @@ func (s *AuthService) ValidateAPIKey(ctx context.Context, apiKey string) (*model
 
 	// 5. Update last used (async)
 	// 6. Cache result
-	_ = s.cache.SetAPIKey(ctx, keyHash, &apiKeyModel.User, &apiKeyModel)
+	_ = s.cache.SetAPIKey(ctx, queryKey, &apiKeyModel.User, &apiKeyModel)
 
 	return &apiKeyModel.User, &apiKeyModel, nil
 }

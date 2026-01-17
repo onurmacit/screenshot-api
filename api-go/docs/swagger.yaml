@@ -1,0 +1,107 @@
+openapi: 3.0.0
+info:
+  title: Screenshot API
+  description: High-performance screenshot and PDF rendering API
+  version: 1.0.0
+servers:
+  - url: https://api.screenshotbeam.com/api/v1
+    description: Production Server
+  - url: http://localhost:8080/api/v1
+    description: Local Development
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: forKey
+      in: header
+      name: X-API-Key
+  schemas:
+    RenderRequest:
+      type: object
+      properties:
+        url:
+          type: string
+          example: "https://example.com"
+        width:
+          type: integer
+          default: 1920
+        height:
+          type: integer
+          default: 1080
+        full_page:
+          type: boolean
+          default: false
+        format:
+          type: string
+          enum: [jpeg, png, webp]
+          default: jpeg
+    RenderResponse:
+      type: object
+      properties:
+        url:
+          type: string
+          description: Public URL of the rendered image
+        screenshot_url:
+          type: string
+        file_size:
+          type: integer
+paths:
+  /renders/screenshot:
+    post:
+      summary: Capture Screenshot
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RenderRequest'
+      responses:
+        '200':
+          description: Successful render
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RenderResponse'
+  /renders/pdf:
+    post:
+      summary: Generate PDF
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/RenderRequest'
+                - type: object
+                  properties:
+                    print_background:
+                      type: boolean
+                      default: true
+      responses:
+        '200':
+          description: Successful PDF
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RenderResponse'
+  /renders:
+    get:
+      summary: Fast Screenshot (Query Params)
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: url
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: width
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Successful render

@@ -11,11 +11,11 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 	"github.com/onurmacit/screenshot-api/api-go/internal/config"
 	"github.com/onurmacit/screenshot-api/api-go/internal/dto"
 	"github.com/onurmacit/screenshot-api/api-go/internal/models"
 	"github.com/onurmacit/screenshot-api/api-go/internal/utils"
-
 	"gorm.io/gorm"
 )
 
@@ -310,6 +310,7 @@ func (s *AuthService) generateTokens(userID uuid.UUID, email, ip, userAgent stri
 	tokenHash := hex.EncodeToString(tokenHashBytes[:])
 
 	rtModel := models.RefreshToken{
+		ID:         uuid.New(),
 		UserID:     userID,
 		TokenHash:  tokenHash,
 		ExpiresAt:  refreshExpiry,
@@ -330,7 +331,9 @@ func (s *AuthService) generateTokens(userID uuid.UUID, email, ip, userAgent stri
 func (s *AuthService) CreateAPIKey(ctx context.Context, req dto.APIKeyCreateRequest, userID uuid.UUID) (*dto.APIKeyCreateResponse, error) {
 	// 1. Generate Keys
 	// Access Key: pk_live_... (32 chars random)
-	randomBytes := make([]byte, 24)
+	// Access Key: pk_live_... (32 chars max)
+	// pk_live_ (8) + 12 bytes hex (24) = 32 chars
+	randomBytes := make([]byte, 12)
 	if _, err := rand.Read(randomBytes); err != nil {
 		return nil, err
 	}
@@ -383,20 +386,17 @@ func (s *AuthService) CreateAPIKey(ctx context.Context, req dto.APIKeyCreateRequ
 		// If header is `X-API-Key`, it's usually the SK.
 		// So we hash `secretKeyRaw`.
 
-		KeyPrefix:      accessKey[:12], // Or secretKeyRaw[:12]? Usually secret.
-		Scopes:         req.Scopes,
+		KeyPrefix:      accessKey[:10], // Fits varchar(10)
+		Scopes:         pq.StringArray(req.Scopes),
 		EnforceSigning: req.EnforceSigning,
 		IsActive:       true,
 		ExpiresAt:      req.ExpiresAt,
 	}
 
-	// Correction: ValidateAPIKey hashes the input.
-	// So input = Secret Key.
-	// So KeyHash = SHA256(SecretKey).
 	// AccessKey = Public Key (pk_...) stored plainly.
 
+	apiKey.ID = uuid.New()
 	apiKey.KeyHash = fmt.Sprintf("%x", sha256.Sum256([]byte(secretKeyRaw)))
-	apiKey.KeyPrefix = secretKeyRaw[:12]
 
 	if err := s.db.Create(apiKey).Error; err != nil {
 		return nil, err
@@ -445,7 +445,7 @@ func (s *AuthService) ListAPIKeys(ctx context.Context, userID uuid.UUID) ([]dto.
 			KeyPrefix:      k.KeyPrefix,
 			AccessKey:      k.AccessKey,
 			SecretKey:      secretKeyDecrypted,
-			Scopes:         k.Scopes,
+			Scopes:         []string(k.Scopes),
 			EnforceSigning: k.EnforceSigning,
 			IsActive:       k.IsActive,
 			LastUsedAt:     k.LastUsedAt,
@@ -593,7 +593,7 @@ func (s *AuthService) GetOrCreateDemoUser(ctx context.Context) (*models.User, er
 // createDefaultAPIKey creates a default API key for new users
 func (s *AuthService) createDefaultAPIKey(userID uuid.UUID) {
 	// Generate Keys
-	randomBytes := make([]byte, 24)
+	randomBytes := make([]byte, 12)
 	if _, err := rand.Read(randomBytes); err != nil {
 		return
 	}
@@ -621,10 +621,11 @@ func (s *AuthService) createDefaultAPIKey(userID uuid.UUID) {
 		SecretKey:          "REDACTED",
 		SecretKeyEncrypted: &encryptedSecret,
 		KeyHash:            keyHashStr,
-		KeyPrefix:          accessKey[:12],
-		Scopes:             []string{"renders:read", "renders:write"},
+		KeyPrefix:          accessKey[:10],
+		Scopes:             pq.StringArray{"renders:read", "renders:write"},
 		EnforceSigning:     false,
 		IsActive:           true,
+		ID:                 uuid.New(),
 	}
 
 	s.db.Create(apiKey)

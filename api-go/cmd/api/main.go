@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"strings"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
@@ -15,11 +16,27 @@ import (
 	"github.com/onurmacit/screenshot-api/api-go/internal/utils"
 	"github.com/onurmacit/screenshot-api/api-go/pkg/database"
 	"github.com/onurmacit/screenshot-api/api-go/pkg/redis"
+
+	"github.com/getsentry/sentry-go"
 )
 
 func main() {
 	// Load configuration
 	cfg := config.Load()
+
+	// Initialize Sentry
+	if cfg.SentryDSN != "" {
+		if err := sentry.Init(sentry.ClientOptions{
+			Dsn:              cfg.SentryDSN,
+			TracesSampleRate: 1.0,
+			Environment:      cfg.AppEnv,
+		}); err != nil {
+			log.Printf("Sentry initialization failed: %v\n", err)
+		} else {
+			log.Println("Sentry initialized successfully")
+			defer sentry.Flush(2 * time.Second)
+		}
+	}
 
 	// Connect to Database
 	db, err := database.Connect(cfg.DatabaseURL, cfg.Debug)
@@ -109,7 +126,7 @@ func main() {
 	}))
 
 	// API V1 Config
-	// API V1 Config
+
 	api := app.Group("/api/v1")
 
 	// --- PUBLIC ROUTES ---
@@ -143,6 +160,7 @@ func main() {
 	// --- PROTECTED ROUTES ---
 	protected := api.Group("/")
 	protected.Use(middleware.APIKeyAuth(authService, cfg))
+	protected.Use(middleware.RateLimit(cfg))
 
 	// Auth (Protected) & Users
 	authProtected := protected.Group("/auth")

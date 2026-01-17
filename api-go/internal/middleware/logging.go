@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/getsentry/sentry-go"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 )
@@ -63,6 +64,11 @@ func RecoverWithLog() fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		defer func() {
 			if r := recover(); r != nil {
+				// Capture Sentry
+				if hub := sentry.CurrentHub(); hub != nil {
+					hub.Recover(r)
+				}
+
 				fmt.Printf("PANIC | %s | %s | %s | %v\n",
 					c.IP(),
 					c.Method(),

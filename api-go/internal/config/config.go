@@ -59,6 +59,9 @@ type Config struct {
 	// Features
 	UseGoRenderer bool
 
+	// Sentry
+	SentryDSN string
+
 	// Cache
 	RenderCacheTTL int // seconds
 	APICacheTTL    int // seconds
@@ -130,6 +133,7 @@ func Load() *Config {
 	cfg.AdminEmails = getEnvSlice("ADMIN_EMAILS", []string{})
 	cfg.UseGoRenderer = getEnvBool("USE_GO_RENDERER", true)
 	cfg.RenderCacheTTL = getEnvInt("RENDER_CACHE_TTL", 86400)
+	cfg.SentryDSN = getEnv("SENTRY_DSN", "")
 
 	// Validate required config
 	if cfg.DatabaseURL == "" {

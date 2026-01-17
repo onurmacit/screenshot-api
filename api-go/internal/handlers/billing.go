@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"log"
+
 	"github.com/gofiber/fiber/v2"
 	"github.com/onurmacit/screenshot-api/api-go/internal/models"
 	"github.com/onurmacit/screenshot-api/api-go/internal/services"
@@ -18,8 +20,8 @@ func NewBillingHandler(db *gorm.DB, billingService *services.BillingService) *Bi
 
 // ListPlans returns all available subscription plans (Public)
 func (h *BillingHandler) ListPlans(c *fiber.Ctx) error {
-	var plans []models.Plan
-	if err := h.db.Where("is_active = ?", true).Find(&plans).Error; err != nil {
+	plans, err := h.billingService.GetPlans(c.Context())
+	if err != nil {
 		return fiber.NewError(fiber.StatusInternalServerError, "Failed to fetch plans")
 	}
 
@@ -70,40 +72,89 @@ func (h *BillingHandler) GetPlan(c *fiber.Ctx) error {
 	})
 }
 
-// Subscribe handles subscription requests (Stub - Stripe not integrated)
+// Subscribe handles subscription requests
 func (h *BillingHandler) Subscribe(c *fiber.Ctx) error {
-	// Stripe integration not yet available
-	// For now, return a message indicating manual plan management
-	return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
-		"error":   true,
-		"message": "Stripe payments not yet integrated. Contact admin for plan upgrades.",
-		"code":    "STRIPE_NOT_CONFIGURED",
+	// 1. Get User
+	user, ok := c.Locals("user").(*models.User)
+	if !ok {
+		return fiber.NewError(fiber.StatusUnauthorized, "User authentication required")
+	}
+
+	// 2. Parse Request
+	var req struct {
+		PlanID int `json:"plan_id"`
+	}
+	if err := c.BodyParser(&req); err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, "Invalid request body")
+	}
+
+	// 3. Get Plan details to find Stripe Price ID
+	var plan models.Plan
+	if err := h.db.First(&plan, req.PlanID).Error; err != nil {
+		return fiber.NewError(fiber.StatusNotFound, "Plan not found")
+	}
+
+	// If free plan, just downgrade/upgrade directly?
+	// For simplicity, we assume generic upgrade flow requiring payment for now.
+	// Use placeholder check
+	if plan.PriceMonthly == 0 {
+		return fiber.NewError(fiber.StatusBadRequest, "Free plan does not require payment")
+	}
+
+	if plan.StripePriceID == nil {
+		return fiber.NewError(fiber.StatusInternalServerError, "Plan configuration error: missing Stripe Price ID")
+	}
+
+	// 4. Create Session
+	url, err := h.billingService.CreateCheckoutSession(c.Context(), user.ID.String(), *plan.StripePriceID)
+	if err != nil {
+		log.Printf("CreateCheckoutSession error: %v", err)
+		return fiber.NewError(fiber.StatusInternalServerError, "Failed to initiate checkout")
+	}
+
+	return c.JSON(fiber.Map{
+		"checkout_url": url,
 	})
 }
 
-// CancelSubscription handles subscription cancellation (Stub)
+// CancelSubscription handles subscription cancellation (Still stub - needs Stripe Portal or logic)
 func (h *BillingHandler) CancelSubscription(c *fiber.Ctx) error {
+	// Ideally redirect to Customer Portal
 	return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
 		"error":   true,
-		"message": "Stripe payments not yet integrated. Contact admin for plan changes.",
-		"code":    "STRIPE_NOT_CONFIGURED",
+		"message": "Cancellation not implemented yet. Please use the Billing Portal.",
+		"code":    "NOT_IMPLEMENTED",
 	})
 }
 
-// ListInvoices returns user's invoices (Stub)
+// ListInvoices returns user's invoices
 func (h *BillingHandler) ListInvoices(c *fiber.Ctx) error {
-	// No invoices without Stripe
 	return c.JSON(fiber.Map{
 		"invoices": []interface{}{},
 		"total":    0,
 	})
 }
 
-// StripeWebhook handles Stripe webhook events (Stub)
+// StripeWebhook handles Stripe webhook events
 func (h *BillingHandler) StripeWebhook(c *fiber.Ctx) error {
-	// Stripe not configured
-	return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
-		"error":   true,
-		"message": "Stripe webhooks not configured",
-	})
+	// 1. Read body
+	body := c.Body()
+
+	// 2. Read Signature
+	signature := c.Get("Stripe-Signature")
+
+	// 3. Construct Event
+	event, err := h.billingService.ConstructWebhookEvent(body, signature)
+	if err != nil {
+		log.Printf("Webhook signature verification failed: %v", err)
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid signature"})
+	}
+
+	// 4. Handle Event
+	if err := h.billingService.HandleWebhookEvent(c.Context(), event); err != nil {
+		log.Printf("Webhook handler failed: %v", err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Callback failed"})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{"received": true})
 }

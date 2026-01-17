@@ -4,27 +4,28 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 	"gorm.io/gorm"
 )
 
 // User represents a user in the system
 type User struct {
-	ID               uuid.UUID      `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
-	Email            string         `gorm:"type:varchar(255);uniqueIndex;not null" json:"email"`
-	PasswordHash     *string        `gorm:"type:text" json:"-"`
-	FullName         *string        `gorm:"type:varchar(255)" json:"full_name"`
-	PlanID           int            `gorm:"not null;default:1" json:"plan_id"`
-	StripeCustomerID *string        `gorm:"type:varchar(255)" json:"-"`
-	IsActive         bool           `gorm:"default:true" json:"is_active"`
-	AuthProvider     *string        `gorm:"type:varchar(50)" json:"auth_provider"`
-	ProviderID       *string        `gorm:"type:varchar(255)" json:"-"`
-	CreatedAt        time.Time      `gorm:"autoCreateTime" json:"created_at"`
-	UpdatedAt        time.Time      `gorm:"autoUpdateTime" json:"updated_at"`
-	DeletedAt        gorm.DeletedAt `gorm:"index" json:"-"`
+	ID               uuid.UUID `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
+	Email            string    `gorm:"type:varchar(255);uniqueIndex;not null" json:"email"`
+	PasswordHash     *string   `gorm:"type:text" json:"-"`
+	FullName         *string   `gorm:"type:varchar(255)" json:"full_name"`
+	PlanID           int       `gorm:"not null;default:1" json:"plan_id"`
+	StripeCustomerID *string   `gorm:"type:varchar(255)" json:"stripe_customer_id"`
+	IsActive         bool      `gorm:"default:true" json:"is_active"`
+	AuthProvider     *string   `gorm:"type:varchar(50)" json:"auth_provider"` // google, github
+	ProviderID       *string   `gorm:"type:varchar(255)" json:"provider_id"`
+	CreatedAt        time.Time `gorm:"autoCreateTime" json:"created_at"`
+	UpdatedAt        time.Time `gorm:"autoUpdateTime" json:"updated_at"`
 
 	// Relations
-	Plan    Plan     `gorm:"foreignKey:PlanID" json:"plan,omitempty"`
-	APIKeys []APIKey `gorm:"foreignKey:UserID" json:"api_keys,omitempty"`
+	Plan          Plan           `gorm:"foreignKey:PlanID" json:"plan,omitempty"`
+	APIKeys       []APIKey       `gorm:"foreignKey:UserID" json:"-"`
+	RefreshTokens []RefreshToken `gorm:"foreignKey:UserID" json:"-"`
 }
 
 func (User) TableName() string {
@@ -35,17 +36,18 @@ func (User) TableName() string {
 type Plan struct {
 	ID                    int            `gorm:"primaryKey" json:"id"`
 	Name                  string         `gorm:"type:varchar(50);uniqueIndex;not null" json:"name"`
-	DisplayName           string         `gorm:"column:display_name;type:varchar(100);not null" json:"display_name"`
-	PriceMonthly          float64        `gorm:"column:price_monthly;type:numeric(10,2)" json:"price_monthly"`
-	PriceYearly           *float64       `gorm:"column:price_yearly;type:numeric(10,2)" json:"price_yearly"`
-	RequestsPerMonth      int            `gorm:"column:requests_per_month" json:"requests_per_month"`
-	MaxConcurrentRequests int            `gorm:"column:max_concurrent_requests" json:"max_concurrent_requests"`
-	MaxTimeoutMS          int            `gorm:"column:max_timeout_ms" json:"max_timeout_ms"`
-	MaxFileSizeMB         int            `gorm:"column:max_file_size_mb" json:"max_file_size_mb"`
+	DisplayName           string         `gorm:"type:varchar(100);not null" json:"display_name"`
+	PriceMonthly          float64        `gorm:"type:numeric(10,2);not null;default:0" json:"price_monthly"`
+	PriceYearly           float64        `gorm:"type:numeric(10,2);not null;default:0" json:"price_yearly"`
+	RequestsPerMonth      int            `gorm:"not null" json:"requests_per_month"`
+	MaxConcurrentRequests int            `gorm:"not null" json:"max_concurrent_requests"`
+	MaxTimeoutMS          int            `gorm:"not null" json:"max_timeout_ms"`
+	MaxFileSizeMB         int            `gorm:"not null" json:"max_file_size_mb"`
 	Features              map[string]any `gorm:"type:jsonb;serializer:json" json:"features"`
-	StripePriceID         *string        `gorm:"column:stripe_price_id;type:varchar(255)" json:"-"`
-	IsActive              bool           `gorm:"column:is_active" json:"is_active"`
-	CreatedAt             time.Time      `gorm:"column:created_at;autoCreateTime" json:"created_at"`
+	IsActive              bool           `gorm:"default:true" json:"is_active"`
+	StripePriceID         *string        `gorm:"type:varchar(255)" json:"stripe_price_id"`
+	CreatedAt             time.Time      `gorm:"autoCreateTime" json:"created_at"`
+	UpdatedAt             time.Time      `gorm:"autoUpdateTime" json:"updated_at"`
 }
 
 func (Plan) TableName() string {
@@ -54,20 +56,20 @@ func (Plan) TableName() string {
 
 // APIKey represents an API key for authentication
 type APIKey struct {
-	ID                 uuid.UUID  `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
-	UserID             uuid.UUID  `gorm:"type:uuid;not null;index" json:"user_id"`
-	Name               *string    `gorm:"type:varchar(255)" json:"name"`
-	KeyHash            string     `gorm:"type:varchar(64);uniqueIndex;not null" json:"-"`
-	KeyPrefix          string     `gorm:"type:varchar(10);not null" json:"key_prefix"`
-	AccessKey          string     `gorm:"type:varchar(50);not null" json:"access_key"` // Public identifier (pk_...)
-	SecretKey          string     `gorm:"type:text;not null" json:"-"`                 // Legacy/Encrypted
-	SecretKeyEncrypted *string    `gorm:"type:text" json:"-"`                          // Dual-key Encrypted (sk_...)
-	Scopes             []string   `gorm:"type:text[];serializer:json" json:"scopes"`
-	IsActive           bool       `gorm:"default:true" json:"is_active"`
-	EnforceSigning     bool       `gorm:"default:false" json:"enforce_signing"`
-	ExpiresAt          *time.Time `gorm:"" json:"expires_at"`
-	LastUsedAt         *time.Time `gorm:"" json:"last_used_at"`
-	CreatedAt          time.Time  `gorm:"autoCreateTime" json:"created_at"`
+	ID                 uuid.UUID      `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
+	UserID             uuid.UUID      `gorm:"type:uuid;not null;index" json:"user_id"`
+	Name               *string        `gorm:"type:varchar(255)" json:"name"`
+	KeyHash            string         `gorm:"type:varchar(64);uniqueIndex;not null" json:"-"`
+	KeyPrefix          string         `gorm:"type:varchar(10);not null" json:"key_prefix"`
+	AccessKey          string         `gorm:"type:varchar(50);not null" json:"access_key"` // Public identifier (pk_...)
+	SecretKey          string         `gorm:"-" json:"-"`                                  // Legacy/Encrypted (Not in DB)
+	SecretKeyEncrypted *string        `gorm:"type:text" json:"-"`                          // Dual-key Encrypted (sk_...)
+	Scopes             pq.StringArray `gorm:"type:text[]" json:"scopes"`
+	IsActive           bool           `gorm:"default:true" json:"is_active"`
+	EnforceSigning     bool           `gorm:"default:false" json:"enforce_signing"`
+	ExpiresAt          *time.Time     `gorm:"" json:"expires_at"`
+	LastUsedAt         *time.Time     `gorm:"" json:"last_used_at"`
+	CreatedAt          time.Time      `gorm:"autoCreateTime" json:"created_at"`
 
 	// Relations
 	User User `gorm:"foreignKey:UserID" json:"user,omitempty"`
@@ -77,6 +79,17 @@ func (APIKey) TableName() string {
 	return "api_keys"
 }
 
+// CheckScope checks if the key has the required scope
+func (k *APIKey) CheckScope(required string) bool {
+	for _, s := range k.Scopes {
+		if s == required || s == "*" {
+			return true
+		}
+	}
+	return false
+}
+
+// IsExpired checks if the key is expired
 func (k *APIKey) IsExpired() bool {
 	if k.ExpiresAt == nil {
 		return false
@@ -114,7 +127,14 @@ func (RenderJob) TableName() string {
 	return "render_jobs"
 }
 
-// RefreshToken represents a refresh token for JWT authentication
+func (j *RenderJob) BeforeCreate(tx *gorm.DB) (err error) {
+	if j.ID == uuid.Nil {
+		j.ID = uuid.New()
+	}
+	return
+}
+
+// RefreshToken represents a JWT refresh token
 type RefreshToken struct {
 	ID         uuid.UUID `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
 	UserID     uuid.UUID `gorm:"type:uuid;not null;index" json:"user_id"`
@@ -133,12 +153,12 @@ func (RefreshToken) TableName() string {
 	return "refresh_tokens"
 }
 
-// Webhook represents a webhook configuration
+// Webhook for user configured endpoints
 type Webhook struct {
 	ID           uuid.UUID  `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
 	UserID       uuid.UUID  `gorm:"type:uuid;not null;index" json:"user_id"`
 	URL          string     `gorm:"type:text;not null" json:"url"`
-	Secret       string     `gorm:"type:text;not null" json:"-"`
+	Secret       string     `gorm:"type:varchar(255);not null" json:"secret"` // Signing secret
 	Events       []string   `gorm:"type:text[];serializer:json" json:"events"`
 	IsActive     bool       `gorm:"default:true" json:"is_active"`
 	FailureCount int        `gorm:"default:0" json:"failure_count"`
@@ -156,16 +176,16 @@ func (Webhook) TableName() string {
 
 // Invoice represents a billing invoice
 type Invoice struct {
-	ID              uuid.UUID  `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
-	UserID          uuid.UUID  `gorm:"type:uuid;not null;index" json:"user_id"`
-	StripeInvoiceID string     `gorm:"type:varchar(255);uniqueIndex" json:"stripe_invoice_id"`
-	Amount          int        `gorm:"not null" json:"amount"` // cents
-	Currency        string     `gorm:"type:varchar(3);default:'usd'" json:"currency"`
-	Status          string     `gorm:"type:varchar(20)" json:"status"` // paid, open, void, uncollectible
-	PeriodStart     time.Time  `gorm:"" json:"period_start"`
-	PeriodEnd       time.Time  `gorm:"" json:"period_end"`
-	PaidAt          *time.Time `gorm:"" json:"paid_at"`
-	CreatedAt       time.Time  `gorm:"autoCreateTime" json:"created_at"`
+	ID              uuid.UUID `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
+	UserID          uuid.UUID `gorm:"type:uuid;not null;index" json:"user_id"`
+	StripeInvoiceID string    `gorm:"type:varchar(255);uniqueIndex" json:"stripe_invoice_id"`
+	Amount          int       `gorm:"not null" json:"amount"` // cents
+	Currency        string    `gorm:"type:varchar(3);default:'usd'" json:"currency"`
+	Status          string    `gorm:"type:varchar(20)" json:"status"`
+	InvoiceURL      string    `gorm:"type:text" json:"invoice_url"`
+	PeriodStart     time.Time `gorm:"not null" json:"period_start"`
+	PeriodEnd       time.Time `gorm:"not null" json:"period_end"`
+	CreatedAt       time.Time `gorm:"autoCreateTime" json:"created_at"`
 
 	// Relations
 	User User `gorm:"foreignKey:UserID" json:"user,omitempty"`

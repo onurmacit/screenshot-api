@@ -46,6 +46,43 @@ func APIKeyAuth(authService *services.AuthService, cfg *config.Config) fiber.Han
 					"message": "Invalid API key",
 				})
 			}
+
+			// Signature Verification Logic
+			signature := c.Query("signature")
+			if signature != "" {
+				// 1. Check if we have the Secret Key (required for verification)
+				if key.SecretKey == "" {
+					// We can't verify. This could happen if decryption failed or key type doesn't support signing.
+					// If signature is provided, we MUST verify it. So we fail.
+					return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+						"error":   true,
+						"message": "Signature provided but verification impossible (Internal configuration error)",
+					})
+				}
+
+				// 2. Prepare params for verification (Exclude signature)
+				params := c.Queries()
+				delete(params, "signature")
+
+				// 3. Verify
+				if !utils.VerifySignature(params, key.SecretKey, signature) {
+					return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+						"error":   true,
+						"message": "Invalid signature",
+					})
+				}
+			} else {
+				// No signature provided. Check if Enforced.
+				// Exception: Dashboard requests? We don't have dashboard exception logic here yet.
+				// We assume key.EnforceSigning applies to ALL usages of this key.
+				if key.EnforceSigning {
+					return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+						"error":   true,
+						"message": "Signed requests are required for this API Key",
+					})
+				}
+			}
+
 			c.Locals("user", user)
 			c.Locals("apiKey", key)
 			return c.Next()

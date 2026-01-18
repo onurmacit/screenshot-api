@@ -8,6 +8,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/ansrivas/fiberprometheus/v2"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 
@@ -117,9 +118,15 @@ func main() {
 	})
 
 	// Middleware - Order matters!
-	app.Use(middleware.RecoverWithLog())   // Panic recovery with logging
+	app.Use(middleware.RecoverWithLog()) // Panic recovery with logging
+
+	// Prometheus Metrics (Q019)
+	prometheus := fiberprometheus.New("screenshot_api")
+	prometheus.RegisterAt(app, "/metrics")
+	app.Use(prometheus.Middleware)
+
 	app.Use(middleware.RequestLogger())    // Structured request logging
-	app.Use(middleware.MetricsCollector()) // Basic metrics
+	app.Use(middleware.MetricsCollector()) // Basic metrics (legacy, keep for admin endpoint)
 	app.Use(middleware.IPRateLimit(cfg))   // Phase 2.1: Global IP-based protection
 	app.Use(cors.New(cors.Config{
 		AllowOrigins:     strings.Join(cfg.CORSOrigins, ","),

@@ -91,12 +91,20 @@ func main() {
 	billingHandler := handlers.NewBillingHandler(db, billingService)
 	webhooksHandler := handlers.NewWebhooksHandler(db)
 
-	// Create Fiber app
+	// Create Fiber app with optimized settings for high concurrency
 	app := fiber.New(fiber.Config{
 		AppName:       "Screenshot API Go",
 		CaseSensitive: true,
 		StrictRouting: true,
 		ServerHeader:  "ScreenshotAPI",
+		// High concurrency settings
+		Concurrency:           256 * 1024, // Max concurrent connections
+		ReadTimeout:           30 * time.Second,
+		WriteTimeout:          30 * time.Second,
+		IdleTimeout:           120 * time.Second,
+		ReadBufferSize:        8192,
+		WriteBufferSize:       8192,
+		DisableStartupMessage: false,
 		ErrorHandler: func(c *fiber.Ctx, err error) error {
 			code := fiber.StatusInternalServerError
 			message := "Internal Server Error"

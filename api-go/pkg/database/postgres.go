@@ -41,10 +41,11 @@ func Connect(databaseURL string, debug bool) (*gorm.DB, error) {
 		return nil, err
 	}
 
-	// Connection pool settings
-	sqlDB.SetMaxIdleConns(10)
-	sqlDB.SetMaxOpenConns(100)
+	// Connection pool settings for high concurrency
+	sqlDB.SetMaxIdleConns(25)  // Increased from 10
+	sqlDB.SetMaxOpenConns(150) // Increased from 100
 	sqlDB.SetConnMaxLifetime(time.Hour)
+	sqlDB.SetConnMaxIdleTime(10 * time.Minute) // Close idle connections
 
 	// Verify connection
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

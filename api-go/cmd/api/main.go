@@ -2,7 +2,10 @@ package main
 
 import (
 	"log"
+	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -83,7 +86,7 @@ func main() {
 	authHandler := handlers.NewAuthHandler(authService)
 	adminHandler := handlers.NewAdminHandler(db, cfg, billingService)
 	usageHandler := handlers.NewUsageHandler(db, cfg, usageService)
-	healthHandler := handlers.NewHealthHandler(db)
+	healthHandler := handlers.NewHealthHandler(db, cfg)
 	billingHandler := handlers.NewBillingHandler(db, billingService)
 	webhooksHandler := handlers.NewWebhooksHandler(db)
 
@@ -157,6 +160,8 @@ func main() {
 	// Health (Public - under API prefix)
 	api.Get("/health", healthHandler.Health)
 	api.Get("/health/detailed", healthHandler.DetailedHealth)
+	api.Get("/health/ready", healthHandler.Ready) // Kubernetes Readiness Probe
+	api.Get("/health/live", healthHandler.Live)   // Kubernetes Liveness Probe
 
 	// --- PROTECTED ROUTES ---
 	protected := api.Group("/")
@@ -219,9 +224,41 @@ func main() {
 	// Root health check (Public - outside /api/v1)
 	app.Get("/health", healthHandler.Health)
 
-	// Start server
-	log.Printf("Server starting on port %s", cfg.Port)
-	if err := app.Listen(":" + cfg.Port); err != nil {
-		log.Fatalf("Server failed to start: %v", err)
+	// === GRACEFUL SHUTDOWN (Q017) ===
+
+	// Channel to listen for OS signals
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, os.Interrupt, syscall.SIGTERM, syscall.SIGINT)
+
+	// Start server in goroutine
+	go func() {
+		log.Printf("Server starting on port %s", cfg.Port)
+		if err := app.Listen(":" + cfg.Port); err != nil {
+			log.Printf("Server error: %v", err)
+		}
+	}()
+
+	// Wait for shutdown signal
+	sig := <-quit
+	log.Printf("Received signal %v. Initiating graceful shutdown...", sig)
+
+	// Shutdown with timeout (allow 30 seconds for in-flight requests)
+	shutdownTimeout := 30 * time.Second
+	if err := app.ShutdownWithTimeout(shutdownTimeout); err != nil {
+		log.Printf("Error during shutdown: %v", err)
 	}
+
+	// Cleanup connections
+	log.Println("Closing database connection...")
+	database.Close()
+
+	log.Println("Closing Redis connection...")
+	redis.Close()
+
+	// Flush Sentry
+	if cfg.SentryDSN != "" {
+		sentry.Flush(2 * time.Second)
+	}
+
+	log.Println("Graceful shutdown complete.")
 }

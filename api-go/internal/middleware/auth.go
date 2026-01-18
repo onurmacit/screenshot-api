@@ -37,13 +37,11 @@ func APIKeyAuth(authService *services.AuthService, cfg *config.Config) fiber.Han
 			if err != nil {
 				if appErr, ok := err.(*utils.AppError); ok {
 					return c.Status(appErr.Code).JSON(fiber.Map{
-						"error":   true,
-						"message": appErr.Message,
+						"detail": appErr.Message,
 					})
 				}
 				return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-					"error":   true,
-					"message": "Invalid API key",
+					"detail": "Invalid API key",
 				})
 			}
 
@@ -55,8 +53,7 @@ func APIKeyAuth(authService *services.AuthService, cfg *config.Config) fiber.Han
 					// We can't verify. This could happen if decryption failed or key type doesn't support signing.
 					// If signature is provided, we MUST verify it. So we fail.
 					return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-						"error":   true,
-						"message": "Signature provided but verification impossible (Internal configuration error)",
+						"detail": "Signature provided but verification impossible (Internal configuration error)",
 					})
 				}
 
@@ -67,8 +64,7 @@ func APIKeyAuth(authService *services.AuthService, cfg *config.Config) fiber.Han
 				// 3. Verify
 				if !utils.VerifySignature(params, key.SecretKey, signature) {
 					return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-						"error":   true,
-						"message": "Invalid signature",
+						"detail": "Invalid signature",
 					})
 				}
 			} else {
@@ -77,8 +73,7 @@ func APIKeyAuth(authService *services.AuthService, cfg *config.Config) fiber.Han
 				// We assume key.EnforceSigning applies to ALL usages of this key.
 				if key.EnforceSigning {
 					return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-						"error":   true,
-						"message": "Signed requests are required for this API Key",
+						"detail": "Signed requests are required for this API Key",
 					})
 				}
 			}
@@ -93,8 +88,7 @@ func APIKeyAuth(authService *services.AuthService, cfg *config.Config) fiber.Han
 			claims, err := utils.ValidateToken(token, cfg.JWTSecretKey)
 			if err != nil {
 				return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-					"error":   true,
-					"message": "Invalid token",
+					"detail": "Invalid token",
 				})
 			}
 
@@ -102,8 +96,7 @@ func APIKeyAuth(authService *services.AuthService, cfg *config.Config) fiber.Han
 			user, err := authService.GetUserByID(c.Context(), claims.UserID)
 			if err != nil {
 				return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-					"error":   true,
-					"message": "User not found",
+					"detail": "User not found",
 				})
 			}
 
@@ -113,8 +106,7 @@ func APIKeyAuth(authService *services.AuthService, cfg *config.Config) fiber.Han
 
 		// No credentials provided
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-			"error":   true,
-			"message": "Authentication required (API Key or Bearer Token)",
+			"detail": "Authentication required (API Key or Bearer Token)",
 		})
 	}
 }

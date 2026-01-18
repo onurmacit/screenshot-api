@@ -124,6 +124,7 @@ func main() {
 		AllowCredentials: true,
 		ExposeHeaders:    "X-Processing-Time-Ms, X-Image-Width, X-Image-Height, X-Cache, X-Request-ID",
 	}))
+	app.Use(middleware.DatabaseHealthCheck(db)) // EDGE-005: Graceful 503 on DB failure
 
 	// API V1 Config
 

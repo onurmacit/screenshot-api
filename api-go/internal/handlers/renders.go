@@ -50,10 +50,17 @@ func (h *RenderHandler) CreateScreenshot(c *fiber.Ctx) error {
 		req.Timeout = 30000
 	}
 
-	// 3. Get User from Context (set by AuthMiddleware)
+	// 3. Validate URL (SSRF Protection - SEC-003)
+	if req.URL != "" {
+		if err := utils.ValidateURL(req.URL); err != nil {
+			return fiber.NewError(fiber.StatusUnprocessableEntity, err.Error())
+		}
+	}
+
+	// 4. Get User from Context (set by AuthMiddleware)
 	user := c.Locals("user").(*models.User)
 
-	// 4. Call Service
+	// 5. Call Service
 	result, err := h.renderService.CaptureScreenshot(c.Context(), req, user)
 	if err != nil {
 		if appErr, ok := err.(*utils.AppError); ok {
@@ -111,6 +118,13 @@ func (h *RenderHandler) CreatePDF(c *fiber.Ctx) error {
 	// Basic Validation
 	if req.URL == "" && req.HTML == "" && req.Markdown == "" {
 		return fiber.NewError(fiber.StatusBadRequest, "URL, HTML or Markdown is required")
+	}
+
+	// URL Validation (SSRF Protection - SEC-003)
+	if req.URL != "" {
+		if err := utils.ValidateURL(req.URL); err != nil {
+			return fiber.NewError(fiber.StatusUnprocessableEntity, err.Error())
+		}
 	}
 
 	user := c.Locals("user").(*models.User)
@@ -263,6 +277,11 @@ func (h *RenderHandler) CreateDemo(c *fiber.Ctx) error {
 		return fiber.NewError(fiber.StatusBadRequest, "URL and Token are required")
 	}
 
+	// URL Validation (SSRF Protection - SEC-003)
+	if err := utils.ValidateURL(req.URL); err != nil {
+		return fiber.NewError(fiber.StatusUnprocessableEntity, err.Error())
+	}
+
 	// 1. Verify Turnstile
 	ip := c.IP()
 	if !utils.VerifyTurnstile(req.Token, h.renderService.Config().TurnstileSecretKey, ip) {
@@ -318,6 +337,11 @@ func (h *RenderHandler) FastScreenshot(c *fiber.Ctx) error {
 	}
 	if req.Format == "" {
 		req.Format = "jpeg"
+	}
+
+	// URL Validation (SSRF Protection - SEC-003)
+	if err := utils.ValidateURL(req.URL); err != nil {
+		return fiber.NewError(fiber.StatusUnprocessableEntity, err.Error())
 	}
 
 	user := c.Locals("user").(*models.User)

@@ -49,11 +49,14 @@ func (s *AuthService) Register(req dto.RegisterRequest, ip, userAgent string) (*
 		return nil, &utils.AppError{Code: 500, Message: "Failed to hash password"}
 	}
 
+	// 2.5. Sanitize Input (SEC-002 - XSS Prevention)
+	sanitizedName := utils.SanitizeInput(req.FullName)
+
 	// 3. Create User
 	user := models.User{
 		Email:        req.Email,
 		PasswordHash: &hashed,
-		FullName:     &req.FullName,
+		FullName:     &sanitizedName,
 		IsActive:     true,
 		PlanID:       1, // Default Plan
 	}
@@ -356,10 +359,13 @@ func (s *AuthService) CreateAPIKey(ctx context.Context, req dto.APIKeyCreateRequ
 		return nil, &utils.AppError{Code: 500, Message: fmt.Sprintf("Encryption failed: %v", err)}
 	}
 
-	// 3. Create API Key Record
+	// 3. Sanitize Input (SEC-002 - XSS Prevention)
+	sanitizedName := utils.SanitizeInput(req.Name)
+
+	// 4. Create API Key Record
 	apiKey := &models.APIKey{
 		UserID:             userID,
-		Name:               &req.Name,
+		Name:               &sanitizedName,
 		AccessKey:          accessKey,
 		SecretKey:          "REDACTED", // Legacy field, not used
 		SecretKeyEncrypted: &encryptedSecret,

@@ -255,6 +255,9 @@ func (w *Worker) handleFailure(job *models.RenderJob, payload *services.JobPaylo
 		log.Printf("Failed to update failed job: %v", updateErr)
 	}
 
+	// Increment Prometheus error metric
+	services.JobProcessingErrors.Inc()
+
 	log.Printf("Job failed: id=%s, error=%s, retries=%d", job.ID, errMsg, retryCount)
 
 	// Return error to NOT acknowledge the message (allows redelivery)

@@ -119,6 +119,9 @@ func main() {
 		log.Printf("Warning: Failed to initialize job queue: %v", err)
 	}
 
+	// Start background metric updater for job queue
+	go jobQueue.StartMetricsUpdater(context.Background())
+
 	// Start Background Worker (async job processor)
 	workerCtx, workerCancel := context.WithCancel(context.Background())
 	defer workerCancel()

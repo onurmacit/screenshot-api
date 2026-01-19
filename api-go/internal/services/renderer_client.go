@@ -41,8 +41,21 @@ func NewRendererClient(cfg *config.Config) *RendererClient {
 		},
 		OnStateChange: func(name string, from gobreaker.State, to gobreaker.State) {
 			log.Printf("Circuit Breaker [%s]: state changed from %s to %s", name, from.String(), to.String())
+			// Update Prometheus Metric
+			// 0 = closed, 1 = open, 2 = half-open
+			val := 0.0
+			switch to {
+			case gobreaker.StateOpen:
+				val = 1.0
+			case gobreaker.StateHalfOpen:
+				val = 2.0
+			}
+			CircuitBreakerState.Set(val)
 		},
 	}
+
+	// Initialize metric to closed
+	CircuitBreakerState.Set(0)
 
 	return &RendererClient{
 		client: &http.Client{
@@ -103,6 +116,7 @@ type rendererResponse struct {
 }
 
 func (c *RendererClient) doRequest(ctx context.Context, endpoint string, payload interface{}) (*rendererResponse, error) {
+	startTime := time.Now()
 	jsonBody, err := json.Marshal(payload)
 	if err != nil {
 		return nil, utils.ErrInternal
@@ -146,6 +160,9 @@ func (c *RendererClient) doRequest(ctx context.Context, endpoint string, payload
 		PageCount:        getIntHeader(resp.Header, "X-Page-Count"),
 		ProcessingTimeMs: getIntHeader(resp.Header, "X-Processing-Time-Ms"),
 	}
+
+	// Record latency
+	RendererLatency.Observe(time.Since(startTime).Seconds())
 
 	return &rendererResponse{
 		data:     imageBytes,

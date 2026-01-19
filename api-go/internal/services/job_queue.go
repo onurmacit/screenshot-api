@@ -57,6 +57,24 @@ func (q *JobQueue) Initialize(ctx context.Context) error {
 	return nil
 }
 
+// StartMetricsUpdater periodically updates the job queue length metric
+func (q *JobQueue) StartMetricsUpdater(ctx context.Context) {
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			count, err := q.GetPendingCount(ctx)
+			if err == nil {
+				JobQueueLength.Set(float64(count))
+			}
+		}
+	}
+}
+
 // Enqueue adds a job to the queue
 func (q *JobQueue) Enqueue(ctx context.Context, job *JobPayload) error {
 	// Serialize job to JSON

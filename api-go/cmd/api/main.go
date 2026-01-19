@@ -12,6 +12,7 @@ import (
 	"github.com/ansrivas/fiberprometheus/v2"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
+	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/onurmacit/screenshot-api/api-go/internal/config"
 	"github.com/onurmacit/screenshot-api/api-go/internal/handlers"
@@ -181,9 +182,10 @@ func main() {
 	app.Use(middleware.RecoverWithLog()) // Panic recovery with logging
 
 	// Prometheus Metrics (Q019)
-	prometheus := fiberprometheus.New("screenshot_api")
-	prometheus.RegisterAt(app, "/metrics")
-	app.Use(prometheus.Middleware)
+	// Use default registry to include custom metrics from other packages
+	prometheusMetrics := fiberprometheus.NewWithRegistry(prometheus.DefaultRegisterer, "screenshot_api", "", "", nil)
+	prometheusMetrics.RegisterAt(app, "/metrics")
+	app.Use(prometheusMetrics.Middleware)
 
 	app.Use(middleware.RequestLogger())    // Structured request logging
 	app.Use(middleware.MetricsCollector()) // Basic metrics (legacy, keep for admin endpoint)

@@ -13,6 +13,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 
 	"github.com/onurmacit/screenshot-api/api-go/internal/config"
 	"github.com/onurmacit/screenshot-api/api-go/internal/handlers"
@@ -180,6 +181,13 @@ func main() {
 
 	// Middleware - Order matters!
 	app.Use(middleware.RecoverWithLog()) // Panic recovery with logging
+
+	// Test metric to verify default registry
+	testCounter := promauto.NewCounter(prometheus.CounterOpts{
+		Name: "api_test_counter_total",
+		Help: "A test counter to verify default registry exports",
+	})
+	testCounter.Inc()
 
 	// Prometheus Metrics (Q019)
 	// Use default registry to include custom metrics from other packages

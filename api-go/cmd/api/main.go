@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log"
 	"os"
 	"os/signal"
@@ -18,10 +19,12 @@ import (
 	"github.com/onurmacit/screenshot-api/api-go/internal/repository"
 	"github.com/onurmacit/screenshot-api/api-go/internal/services"
 	"github.com/onurmacit/screenshot-api/api-go/internal/utils"
+	"github.com/onurmacit/screenshot-api/api-go/internal/worker"
 	"github.com/onurmacit/screenshot-api/api-go/pkg/database"
 	"github.com/onurmacit/screenshot-api/api-go/pkg/redis"
 
 	"github.com/getsentry/sentry-go"
+	"github.com/onurmacit/screenshot-api/api-go/internal/models"
 )
 
 func main() {
@@ -50,9 +53,34 @@ func main() {
 	defer database.Close()
 
 	// Auto migrate database (optional, since Python Alembic manages schema)
-	// if err := db.AutoMigrate(&models.User{}, &models.APIKey{}, &models.RenderJob{}); err != nil {
-	// 	log.Printf("Warning: Auto migration failed: %v", err)
-	// }
+	// Auto migrate database (split to allow partial success)
+	modelsToMigrate := []interface{}{
+		&models.Plan{},
+		&models.User{},
+		&models.APIKey{},
+		&models.RefreshToken{},
+		&models.RenderJob{},
+		&models.Invoice{},
+		&models.Webhook{},
+		&models.UsageRecord{},
+	}
+
+	// HOTFIX: Manually apply migrations for missing columns
+	log.Println("Applying manual schema patches...")
+	db.Exec("ALTER TABLE users ADD COLUMN IF NOT EXISTS auth_provider VARCHAR(50)")
+	db.Exec("ALTER TABLE users ADD COLUMN IF NOT EXISTS provider_id VARCHAR(255)")
+	db.Exec("ALTER TABLE users ADD COLUMN IF NOT EXISTS stripe_customer_id VARCHAR(255)")
+	db.Exec("ALTER TABLE plans DROP CONSTRAINT IF EXISTS uni_plans_name")
+
+	// Fix legacy NOT NULL constraints from Python migration
+	db.Exec("ALTER TABLE users ALTER COLUMN email_verified DROP NOT NULL")
+	db.Exec("ALTER TABLE users ALTER COLUMN is_active SET DEFAULT true")
+
+	for _, model := range modelsToMigrate {
+		if err := db.AutoMigrate(model); err != nil {
+			log.Printf("Warning: Auto migration failed for %T: %v", model, err)
+		}
+	}
 
 	// Connect to Redis
 	_, err = redis.Connect(cfg.RedisURL)
@@ -81,6 +109,27 @@ func main() {
 	}
 
 	renderService := services.NewRenderService(rendererClient, storageService, cacheService, usageService, jobRepo, cfg, db)
+
+	// Initialize Job Queue (Redis Streams) for async processing
+	jobQueue := services.NewJobQueue(redis.Get())
+	renderService.SetQueue(jobQueue)
+
+	// Initialize Queue (create consumer group)
+	if err := jobQueue.Initialize(context.Background()); err != nil {
+		log.Printf("Warning: Failed to initialize job queue: %v", err)
+	}
+
+	// Start Background Worker (async job processor)
+	workerCtx, workerCancel := context.WithCancel(context.Background())
+	defer workerCancel()
+
+	backgroundWorker := worker.NewWorker(jobQueue, rendererClient, storageService, jobRepo, cfg, db)
+	go func() {
+		if err := backgroundWorker.Start(workerCtx); err != nil {
+			log.Printf("Worker stopped: %v", err)
+		}
+	}()
+	log.Println("Background worker started for async job processing")
 
 	// Initialize Handlers
 	renderHandler := handlers.NewRenderHandler(renderService, authService)
@@ -219,6 +268,7 @@ func main() {
 	// Usage
 	usage := protected.Group("/usage")
 	usage.Get("/current", usageHandler.GetCurrentUsage)
+	usage.Get("/stats", usageHandler.GetCurrentUsage) // Alias for parity
 	usage.Get("/history", usageHandler.GetUsageHistory)
 
 	// Billing (Protected subscription routes)

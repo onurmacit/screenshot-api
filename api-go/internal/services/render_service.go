@@ -24,6 +24,7 @@ type RenderService struct {
 	cache    *CacheService
 	usage    *UsageService
 	jobRepo  *repo.RenderJobRepository
+	queue    *JobQueue
 	cfg      *config.Config
 	db       *gorm.DB
 }
@@ -38,6 +39,11 @@ func NewRenderService(renderer *RendererClient, storage *StorageService, cache *
 		cfg:      cfg,
 		db:       db,
 	}
+}
+
+// SetQueue sets the job queue for async processing
+func (s *RenderService) SetQueue(queue *JobQueue) {
+	s.queue = queue
 }
 
 func (s *RenderService) Config() *config.Config {
@@ -58,7 +64,6 @@ func (s *RenderService) CreateRenderJob(ctx context.Context, req dto.RenderReque
 		"height": req.Height,
 		"format": req.Format,
 	}
-	// Convert other options manually or marshal/unmarshal
 
 	job := &models.RenderJob{
 		ID:      uuid.New(),
@@ -73,8 +78,26 @@ func (s *RenderService) CreateRenderJob(ctx context.Context, req dto.RenderReque
 		return nil, err
 	}
 
-	// 3. Start Async Process
-	go s.processJob(job.ID.String(), req, user)
+	// 3. Enqueue to Redis (if queue is available)
+	if s.queue != nil {
+		reqJSON, _ := json.Marshal(req)
+		payload := &JobPayload{
+			JobID:      job.ID.String(),
+			Type:       "screenshot",
+			UserID:     user.ID.String(),
+			Request:    reqJSON,
+			Priority:   job.Priority,
+			CreatedAt:  time.Now(),
+			RetryCount: 0,
+		}
+		if err := s.queue.Enqueue(ctx, payload); err != nil {
+			// Log error but don't fail - fallback to goroutine
+			go s.processJob(job.ID.String(), req, user)
+		}
+	} else {
+		// Fallback: use goroutine (legacy mode)
+		go s.processJob(job.ID.String(), req, user)
+	}
 
 	// 4. Return Response
 	return &dto.RenderJobResponse{
@@ -84,6 +107,12 @@ func (s *RenderService) CreateRenderJob(ctx context.Context, req dto.RenderReque
 		URL:       req.URL,
 		CreatedAt: time.Now(),
 	}, nil
+}
+
+// CaptureScreenshotAsync creates an async job and returns immediately
+// This is called when ?async=true query param is set
+func (s *RenderService) CaptureScreenshotAsync(ctx context.Context, req dto.RenderRequest, user *models.User) (*dto.RenderJobResponse, error) {
+	return s.CreateRenderJob(ctx, req, user)
 }
 
 func (s *RenderService) processJob(jobID string, req dto.RenderRequest, user *models.User) {
@@ -231,7 +260,7 @@ func (s *RenderService) CaptureScreenshot(ctx context.Context, req dto.RenderReq
 	// 4. Upload to S3
 	uploadResult, err := s.storage.UploadRender(ctx, imageBytes, req.Format, user.ID.String())
 	if err != nil {
-		return nil, fmt.Errorf("storage upload failed: %w", err)
+		return nil, &utils.AppError{Code: 500, Message: fmt.Sprintf("Storage upload failed: %v", err)}
 	}
 
 	// 5. Prepare Response

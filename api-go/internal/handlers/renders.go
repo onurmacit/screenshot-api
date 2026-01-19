@@ -26,6 +26,7 @@ func NewRenderHandler(renderService *services.RenderService, authService *servic
 }
 
 // CreateScreenshot handles POST /renders/screenshot
+// Supports ?async=true for async processing (returns 202 with job_id)
 func (h *RenderHandler) CreateScreenshot(c *fiber.Ctx) error {
 	// 1. Parse Request
 	var req dto.RenderRequest
@@ -60,7 +61,28 @@ func (h *RenderHandler) CreateScreenshot(c *fiber.Ctx) error {
 	// 4. Get User from Context (set by AuthMiddleware)
 	user := c.Locals("user").(*models.User)
 
-	// 5. Call Service
+	// 5. Check if async mode requested
+	if c.Query("async") == "true" {
+		// Async mode: enqueue job and return immediately
+		jobResult, err := h.renderService.CaptureScreenshotAsync(c.Context(), req, user)
+		if err != nil {
+			if appErr, ok := err.(*utils.AppError); ok {
+				return c.Status(appErr.Code).JSON(fiber.Map{"detail": appErr.Message})
+			}
+			return utils.ErrInternal
+		}
+		// Return 202 Accepted with job details
+		return c.Status(fiber.StatusAccepted).JSON(fiber.Map{
+			"job_id":     jobResult.JobID,
+			"status":     jobResult.Status,
+			"type":       jobResult.Type,
+			"url":        jobResult.URL,
+			"created_at": jobResult.CreatedAt,
+			"message":    "Job queued for processing. Poll GET /api/v1/jobs/{job_id} for status.",
+		})
+	}
+
+	// 6. Sync mode: Call Service (existing behavior)
 	result, err := h.renderService.CaptureScreenshot(c.Context(), req, user)
 	if err != nil {
 		if appErr, ok := err.(*utils.AppError); ok {
@@ -69,7 +91,7 @@ func (h *RenderHandler) CreateScreenshot(c *fiber.Ctx) error {
 		return utils.ErrInternal
 	}
 
-	// 5. Return Response
+	// 7. Return Response
 	if h.isBinaryRequest(c, &req) {
 		return h.handleBinaryResponse(c, result)
 	}

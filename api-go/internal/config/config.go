@@ -92,7 +92,7 @@ func Load() *Config {
 		// AWS S3
 		AWSS3Bucket:        getEnv("AWS_S3_BUCKET", ""),
 		AWSS3Region:        getEnv("AWS_S3_REGION", "nyc3"),
-		AWSS3Endpoint:      getEnv("AWS_S3_ENDPOINT", ""),
+		AWSS3Endpoint:      getEnv("AWS_S3_ENDPOINT", getEnv("AWS_S3_ENDPOINT_URL", "")),
 		AWSAccessKeyID:     getEnv("AWS_ACCESS_KEY_ID", ""),
 		AWSSecretAccessKey: getEnv("AWS_SECRET_ACCESS_KEY", ""),
 

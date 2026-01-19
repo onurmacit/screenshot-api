@@ -30,12 +30,12 @@ func NewRendererClient(cfg *config.Config) *RendererClient {
 
 // Capture sends a screenshot request to the renderer service
 func (c *RendererClient) Capture(ctx context.Context, req dto.RenderRequest) ([]byte, *dto.Metadata, error) {
-	return c.sendRequest(ctx, "/screenshot", req)
+	return c.sendRequest(ctx, "/render/screenshot", req)
 }
 
 // GeneratePDF sends a PDF generation request to the renderer service
 func (c *RendererClient) GeneratePDF(ctx context.Context, req dto.PDFRequest) ([]byte, *dto.Metadata, error) {
-	return c.sendRequest(ctx, "/pdf", req)
+	return c.sendRequest(ctx, "/render/pdf", req)
 }
 
 func (c *RendererClient) sendRequest(ctx context.Context, endpoint string, payload interface{}) ([]byte, *dto.Metadata, error) {

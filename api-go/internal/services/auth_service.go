@@ -54,6 +54,7 @@ func (s *AuthService) Register(req dto.RegisterRequest, ip, userAgent string) (*
 
 	// 3. Create User
 	user := models.User{
+		ID:           uuid.New(),
 		Email:        req.Email,
 		PasswordHash: &hashed,
 		FullName:     &sanitizedName,
@@ -62,6 +63,7 @@ func (s *AuthService) Register(req dto.RegisterRequest, ip, userAgent string) (*
 	}
 
 	if err := s.db.Create(&user).Error; err != nil {
+		fmt.Printf("DB Create Error: %v\n", err)
 		return nil, &utils.AppError{Code: 500, Message: "Failed to create user"}
 	}
 
@@ -283,6 +285,7 @@ func (s *AuthService) generateTokens(userID uuid.UUID, email, ip, userAgent stri
 	accessClaims := utils.JWTClaims{
 		UserID: userID.String(),
 		Email:  email,
+		JTI:    uuid.New().String(),
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Duration(s.cfg.JWTAccessTokenExpiry) * time.Minute)),
 			Issuer:    "screenshot-api",
@@ -298,6 +301,7 @@ func (s *AuthService) generateTokens(userID uuid.UUID, email, ip, userAgent stri
 	refreshClaims := utils.JWTClaims{
 		UserID: userID.String(),
 		Email:  email,
+		JTI:    uuid.New().String(),
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(refreshExpiry),
 			Issuer:    "screenshot-api",

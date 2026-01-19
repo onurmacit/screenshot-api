@@ -114,6 +114,8 @@ type RenderJob struct {
 	Result           map[string]any `gorm:"type:jsonb;serializer:json" json:"result"`
 	Priority         int            `gorm:"default:5" json:"priority"`
 	WebhookURL       *string        `gorm:"type:text" json:"webhook_url"`
+	RetryCount       int            `gorm:"default:0" json:"retry_count"`
+	LastError        *string        `gorm:"type:text" json:"last_error"`
 	CreatedAt        time.Time      `gorm:"autoCreateTime" json:"created_at"`
 	StartedAt        *time.Time     `gorm:"" json:"started_at"`
 	CompletedAt      *time.Time     `gorm:"" json:"completed_at"`

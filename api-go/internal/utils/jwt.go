@@ -10,6 +10,7 @@ import (
 type JWTClaims struct {
 	UserID string `json:"sub"`
 	Email  string `json:"email"`
+	JTI    string `json:"jti,omitempty"`
 	jwt.RegisteredClaims
 }
 

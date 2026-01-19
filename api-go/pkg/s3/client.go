@@ -26,13 +26,16 @@ func Connect(ctx context.Context, region, endpoint, accessKey, secretKey, bucket
 		return nil, err
 	}
 
-	// Custom endpoint for DigitalOcean Spaces
-	if endpoint != "" {
-		cfg.BaseEndpoint = aws.String(endpoint)
-	}
+	// Custom endpoint for DigitalOcean Spaces (S3-compatible)
+	s3Client := s3.NewFromConfig(cfg, func(o *s3.Options) {
+		if endpoint != "" {
+			o.BaseEndpoint = aws.String(endpoint)
+			o.UsePathStyle = true // Essential for most S3-compatible storage
+		}
+	})
 
 	return &Client{
-		s3Client: s3.NewFromConfig(cfg),
+		s3Client: s3Client,
 		bucket:   bucket,
 	}, nil
 }

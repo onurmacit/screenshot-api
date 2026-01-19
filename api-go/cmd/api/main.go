@@ -259,6 +259,7 @@ func main() {
 	// Renders
 	renders := protected.Group("/renders")
 	renders.Get("/", renderHandler.FastScreenshot)
+	renders.Get("/take", renderHandler.FastScreenshot) // Alias for playground compatibility
 	renders.Post("/screenshot", renderHandler.CreateScreenshot)
 	renders.Post("/pdf", renderHandler.CreatePDF)
 	renders.Post("/sign-url", renderHandler.SignURL)

@@ -520,21 +520,20 @@ func (s *AuthService) ToggleEnforceSigning(ctx context.Context, userID uuid.UUID
 // ValidateAPIKey validates an API key and returns the user and key (Legacy/Hybrid)
 func (s *AuthService) ValidateAPIKey(ctx context.Context, apiKey string) (*models.User, *models.APIKey, error) {
 	// 1. Identify key type/lookup strategy
-	// ScreenshotOne Style: Access Key (pk_, sk_live_, sk_test_) is the credential.
-	// We also support Legacy KeyHash check for backward compatibility if needed,
-	// but standard flow is pk_ lookup.
+	// pk_live_xxx = Access Key → lookup directly in access_key column
+	// sk_live_xxx = Secret Key → hash it and lookup in key_hash column
+	// Other (legacy) → hash it and lookup in key_hash column
 
 	var queryKey string
-	// Accept pk_, sk_live_, sk_test_ as access key prefixes
-	isAccessKey := (len(apiKey) > 3 && apiKey[:3] == "pk_") ||
-		(len(apiKey) > 8 && (apiKey[:8] == "sk_live_" || apiKey[:8] == "sk_test_"))
+	var lookupByAccessKey bool
 
-	if isAccessKey {
+	// Only pk_ prefix means direct access_key lookup
+	if len(apiKey) > 3 && apiKey[:3] == "pk_" {
+		lookupByAccessKey = true
 		queryKey = apiKey
 	} else {
-		// Fallback to legacy Hash check
-		// Or if user sends raw secret key (bad practice), we hash it?
-		// Legacy behavior: hash input.
+		// sk_live_, sk_test_, or any other key → hash and lookup key_hash
+		lookupByAccessKey = false
 		hashedInput := sha256.New()
 		hashedInput.Write([]byte(apiKey))
 		queryKey = hex.EncodeToString(hashedInput.Sum(nil))
@@ -550,10 +549,10 @@ func (s *AuthService) ValidateAPIKey(ctx context.Context, apiKey string) (*model
 	var apiKeyModel models.APIKey
 	var dbErr error
 
-	if isAccessKey {
+	if lookupByAccessKey {
 		dbErr = s.db.Preload("User").Preload("User.Plan").Where("access_key = ?", apiKey).First(&apiKeyModel).Error
 	} else {
-		// Legacy lookup
+		// Hash-based lookup (sk_live_, sk_test_, legacy)
 		dbErr = s.db.Preload("User").Preload("User.Plan").Where("key_hash = ?", queryKey).First(&apiKeyModel).Error
 	}
 

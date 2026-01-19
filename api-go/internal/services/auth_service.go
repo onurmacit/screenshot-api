@@ -520,12 +520,14 @@ func (s *AuthService) ToggleEnforceSigning(ctx context.Context, userID uuid.UUID
 // ValidateAPIKey validates an API key and returns the user and key (Legacy/Hybrid)
 func (s *AuthService) ValidateAPIKey(ctx context.Context, apiKey string) (*models.User, *models.APIKey, error) {
 	// 1. Identify key type/lookup strategy
-	// ScreenshotOne Style: Access Key (pk_) is the credential.
+	// ScreenshotOne Style: Access Key (pk_, sk_live_, sk_test_) is the credential.
 	// We also support Legacy KeyHash check for backward compatibility if needed,
 	// but standard flow is pk_ lookup.
 
 	var queryKey string
-	isAccessKey := len(apiKey) > 3 && apiKey[:3] == "pk_"
+	// Accept pk_, sk_live_, sk_test_ as access key prefixes
+	isAccessKey := (len(apiKey) > 3 && apiKey[:3] == "pk_") ||
+		(len(apiKey) > 8 && (apiKey[:8] == "sk_live_" || apiKey[:8] == "sk_test_"))
 
 	if isAccessKey {
 		queryKey = apiKey

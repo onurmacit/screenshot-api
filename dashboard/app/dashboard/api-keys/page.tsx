@@ -52,13 +52,14 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 
 // =============================================================================
-// API Key Display Component - ScreenshotOne style (just key + copy)
+// API Key Display Component - ScreenshotOne style (dots with eye toggle)
 // =============================================================================
 interface KeyDisplayProps {
     keyValue: string;
 }
 
 function KeyDisplay({ keyValue }: KeyDisplayProps) {
+    const [isVisible, setIsVisible] = useState(false);
     const [copied, setCopied] = useState(false);
 
     const handleCopy = async () => {
@@ -76,15 +77,28 @@ function KeyDisplay({ keyValue }: KeyDisplayProps) {
         return <span className="text-gray-400">—</span>;
     }
 
+    // Display as dots or actual value
+    const displayValue = isVisible ? keyValue : "••••••••••••••";
+
     return (
-        <div className="flex items-center gap-2">
-            <code className="font-mono text-sm bg-slate-100 px-2 py-1 rounded">
-                {keyValue}
+        <div className="flex items-center gap-1">
+            <code className={`font-mono text-sm px-2 py-1 rounded min-w-[140px] ${isVisible ? 'bg-slate-100' : 'bg-slate-100 text-slate-400'
+                }`}>
+                {displayValue}
             </code>
             <Button
                 variant="ghost"
                 size="sm"
-                className={`h-7 w-7 p-0 transition-colors ${copied ? 'text-green-600' : 'hover:bg-slate-100'}`}
+                className="h-7 w-7 p-0 hover:bg-slate-100"
+                onClick={() => setIsVisible(!isVisible)}
+                title={isVisible ? "Hide key" : "Show key"}
+            >
+                {isVisible ? <EyeOff className="h-3.5 w-3.5 text-slate-500" /> : <Eye className="h-3.5 w-3.5 text-slate-500" />}
+            </Button>
+            <Button
+                variant="ghost"
+                size="sm"
+                className={`h-7 w-7 p-0 ${copied ? 'text-green-600' : 'hover:bg-slate-100'}`}
                 onClick={handleCopy}
                 title={copied ? "Copied!" : "Copy key"}
             >
@@ -461,6 +475,7 @@ export default function ApiKeysPage() {
                                         </TableHead>
                                         <TableHead>Name</TableHead>
                                         <TableHead>Access Key</TableHead>
+                                        <TableHead>Secret Key</TableHead>
                                         <TableHead>Signed</TableHead>
                                         <TableHead>Last Used</TableHead>
                                         <TableHead>Created</TableHead>
@@ -493,6 +508,9 @@ export default function ApiKeysPage() {
                                             </TableCell>
                                             <TableCell>
                                                 <KeyDisplay keyValue={(key as any).access_key || "—"} />
+                                            </TableCell>
+                                            <TableCell>
+                                                <KeyDisplay keyValue={(key as any).secret_key || "—"} />
                                             </TableCell>
                                             <TableCell>
                                                 <button

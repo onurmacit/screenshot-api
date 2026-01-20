@@ -336,20 +336,20 @@ func (s *AuthService) generateTokens(userID uuid.UUID, email, ip, userAgent stri
 // === API Key Management ===
 
 func (s *AuthService) CreateAPIKey(ctx context.Context, req dto.APIKeyCreateRequest, userID uuid.UUID) (*dto.APIKeyCreateResponse, error) {
-	// 1. Generate Keys
-	// Access Key: pk_live_... (32 chars)
-	randomBytes := make([]byte, 12)
-	if _, err := rand.Read(randomBytes); err != nil {
+	// 1. Generate Keys - ScreenshotOne style (20 char hex, no prefix)
+	// Access Key: 20 char hex (e.g., 153e8f93d6d8457dd691)
+	accessBytes := make([]byte, 10) // 10 bytes = 20 hex chars
+	if _, err := rand.Read(accessBytes); err != nil {
 		return nil, err
 	}
-	accessKey := fmt.Sprintf("pk_live_%s", hex.EncodeToString(randomBytes))
+	accessKey := hex.EncodeToString(accessBytes)
 
-	// Secret Key: sk_live_... (48 chars random)
-	secretBytes := make([]byte, 32)
+	// Secret Key: 20 char hex (e.g., d7d007df19685c81a2c9)
+	secretBytes := make([]byte, 10) // 10 bytes = 20 hex chars
 	if _, err := rand.Read(secretBytes); err != nil {
 		return nil, err
 	}
-	secretKeyRaw := fmt.Sprintf("sk_live_%s", hex.EncodeToString(secretBytes))
+	secretKeyRaw := hex.EncodeToString(secretBytes)
 
 	// 2. Hash & Encrypt
 	keyHash := sha256.Sum256([]byte(accessKey))

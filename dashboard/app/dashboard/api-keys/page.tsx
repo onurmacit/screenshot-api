@@ -52,21 +52,27 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 
 // =============================================================================
-// API Key Display Component - ScreenshotOne style (dots with eye toggle)
+// API Key Display Component - Input container style
 // =============================================================================
 interface KeyDisplayProps {
     keyValue: string;
+    keyType: 'access' | 'secret';
 }
 
-function KeyDisplay({ keyValue }: KeyDisplayProps) {
+function KeyDisplay({ keyValue, keyType }: KeyDisplayProps) {
     const [isVisible, setIsVisible] = useState(false);
     const [copied, setCopied] = useState(false);
+
+    // Display the key as-is (no prefix added)
+    const displayValue = isVisible
+        ? keyValue
+        : "••••••••••••••";
 
     const handleCopy = async () => {
         try {
             await navigator.clipboard.writeText(keyValue);
             setCopied(true);
-            toast.success("Key copied to clipboard");
+            toast.success(keyType === 'access' ? "Access key copied" : "Secret key copied");
             setTimeout(() => setCopied(false), 2000);
         } catch (err) {
             toast.error("Failed to copy");
@@ -77,32 +83,49 @@ function KeyDisplay({ keyValue }: KeyDisplayProps) {
         return <span className="text-gray-400">—</span>;
     }
 
-    // Display as dots or actual value
-    const displayValue = isVisible ? keyValue : "••••••••••••••";
-
     return (
-        <div className="flex items-center gap-1">
-            <code className={`font-mono text-sm px-2 py-1 rounded min-w-[140px] ${isVisible ? 'bg-slate-100' : 'bg-slate-100 text-slate-400'
-                }`}>
-                {displayValue}
-            </code>
+        <div className="flex items-center gap-2">
+            {/* Input-style key display */}
+            <Input
+                value={displayValue}
+                readOnly
+                className={`
+                    font-mono text-sm w-[140px] h-9
+                    ${isVisible ? 'bg-slate-50' : 'bg-slate-100 text-slate-400'}
+                `}
+            />
+
+            {/* Toggle visibility button */}
             <Button
                 variant="ghost"
                 size="sm"
-                className="h-7 w-7 p-0 hover:bg-slate-100"
+                className="h-8 w-8 p-0 hover:bg-slate-100 flex-shrink-0"
                 onClick={() => setIsVisible(!isVisible)}
                 title={isVisible ? "Hide key" : "Show key"}
             >
-                {isVisible ? <EyeOff className="h-3.5 w-3.5 text-slate-500" /> : <Eye className="h-3.5 w-3.5 text-slate-500" />}
+                {isVisible ? (
+                    <EyeOff className="h-4 w-4 text-slate-500" />
+                ) : (
+                    <Eye className="h-4 w-4 text-slate-500" />
+                )}
             </Button>
+
+            {/* Copy button */}
             <Button
                 variant="ghost"
                 size="sm"
-                className={`h-7 w-7 p-0 ${copied ? 'text-green-600' : 'hover:bg-slate-100'}`}
+                className={`
+                    h-8 w-8 p-0 flex-shrink-0 transition-colors duration-200
+                    ${copied ? 'text-green-600 hover:text-green-600' : 'hover:bg-slate-100'}
+                `}
                 onClick={handleCopy}
-                title={copied ? "Copied!" : "Copy key"}
+                title={copied ? "Copied!" : `Copy ${keyType} key`}
             >
-                {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5 text-slate-500" />}
+                {copied ? (
+                    <Check className="h-4 w-4" />
+                ) : (
+                    <Copy className="h-4 w-4 text-slate-500" />
+                )}
             </Button>
         </div>
     );
@@ -507,10 +530,10 @@ export default function ApiKeysPage() {
                                                 {key.name || <span className="text-gray-400 italic">Unnamed</span>}
                                             </TableCell>
                                             <TableCell>
-                                                <KeyDisplay keyValue={(key as any).access_key || "—"} />
+                                                <KeyDisplay keyValue={(key as any).access_key || "—"} keyType="access" />
                                             </TableCell>
                                             <TableCell>
-                                                <KeyDisplay keyValue={(key as any).secret_key || "—"} />
+                                                <KeyDisplay keyValue={(key as any).secret_key || "—"} keyType="secret" />
                                             </TableCell>
                                             <TableCell>
                                                 <button

@@ -517,50 +517,21 @@ func (s *AuthService) ToggleEnforceSigning(ctx context.Context, userID uuid.UUID
 	}, nil
 }
 
-// ValidateAPIKey validates an API key and returns the user and key (Legacy/Hybrid)
+// ValidateAPIKey validates an API key and returns the user and key
+// Only supports 20 char hex access keys (ScreenshotOne style)
 func (s *AuthService) ValidateAPIKey(ctx context.Context, apiKey string) (*models.User, *models.APIKey, error) {
-	// 1. Identify key type/lookup strategy
-	// ScreenshotOne style: access_key is the short public key (e.g., ea8008b0b7583b1d98c9)
-	// pk_live_xxx = Access Key → lookup directly in access_key column
-	// sk_live_xxx = Secret Key → hash it and lookup in key_hash column
-	// Other short strings → assume access_key, lookup directly
+	// Only 20 char hex access keys are supported
+	// Direct lookup in access_key column
 
-	var queryKey string
-	var lookupByAccessKey bool
-
-	// Determine if this is an access key or secret key
-	// Secret keys start with sk_ and are hashed for lookup
-	// Everything else is treated as access key (direct lookup)
-	isSecretKey := len(apiKey) > 3 && apiKey[:3] == "sk_"
-
-	if isSecretKey {
-		// sk_live_, sk_test_ → hash and lookup key_hash
-		lookupByAccessKey = false
-		hashedInput := sha256.New()
-		hashedInput.Write([]byte(apiKey))
-		queryKey = hex.EncodeToString(hashedInput.Sum(nil))
-	} else {
-		// pk_live_xxx or short access key → direct lookup
-		lookupByAccessKey = true
-		queryKey = apiKey
-	}
-
-	// 2. Check cache first
-	user, key, err := s.cache.GetAPIKey(ctx, queryKey)
+	// 1. Check cache first
+	user, key, err := s.cache.GetAPIKey(ctx, apiKey)
 	if err == nil && user != nil && key != nil {
 		return user, key, nil
 	}
 
-	// 3. Query database
+	// 2. Query database - direct access_key lookup only
 	var apiKeyModel models.APIKey
-	var dbErr error
-
-	if lookupByAccessKey {
-		dbErr = s.db.Preload("User").Preload("User.Plan").Where("access_key = ?", apiKey).First(&apiKeyModel).Error
-	} else {
-		// Hash-based lookup (sk_live_, sk_test_, legacy)
-		dbErr = s.db.Preload("User").Preload("User.Plan").Where("key_hash = ?", queryKey).First(&apiKeyModel).Error
-	}
+	dbErr := s.db.Preload("User").Preload("User.Plan").Where("access_key = ?", apiKey).First(&apiKeyModel).Error
 
 	if dbErr != nil {
 		if errors.Is(dbErr, gorm.ErrRecordNotFound) {
@@ -569,7 +540,7 @@ func (s *AuthService) ValidateAPIKey(ctx context.Context, apiKey string) (*model
 		return nil, nil, dbErr
 	}
 
-	// 4. Validate
+	// 3. Validate
 	if !apiKeyModel.IsActive {
 		return nil, nil, utils.ErrInvalidAPIKey
 	}
@@ -578,24 +549,18 @@ func (s *AuthService) ValidateAPIKey(ctx context.Context, apiKey string) (*model
 		return nil, nil, utils.ErrAPIKeyExpired
 	}
 
-	// 5. Decrypt Secret Key (Required for Signature Verification)
+	// 4. Decrypt Secret Key (Required for Signature Verification)
 	if apiKeyModel.SecretKeyEncrypted != nil {
 		decrypted, err := utils.Decrypt(*apiKeyModel.SecretKeyEncrypted, s.cfg.SecretKeyEncryptionKey)
 		if err == nil {
 			apiKeyModel.SecretKey = decrypted
 		} else {
-			// If decryption fails, we can't verify signatures.
-			// Should we fail? Or proceed without secret (signing impossible)?
-			// Proceed, but signing will fail if enforced.
 			fmt.Printf("Error decrypting secret key for key %s: %v\n", apiKeyModel.ID, err)
 		}
 	}
 
-	// 6. Update last used (async)
-	// 7. Cache result
-	// We cache the FULL model including SecretKey (plaintext)
-	// Security: Cache should be secure. Redis is internal.
-	_ = s.cache.SetAPIKey(ctx, queryKey, &apiKeyModel.User, &apiKeyModel)
+	// 5. Cache result
+	_ = s.cache.SetAPIKey(ctx, apiKey, &apiKeyModel.User, &apiKeyModel)
 
 	return &apiKeyModel.User, &apiKeyModel, nil
 }

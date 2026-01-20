@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -491,7 +492,13 @@ func (h *RenderHandler) handleBinaryResponse(c *fiber.Ctx, result *dto.Screensho
 		}
 	}
 	c.Set("Content-Type", contentType)
+	c.Set("Content-Length", resp.Header.Get("Content-Length"))
+	c.Set("Cache-Control", "public, max-age=3600")
 
-	// Stream the body
-	return c.SendStream(resp.Body, int(resp.ContentLength))
+	// Synchronous copy to avoid premature stream closure
+	if _, err := io.Copy(c.Response().BodyWriter(), resp.Body); err != nil {
+		return fiber.NewError(fiber.StatusInternalServerError, "Stream transmission failed")
+	}
+
+	return nil
 }

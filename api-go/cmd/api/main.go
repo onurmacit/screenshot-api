@@ -5,13 +5,11 @@ import (
 	"log"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 	"time"
 
 	"github.com/ansrivas/fiberprometheus/v2"
 	"github.com/gofiber/fiber/v2"
-	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/onurmacit/screenshot-api/api-go/internal/config"
@@ -190,12 +188,12 @@ func main() {
 	app.Use(middleware.RequestLogger())    // Structured request logging
 	app.Use(middleware.MetricsCollector()) // Basic metrics (legacy, keep for admin endpoint)
 	app.Use(middleware.IPRateLimit(cfg))   // Phase 2.1: Global IP-based protection
-	app.Use(cors.New(cors.Config{
-		AllowOrigins:     strings.Join(cfg.CORSOrigins, ","),
-		AllowHeaders:     "Origin, Content-Type, Accept, X-API-Key, Authorization, X-Request-ID",
-		AllowCredentials: true,
-		ExposeHeaders:    "X-Processing-Time-Ms, X-Image-Width, X-Image-Height, X-Cache, X-Request-ID",
-	}))
+	// app.Use(cors.New(cors.Config{
+	// 	AllowOrigins:     strings.Join(cfg.CORSOrigins, ","),
+	// 	AllowHeaders:     "Origin, Content-Type, Accept, X-API-Key, Authorization, X-Request-ID",
+	// 	AllowCredentials: true,
+	// 	ExposeHeaders:    "X-Processing-Time-Ms, X-Image-Width, X-Image-Height, X-Cache, X-Request-ID",
+	// }))
 	app.Use(middleware.DatabaseHealthCheck(db)) // EDGE-005: Graceful 503 on DB failure
 
 	// API V1 Config

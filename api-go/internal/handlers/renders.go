@@ -498,7 +498,6 @@ func (h *RenderHandler) handleBinaryResponse(c *fiber.Ctx, result *dto.Screensho
 		}
 	}
 	c.Set("Content-Type", contentType)
-	c.Set("Cache-Control", "public, max-age=3600")
 
 	// Return as bytes
 	return c.Send(bodyBytes)

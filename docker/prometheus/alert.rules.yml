@@ -69,3 +69,33 @@ groups:
         annotations:
           summary: "Health check failing"
           description: "API health endpoint is returning unhealthy status."
+
+      # Renderer Circuit Breaker Open
+      - alert: RendererCircuitBreakerOpen
+        expr: renderer_circuit_breaker_state == 1
+        for: 10s
+        labels:
+          severity: critical
+        annotations:
+          summary: "Renderer Circuit Breaker Open"
+          description: "Circuit breaker to renderer service is OPEN. All requests are failing fast."
+
+      # Job Queue Backlog
+      - alert: JobQueueBacklog
+        expr: job_queue_length > 100
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Job queue backlog is high"
+          description: "There are more than 100 pending jobs in the queue for over 5 minutes."
+
+      # Background Job Failures
+      - alert: HighJobFailureRate
+        expr: rate(job_processing_errors_total[5m]) > 0.1
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High background job failure rate"
+          description: "More than 0.1 jobs per second are failing in the background."

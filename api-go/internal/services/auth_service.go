@@ -520,23 +520,29 @@ func (s *AuthService) ToggleEnforceSigning(ctx context.Context, userID uuid.UUID
 // ValidateAPIKey validates an API key and returns the user and key (Legacy/Hybrid)
 func (s *AuthService) ValidateAPIKey(ctx context.Context, apiKey string) (*models.User, *models.APIKey, error) {
 	// 1. Identify key type/lookup strategy
+	// ScreenshotOne style: access_key is the short public key (e.g., ea8008b0b7583b1d98c9)
 	// pk_live_xxx = Access Key → lookup directly in access_key column
 	// sk_live_xxx = Secret Key → hash it and lookup in key_hash column
-	// Other (legacy) → hash it and lookup in key_hash column
+	// Other short strings → assume access_key, lookup directly
 
 	var queryKey string
 	var lookupByAccessKey bool
 
-	// Only pk_ prefix means direct access_key lookup
-	if len(apiKey) > 3 && apiKey[:3] == "pk_" {
-		lookupByAccessKey = true
-		queryKey = apiKey
-	} else {
-		// sk_live_, sk_test_, or any other key → hash and lookup key_hash
+	// Determine if this is an access key or secret key
+	// Secret keys start with sk_ and are hashed for lookup
+	// Everything else is treated as access key (direct lookup)
+	isSecretKey := len(apiKey) > 3 && apiKey[:3] == "sk_"
+
+	if isSecretKey {
+		// sk_live_, sk_test_ → hash and lookup key_hash
 		lookupByAccessKey = false
 		hashedInput := sha256.New()
 		hashedInput.Write([]byte(apiKey))
 		queryKey = hex.EncodeToString(hashedInput.Sum(nil))
+	} else {
+		// pk_live_xxx or short access key → direct lookup
+		lookupByAccessKey = true
+		queryKey = apiKey
 	}
 
 	// 2. Check cache first

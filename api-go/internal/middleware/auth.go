@@ -11,10 +11,14 @@ import (
 
 func APIKeyAuth(authService *services.AuthService, cfg *config.Config) fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		// 1. Check API Key (X-API-Key or Query)
+		// 1. Check API Key (X-API-Key header or query param)
+		// Priority: X-API-Key header > access_key query > api_key query (legacy)
 		apiKey := c.Get("X-API-Key")
 		if apiKey == "" {
-			apiKey = c.Query("api_key")
+			apiKey = c.Query("access_key") // ScreenshotOne style
+		}
+		if apiKey == "" {
+			apiKey = c.Query("api_key") // Legacy support
 		}
 
 		// 2. Check Authorization Header (Bearer)

@@ -90,16 +90,20 @@ export default function ScreenshotPlaygroundPage() {
         return () => window.removeEventListener('resize', measureHeight);
     }, []);
 
-    // Load API Keys - auto-select first key (ScreenshotOne style - seamless)
+    // Load API Keys - auto-select oldest key (ScreenshotOne style)
     useEffect(() => {
         const loadKeys = async () => {
             try {
                 const keys = await authApi.listApiKeys();
                 // Filter only valid dual-keys (those with access_key)
                 const validKeys = keys.filter(k => k.access_key);
+
+                // Sort by created_at ascending (oldest first) - ScreenshotOne uses oldest key
+                validKeys.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+
                 setUserKeys(validKeys);
 
-                // Auto-select first key (always available due to default key on registration)
+                // Auto-select oldest key (first after sorting)
                 if (validKeys.length > 0) {
                     setApiKey(validKeys[0].access_key || "");
                 }

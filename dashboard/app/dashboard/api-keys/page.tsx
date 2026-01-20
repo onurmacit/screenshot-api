@@ -52,76 +52,43 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 
 // =============================================================================
-// API Key Display Component - ScreenshotOne style
+// API Key Display Component - ScreenshotOne style (just key + copy)
 // =============================================================================
 interface KeyDisplayProps {
     keyValue: string;
-    keyType: 'access' | 'secret';
 }
 
-function KeyDisplay({ keyValue, keyType }: KeyDisplayProps) {
-    const [isVisible, setIsVisible] = useState(false);
+function KeyDisplay({ keyValue }: KeyDisplayProps) {
     const [copied, setCopied] = useState(false);
-
-    // Display the key as-is (no prefix added) - ScreenshotOne style
-    const displayValue = isVisible
-        ? keyValue
-        : "••••••••••••••";
 
     const handleCopy = async () => {
         try {
             await navigator.clipboard.writeText(keyValue);
             setCopied(true);
-            toast.success(keyType === 'access' ? "Access key copied" : "Secret key copied");
+            toast.success("Key copied to clipboard");
             setTimeout(() => setCopied(false), 2000);
         } catch (err) {
             toast.error("Failed to copy");
         }
     };
 
+    if (!keyValue || keyValue === "—") {
+        return <span className="text-gray-400">—</span>;
+    }
+
     return (
         <div className="flex items-center gap-2">
-            {/* Input-style key display */}
-            <Input
-                value={displayValue}
-                readOnly
-                className={`
-                    font-mono text-sm w-[140px] h-9
-                    ${isVisible ? 'bg-slate-50' : 'bg-slate-100 text-slate-400'}
-                `}
-            />
-
-            {/* Toggle visibility button */}
+            <code className="font-mono text-sm bg-slate-100 px-2 py-1 rounded">
+                {keyValue}
+            </code>
             <Button
                 variant="ghost"
                 size="sm"
-                className="h-8 w-8 p-0 hover:bg-slate-100 flex-shrink-0"
-                onClick={() => setIsVisible(!isVisible)}
-                title={isVisible ? "Hide key" : "Show key"}
-            >
-                {isVisible ? (
-                    <EyeOff className="h-4 w-4 text-slate-500" />
-                ) : (
-                    <Eye className="h-4 w-4 text-slate-500" />
-                )}
-            </Button>
-
-            {/* Copy button */}
-            <Button
-                variant="ghost"
-                size="sm"
-                className={`
-                    h-8 w-8 p-0 flex-shrink-0 transition-colors duration-200
-                    ${copied ? 'text-green-600 hover:text-green-600' : 'hover:bg-slate-100'}
-                `}
+                className={`h-7 w-7 p-0 transition-colors ${copied ? 'text-green-600' : 'hover:bg-slate-100'}`}
                 onClick={handleCopy}
-                title={copied ? "Copied!" : `Copy ${keyType} key`}
+                title={copied ? "Copied!" : "Copy key"}
             >
-                {copied ? (
-                    <Check className="h-4 w-4" />
-                ) : (
-                    <Copy className="h-4 w-4 text-slate-500" />
-                )}
+                {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5 text-slate-500" />}
             </Button>
         </div>
     );
@@ -494,7 +461,6 @@ export default function ApiKeysPage() {
                                         </TableHead>
                                         <TableHead>Name</TableHead>
                                         <TableHead>Access Key</TableHead>
-                                        <TableHead>Secret Key</TableHead>
                                         <TableHead>Signed</TableHead>
                                         <TableHead>Last Used</TableHead>
                                         <TableHead>Created</TableHead>
@@ -526,16 +492,7 @@ export default function ApiKeysPage() {
                                                 {key.name || <span className="text-gray-400 italic">Unnamed</span>}
                                             </TableCell>
                                             <TableCell>
-                                                <KeyDisplay
-                                                    keyValue={(key as any).access_key || "—"}
-                                                    keyType="access"
-                                                />
-                                            </TableCell>
-                                            <TableCell>
-                                                <KeyDisplay
-                                                    keyValue={(key as any).secret_key || "—"}
-                                                    keyType="secret"
-                                                />
+                                                <KeyDisplay keyValue={(key as any).access_key || "—"} />
                                             </TableCell>
                                             <TableCell>
                                                 <button

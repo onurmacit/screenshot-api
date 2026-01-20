@@ -476,6 +476,12 @@ func (h *RenderHandler) handleBinaryResponse(c *fiber.Ctx, result *dto.Screensho
 		return fiber.NewError(fiber.StatusInternalServerError, "Storage returned error during binary fetch")
 	}
 
+	// Read all into memory (safe for screenshots, usually 1-5MB)
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fiber.NewError(fiber.StatusInternalServerError, "Failed to read binary data")
+	}
+
 	// Set Content-Type
 	contentType := resp.Header.Get("Content-Type")
 	if contentType == "" {
@@ -492,13 +498,8 @@ func (h *RenderHandler) handleBinaryResponse(c *fiber.Ctx, result *dto.Screensho
 		}
 	}
 	c.Set("Content-Type", contentType)
-	c.Set("Content-Length", resp.Header.Get("Content-Length"))
 	c.Set("Cache-Control", "public, max-age=3600")
 
-	// Synchronous copy to avoid premature stream closure
-	if _, err := io.Copy(c.Response().BodyWriter(), resp.Body); err != nil {
-		return fiber.NewError(fiber.StatusInternalServerError, "Stream transmission failed")
-	}
-
-	return nil
+	// Return as bytes
+	return c.Send(bodyBytes)
 }

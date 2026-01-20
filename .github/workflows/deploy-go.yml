@@ -5,6 +5,8 @@ on:
     branches: [ "main" ]
     paths:
       - 'api-go/**'
+      - 'docker/**'
+      - 'docker-compose.yml'
       - 'docker-compose.go-only.yml'
       - '.github/workflows/deploy-go.yml'
   workflow_dispatch:
@@ -72,7 +74,7 @@ jobs:
             
             # Pull and Restart
             docker compose -f docker-compose.go-only.yml pull api-go
-            docker compose -f docker-compose.go-only.yml up -d api-go
+            docker compose -f docker-compose.go-only.yml up -d --force-recreate api-go screenshot-nginx
             
             # Prune old images to save space
             docker image prune -f

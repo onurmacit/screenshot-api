@@ -259,6 +259,12 @@ export default function ApiKeysPage() {
             return;
         }
 
+        // Prevent deleting all keys - at least one must remain
+        if (keysToDelete.length >= keys.length) {
+            toast.error("You must keep at least one API key. Select fewer keys to delete.");
+            return;
+        }
+
         if (!confirm(`Are you sure you want to delete ${keysToDelete.length} API key(s)? This action cannot be undone.`)) {
             return;
         }

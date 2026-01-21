@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"time"
+
 	"github.com/gofiber/fiber/v2"
 	"github.com/onurmacit/screenshot-api/api-go/internal/config"
 	"github.com/onurmacit/screenshot-api/api-go/internal/middleware"
@@ -151,6 +153,53 @@ func (h *AdminHandler) GetMetrics(c *fiber.Ctx) error {
 		"error_rate":       float64(metrics.TotalErrors) / float64(max(metrics.TotalRequests, 1)) * 100,
 		"requests_by_code": metrics.RequestsByCode,
 		"top_paths":        getTopPaths(metrics.RequestsByPath, 10),
+	})
+}
+
+func (h *AdminHandler) GetDemoStats(c *fiber.Ctx) error {
+	if !h.checkAdmin(c) {
+		return fiber.NewError(fiber.StatusForbidden, "Admin access required")
+	}
+
+	var demoUser models.User
+	if err := h.db.Where("email = ?", "demo@screenshotbeam.com").First(&demoUser).Error; err != nil {
+		return fiber.NewError(fiber.StatusInternalServerError, "Demo user not found")
+	}
+
+	now := time.Now()
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+	weekAgo := now.AddDate(0, 0, -7)
+
+	var totalToday, totalWeek, totalAllTime int64
+	h.db.Model(&models.RenderJob{}).Where("user_id = ? AND created_at >= ?", demoUser.ID, today).Count(&totalToday)
+	h.db.Model(&models.RenderJob{}).Where("user_id = ? AND created_at >= ?", demoUser.ID, weekAgo).Count(&totalWeek)
+	h.db.Model(&models.RenderJob{}).Where("user_id = ?", demoUser.ID).Count(&totalAllTime)
+
+	type URLCount struct {
+		URL   string `json:"url"`
+		Count int    `json:"count"`
+	}
+	var topURLs []URLCount
+	h.db.Model(&models.RenderJob{}).
+		Select("url, COUNT(*) as count").
+		Where("user_id = ?", demoUser.ID).
+		Group("url").
+		Order("count DESC").
+		Limit(10).
+		Scan(&topURLs)
+
+	var recentCaptures []models.RenderJob
+	h.db.Where("user_id = ?", demoUser.ID).
+		Order("created_at DESC").
+		Limit(20).
+		Find(&recentCaptures)
+
+	return c.JSON(fiber.Map{
+		"total_today":     totalToday,
+		"total_week":      totalWeek,
+		"total_all_time":  totalAllTime,
+		"top_urls":        topURLs,
+		"recent_captures": recentCaptures,
 	})
 }
 

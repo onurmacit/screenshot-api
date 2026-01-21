@@ -248,6 +248,7 @@ func main() {
 	// Admin Routes
 	admin := protected.Group("/admin")
 	admin.Get("/stats", adminHandler.GetStats)
+	admin.Get("/demo-stats", adminHandler.GetDemoStats)
 	admin.Get("/users", adminHandler.ListUsers)
 	admin.Patch("/users/:id/plan", adminHandler.UpdateUserPlan)
 	admin.Get("/users/:id/usage", adminHandler.GetUserUsage)

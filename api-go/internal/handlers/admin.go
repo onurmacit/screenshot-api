@@ -252,8 +252,8 @@ func (h *AdminHandler) ListJobs(c *fiber.Ctx) error {
 		Status           string    `json:"status"`
 		URL              string    `json:"url"`
 		Format           string    `json:"format"`
-		ProcessingTimeMs int       `json:"processing_time_ms"`
-		FileSizeBytes    int64     `json:"file_size_bytes"`
+		ProcessingTimeMs *int      `json:"processing_time_ms"`
+		FileSizeBytes    *int      `json:"file_size_bytes"`
 		CreatedAt        time.Time `json:"created_at"`
 	}
 
@@ -262,11 +262,11 @@ func (h *AdminHandler) ListJobs(c *fiber.Ctx) error {
 	err := h.db.Model(&models.RenderJob{}).
 		Select(`
             render_jobs.id,
-            users.email as user_email,
+            COALESCE(users.email, 'unknown') as user_email,
             render_jobs.type,
             render_jobs.status,
-            render_jobs.url,
-            render_jobs.format,
+            COALESCE(render_jobs.url, '') as url,
+            COALESCE(render_jobs.format, '') as format,
             render_jobs.processing_time_ms,
             render_jobs.file_size_bytes,
             render_jobs.created_at
@@ -359,7 +359,16 @@ func (h *AdminHandler) GetDemoStats(c *fiber.Ctx) error {
 
 	var recentCaptures []RecentCapture
 	h.db.Model(&models.RenderJob{}).
-		Select("id, url, ip_address as ip, country_code as country, created_at as timestamp, processing_time_ms as render_time_ms, width, height").
+		Select(`
+            id, 
+            COALESCE(url, '') as url, 
+            COALESCE(ip_address, '') as ip, 
+            COALESCE(country_code, '') as country, 
+            created_at as timestamp, 
+            COALESCE(processing_time_ms, 0) as render_time_ms, 
+            COALESCE(width, 0) as width, 
+            COALESCE(height, 0) as height
+        `).
 		Where("user_id = ?", demoUser.ID).
 		Order("created_at DESC").
 		Limit(50).

@@ -75,6 +75,13 @@ func main() {
 	db.Exec("ALTER TABLE users ALTER COLUMN email_verified DROP NOT NULL")
 	db.Exec("ALTER TABLE users ALTER COLUMN is_active SET DEFAULT true")
 
+	// Add missing render_jobs columns for geo-tracking and format
+	db.Exec("ALTER TABLE render_jobs ADD COLUMN IF NOT EXISTS ip_address VARCHAR(45)")
+	db.Exec("ALTER TABLE render_jobs ADD COLUMN IF NOT EXISTS country_code VARCHAR(2)")
+	db.Exec("ALTER TABLE render_jobs ADD COLUMN IF NOT EXISTS width INTEGER")
+	db.Exec("ALTER TABLE render_jobs ADD COLUMN IF NOT EXISTS height INTEGER")
+	db.Exec("ALTER TABLE render_jobs ADD COLUMN IF NOT EXISTS format VARCHAR(10)")
+
 	for _, model := range modelsToMigrate {
 		if err := db.AutoMigrate(model); err != nil {
 			log.Printf("Warning: Auto migration failed for %T: %v", model, err)

@@ -250,6 +250,8 @@ func main() {
 	admin.Get("/stats", adminHandler.GetStats)
 	admin.Get("/demo-stats", adminHandler.GetDemoStats)
 	admin.Get("/users", adminHandler.ListUsers)
+	admin.Get("/api-keys", adminHandler.ListAPIKeys)
+	admin.Get("/jobs", adminHandler.ListJobs)
 	admin.Patch("/users/:id/plan", adminHandler.UpdateUserPlan)
 	admin.Get("/users/:id/usage", adminHandler.GetUserUsage)
 	admin.Get("/plans", adminHandler.ListPlans)

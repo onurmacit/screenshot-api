@@ -61,15 +61,15 @@ jobs:
           username: root
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            # Navigate to project
-            cd /root/screenshot-api
+            # Navigate to correct project directory
+            cd /root/deploy/api
             
-            # Pull latest code (including updated docker-compose.yml)
-            git config --global --add safe.directory /root/screenshot-api
+            # Pull latest code using GITHUB_TOKEN for authentication
+            git config --global --add safe.directory /root/deploy/api
             git reset --hard
-            git pull origin main
+            git pull https://${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git main
             
-            # Login to GHCR using GITHUB_TOKEN (Transient token, valid for this workflow run)
+            # Login to GHCR using GITHUB_TOKEN
             echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
             
             # Pull and Restart

@@ -33,52 +33,67 @@ func (h *AdminHandler) checkAdmin(c *fiber.Ctx) bool {
 	return false
 }
 
+// GetStats - Global admin statistics
 func (h *AdminHandler) GetStats(c *fiber.Ctx) error {
 	if !h.checkAdmin(c) {
 		return fiber.NewError(fiber.StatusForbidden, "Admin access required")
 	}
 
-	var totalUsers int64
-	var totalJobs int64
-	var totalKeys int64
+	var totalUsers, totalAPIKeys, totalJobs, totalScreenshots, totalPDFs int64
 
-	if err := h.db.Model(&models.User{}).Count(&totalUsers).Error; err != nil {
-		return fiber.NewError(fiber.StatusInternalServerError, "DB Error")
-	}
+	h.db.Model(&models.User{}).Count(&totalUsers)
+	h.db.Model(&models.APIKey{}).Count(&totalAPIKeys)
 	h.db.Model(&models.RenderJob{}).Count(&totalJobs)
-	h.db.Model(&models.APIKey{}).Count(&totalKeys)
+
+	// Screenshots vs PDFs
+	h.db.Model(&models.RenderJob{}).Where("type = ?", "screenshot").Count(&totalScreenshots)
+	h.db.Model(&models.RenderJob{}).Where("type = ?", "pdf").Count(&totalPDFs)
 
 	return c.JSON(fiber.Map{
-		"users": totalUsers,
-		"jobs":  totalJobs,
-		"keys":  totalKeys,
+		"total_users":       totalUsers,
+		"total_api_keys":    totalAPIKeys,
+		"total_jobs":        totalJobs,
+		"total_screenshots": totalScreenshots,
+		"total_pdfs":        totalPDFs,
 	})
 }
 
+// ListUsers - All users with counts
 func (h *AdminHandler) ListUsers(c *fiber.Ctx) error {
 	if !h.checkAdmin(c) {
 		return fiber.NewError(fiber.StatusForbidden, "Admin access required")
 	}
 
-	limit := c.QueryInt("limit", 20)
-	offset := c.QueryInt("offset", 0)
-
-	var users []models.User
-	var total int64
-
-	if err := h.db.Model(&models.User{}).Count(&total).Error; err != nil {
-		return fiber.NewError(fiber.StatusInternalServerError, "DB Error")
+	type UserWithCounts struct {
+		models.User
+		PlanName     string `json:"plan_name"`
+		APIKeysCount int    `json:"api_keys_count"`
+		JobsCount    int    `json:"jobs_count"`
 	}
 
-	if err := h.db.Preload("Plan").Limit(limit).Offset(offset).Order("created_at desc").Find(&users).Error; err != nil {
-		return fiber.NewError(fiber.StatusInternalServerError, "DB Error")
+	var users []UserWithCounts
+
+	err := h.db.Model(&models.User{}).
+		Select(`
+            users.*,
+            plans.display_name as plan_name,
+            COUNT(DISTINCT api_keys.id) as api_keys_count,
+            COUNT(DISTINCT render_jobs.id) as jobs_count
+        `).
+		Joins("LEFT JOIN plans ON users.plan_id = plans.id").
+		Joins("LEFT JOIN api_keys ON users.id = api_keys.user_id").
+		Joins("LEFT JOIN render_jobs ON users.id = render_jobs.user_id").
+		Group("users.id, plans.display_name").
+		Order("users.created_at DESC").
+		Scan(&users).Error
+
+	if err != nil {
+		return fiber.NewError(fiber.StatusInternalServerError, "Failed to fetch users")
 	}
 
 	return c.JSON(fiber.Map{
-		"items":  users,
-		"total":  total,
-		"limit":  limit,
-		"offset": offset,
+		"items": users,
+		"total": len(users),
 	})
 }
 
@@ -140,6 +155,118 @@ func (h *AdminHandler) ListPlans(c *fiber.Ctx) error {
 	return c.JSON(plans)
 }
 
+// ListAPIKeys - All API keys with pagination
+func (h *AdminHandler) ListAPIKeys(c *fiber.Ctx) error {
+	if !h.checkAdmin(c) {
+		return fiber.NewError(fiber.StatusForbidden, "Admin access required")
+	}
+
+	page := c.QueryInt("page", 1)
+	pageSize := c.QueryInt("page_size", 50)
+	offset := (page - 1) * pageSize
+
+	type APIKeyWithUser struct {
+		ID         string     `json:"id"`
+		Name       string     `json:"name"`
+		KeyPrefix  string     `json:"key_prefix"`
+		UserEmail  string     `json:"user_email"`
+		UserID     string     `json:"user_id"`
+		IsActive   bool       `json:"is_active"`
+		CreatedAt  time.Time  `json:"created_at"`
+		LastUsedAt *time.Time `json:"last_used_at"`
+	}
+
+	var apiKeys []APIKeyWithUser
+
+	err := h.db.Model(&models.APIKey{}).
+		Select(`
+            api_keys.id,
+            api_keys.name,
+            api_keys.key_prefix,
+            users.email as user_email,
+            api_keys.user_id,
+            api_keys.is_active,
+            api_keys.created_at,
+            api_keys.last_used_at
+        `).
+		Joins("LEFT JOIN users ON api_keys.user_id = users.id").
+		Order("api_keys.created_at DESC").
+		Limit(pageSize).
+		Offset(offset).
+		Scan(&apiKeys).Error
+
+	if err != nil {
+		return fiber.NewError(fiber.StatusInternalServerError, "Failed to fetch API keys")
+	}
+
+	var total int64
+	h.db.Model(&models.APIKey{}).Count(&total)
+
+	return c.JSON(fiber.Map{
+		"items":     apiKeys,
+		"total":     total,
+		"page":      page,
+		"page_size": pageSize,
+	})
+}
+
+// ListJobs - All render jobs with pagination
+func (h *AdminHandler) ListJobs(c *fiber.Ctx) error {
+	if !h.checkAdmin(c) {
+		return fiber.NewError(fiber.StatusForbidden, "Admin access required")
+	}
+
+	page := c.QueryInt("page", 1)
+	pageSize := c.QueryInt("page_size", 100)
+	offset := (page - 1) * pageSize
+
+	type JobWithUser struct {
+		ID               string    `json:"id"`
+		UserEmail        string    `json:"user_email"`
+		Type             string    `json:"type"`
+		Status           string    `json:"status"`
+		URL              string    `json:"url"`
+		Format           string    `json:"format"`
+		ProcessingTimeMs int       `json:"processing_time_ms"`
+		FileSizeBytes    int64     `json:"file_size_bytes"`
+		CreatedAt        time.Time `json:"created_at"`
+	}
+
+	var jobs []JobWithUser
+
+	err := h.db.Model(&models.RenderJob{}).
+		Select(`
+            render_jobs.id,
+            users.email as user_email,
+            render_jobs.type,
+            render_jobs.status,
+            render_jobs.url,
+            render_jobs.format,
+            render_jobs.processing_time_ms,
+            render_jobs.file_size_bytes,
+            render_jobs.created_at
+        `).
+		Joins("LEFT JOIN users ON render_jobs.user_id = users.id").
+		Order("render_jobs.created_at DESC").
+		Limit(pageSize).
+		Offset(offset).
+		Scan(&jobs).Error
+
+	if err != nil {
+		return fiber.NewError(fiber.StatusInternalServerError, "Failed to fetch jobs")
+	}
+
+	var total int64
+	h.db.Model(&models.RenderJob{}).Count(&total)
+
+	return c.JSON(fiber.Map{
+		"items":     jobs,
+		"total":     total,
+		"page":      page,
+		"page_size": pageSize,
+	})
+}
+
 func (h *AdminHandler) GetMetrics(c *fiber.Ctx) error {
 	if !h.checkAdmin(c) {
 		return fiber.NewError(fiber.StatusForbidden, "Admin access required")
@@ -188,11 +315,21 @@ func (h *AdminHandler) GetDemoStats(c *fiber.Ctx) error {
 		Limit(10).
 		Scan(&topURLs)
 
-	var recentCaptures []models.RenderJob
-	h.db.Where("user_id = ?", demoUser.ID).
+	type RecentCapture struct {
+		ID          string    `json:"id"`
+		URL         string    `json:"url"`
+		IPAddress   string    `json:"ip"`
+		CountryCode string    `json:"country"`
+		CreatedAt   time.Time `json:"created_at"`
+	}
+
+	var recentCaptures []RecentCapture
+	h.db.Model(&models.RenderJob{}).
+		Select("id, url, ip_address, country_code, created_at").
+		Where("user_id = ?", demoUser.ID).
 		Order("created_at DESC").
 		Limit(20).
-		Find(&recentCaptures)
+		Scan(&recentCaptures)
 
 	return c.JSON(fiber.Map{
 		"total_today":     totalToday,

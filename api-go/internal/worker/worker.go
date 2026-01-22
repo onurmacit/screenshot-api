@@ -221,7 +221,7 @@ func (w *Worker) handleSuccess(job *models.RenderJob, result *ProcessResult, sta
 	job.Status = "completed"
 	job.CompletedAt = &completed
 	job.S3URL = &result.URL
-	job.ProcessingTimeMS = &processingMs
+	job.ProcessingTimeMs = &processingMs
 	job.FileSizeBytes = &result.FileSize
 	job.Result = map[string]any{
 		"url":    result.URL,

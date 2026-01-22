@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"io"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -12,17 +13,20 @@ import (
 	"github.com/onurmacit/screenshot-api/api-go/internal/models"
 	"github.com/onurmacit/screenshot-api/api-go/internal/services"
 	"github.com/onurmacit/screenshot-api/api-go/internal/utils"
+	"gorm.io/gorm"
 )
 
 type RenderHandler struct {
 	renderService *services.RenderService
 	authService   *services.AuthService
+	db            *gorm.DB
 }
 
-func NewRenderHandler(renderService *services.RenderService, authService *services.AuthService) *RenderHandler {
+func NewRenderHandler(renderService *services.RenderService, authService *services.AuthService, db *gorm.DB) *RenderHandler {
 	return &RenderHandler{
 		renderService: renderService,
 		authService:   authService,
+		db:            db,
 	}
 }
 
@@ -317,6 +321,13 @@ func (h *RenderHandler) CreateDemo(c *fiber.Ctx) error {
 		return utils.ErrInternal
 	}
 
+	// ✅ Extract IP and Country
+	ipAddress := c.IP()
+	if realIP := c.Get("X-Real-IP"); realIP != "" {
+		ipAddress = realIP
+	}
+	countryCode := c.Get("CF-IPCountry", "XX")
+
 	// 3. Render
 	renderReq := dto.RenderRequest{
 		URL:           req.URL,
@@ -334,6 +345,24 @@ func (h *RenderHandler) CreateDemo(c *fiber.Ctx) error {
 			return c.Status(appErr.Code).JSON(fiber.Map{"detail": appErr.Message})
 		}
 		return utils.ErrInternal
+	}
+
+	// ✅ CRITICAL: Create RenderJob record for demo
+	job := models.RenderJob{
+		UserID:           user.ID,
+		URL:              req.URL,
+		Type:             "screenshot",
+		Status:           "completed",
+		Format:           "jpeg",
+		ProcessingTimeMs: &result.ProcessingTimeMs,
+		FileSizeBytes:    &result.FileSize,
+		S3URL:            &result.ScreenshotURL,
+		IPAddress:        ipAddress,
+		CountryCode:      countryCode,
+	}
+
+	if err := h.db.Create(&job).Error; err != nil {
+		log.Printf("Failed to create demo job record: %v", err)
 	}
 
 	return c.JSON(result)

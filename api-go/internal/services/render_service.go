@@ -161,7 +161,7 @@ func (s *RenderService) processJob(jobID string, req dto.RenderRequest, user *mo
 	job.Status = "completed"
 	job.CompletedAt = &completed
 	job.S3URL = &uploadResult.URL
-	job.ProcessingTimeMS = &processingMs
+	job.ProcessingTimeMs = &processingMs
 	job.FileSizeBytes = &size
 	job.Result = map[string]any{
 		"url":    uploadResult.URL,

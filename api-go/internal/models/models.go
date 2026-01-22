@@ -108,18 +108,26 @@ type RenderJob struct {
 	Options          map[string]any `gorm:"type:jsonb;serializer:json" json:"options"`
 	S3Key            *string        `gorm:"type:text" json:"-"`
 	S3URL            *string        `gorm:"type:text" json:"s3_url"`
+	Format           string         `gorm:"type:varchar(10)" json:"format"`
+	Width            int            `json:"width"`
+	Height           int            `json:"height"`
 	FileSizeBytes    *int           `gorm:"" json:"file_size_bytes"`
-	ProcessingTimeMS *int           `gorm:"" json:"processing_time_ms"`
+	ProcessingTimeMs *int           `gorm:"" json:"processing_time_ms"`
 	ErrorMessage     *string        `gorm:"type:text" json:"error_message"`
 	Result           map[string]any `gorm:"type:jsonb;serializer:json" json:"result"`
 	Priority         int            `gorm:"default:5" json:"priority"`
 	WebhookURL       *string        `gorm:"type:text" json:"webhook_url"`
 	RetryCount       int            `gorm:"default:0" json:"retry_count"`
 	LastError        *string        `gorm:"type:text" json:"last_error"`
-	CreatedAt        time.Time      `gorm:"autoCreateTime" json:"created_at"`
-	StartedAt        *time.Time     `gorm:"" json:"started_at"`
-	CompletedAt      *time.Time     `gorm:"" json:"completed_at"`
-	ExpiresAt        *time.Time     `gorm:"" json:"expires_at"`
+
+	// Geo Tracking
+	IPAddress   string `gorm:"type:varchar(45)" json:"ip_address"`  // IPv4 or IPv6
+	CountryCode string `gorm:"type:varchar(2)" json:"country_code"` // ISO country code
+
+	CreatedAt   time.Time  `gorm:"autoCreateTime" json:"created_at"`
+	StartedAt   *time.Time `gorm:"" json:"started_at"`
+	CompletedAt *time.Time `gorm:"" json:"completed_at"`
+	ExpiresAt   *time.Time `gorm:"" json:"expires_at"`
 
 	// Relations
 	User User `gorm:"foreignKey:UserID" json:"user,omitempty"`

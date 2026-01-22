@@ -134,7 +134,7 @@ func main() {
 	log.Println("Background worker started for async job processing")
 
 	// Initialize Handlers
-	renderHandler := handlers.NewRenderHandler(renderService, authService)
+	renderHandler := handlers.NewRenderHandler(renderService, authService, db)
 	authHandler := handlers.NewAuthHandler(authService)
 	adminHandler := handlers.NewAdminHandler(db, cfg, billingService)
 	usageHandler := handlers.NewUsageHandler(db, cfg, usageService)

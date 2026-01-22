@@ -69,7 +69,7 @@ func main() {
 	db.Exec("ALTER TABLE users ADD COLUMN IF NOT EXISTS auth_provider VARCHAR(50)")
 	db.Exec("ALTER TABLE users ADD COLUMN IF NOT EXISTS provider_id VARCHAR(255)")
 	db.Exec("ALTER TABLE users ADD COLUMN IF NOT EXISTS stripe_customer_id VARCHAR(255)")
-	db.Exec("ALTER TABLE plans DROP CONSTRAINT IF EXISTS uni_plans_name")
+	// db.Exec("ALTER TABLE plans DROP CONSTRAINT IF EXISTS uni_plans_name")
 
 	// Fix legacy NOT NULL constraints from Python migration
 	db.Exec("ALTER TABLE users ALTER COLUMN email_verified DROP NOT NULL")

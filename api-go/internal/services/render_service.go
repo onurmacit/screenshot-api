@@ -247,7 +247,27 @@ func (s *RenderService) CaptureScreenshot(ctx context.Context, req dto.RenderReq
 		var response dto.ScreenshotResponse
 		if err := json.Unmarshal([]byte(cachedStr), &response); err == nil {
 			response.Status = "completed"
-			// Important for frontend: returned cached: true header? handled by middleware/controller
+
+			// Create RenderJob for cached response too (for admin panel tracking)
+			processingMs := 0 // Cache hit = 0ms processing
+			job := &models.RenderJob{
+				ID:               uuid.New(),
+				UserID:           user.ID,
+				Type:             "screenshot",
+				Status:           "completed",
+				URL:              req.URL,
+				Format:           req.Format,
+				Width:            response.Width,
+				Height:           response.Height,
+				ProcessingTimeMs: &processingMs,
+				S3URL:            &response.URL,
+			}
+			if err := s.jobRepo.Create(job); err != nil {
+				log.Printf("Warning: Failed to save cached job record: %v", err)
+			} else {
+				log.Printf("RenderJob created (cache hit): ID=%s, UserID=%s, URL=%s", job.ID.String(), user.ID.String(), req.URL)
+			}
+
 			return &response, nil
 		}
 	}

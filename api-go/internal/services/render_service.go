@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/url"
 	"time"
 
@@ -266,7 +267,30 @@ func (s *RenderService) CaptureScreenshot(ctx context.Context, req dto.RenderReq
 		return nil, &utils.AppError{Code: 500, Message: fmt.Sprintf("Storage upload failed: %v", err)}
 	}
 
-	// 5. Prepare Response
+	// 5. Save RenderJob to DB for admin panel tracking
+	processingMs := metadata.ProcessingTimeMs
+	fileSize := len(imageBytes)
+	completedAt := time.Now()
+	job := &models.RenderJob{
+		ID:               uuid.New(),
+		UserID:           user.ID,
+		Type:             "screenshot",
+		Status:           "completed",
+		URL:              req.URL,
+		Format:           req.Format,
+		Width:            metadata.Width,
+		Height:           metadata.Height,
+		ProcessingTimeMs: &processingMs,
+		FileSizeBytes:    &fileSize,
+		S3URL:            &uploadResult.URL,
+		CompletedAt:      &completedAt,
+	}
+	if err := s.jobRepo.Create(job); err != nil {
+		// Log but don't fail the request - job tracking is secondary
+		log.Printf("Warning: Failed to save job record: %v", err)
+	}
+
+	// 6. Prepare Response
 	response := &dto.ScreenshotResponse{
 		URL:              uploadResult.URL,
 		ScreenshotURL:    uploadResult.URL,
@@ -279,7 +303,7 @@ func (s *RenderService) CaptureScreenshot(ctx context.Context, req dto.RenderReq
 		CreatedAt:        time.Now().Format(time.RFC3339),
 	}
 
-	// 6. Cache Response (Async)
+	// 7. Cache Response (Async)
 	go func() {
 		// Use background context for async operations
 		bgCtx := context.Background()

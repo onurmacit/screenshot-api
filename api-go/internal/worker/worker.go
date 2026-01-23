@@ -223,6 +223,8 @@ func (w *Worker) handleSuccess(job *models.RenderJob, result *ProcessResult, sta
 	job.S3URL = &result.URL
 	job.ProcessingTimeMs = &processingMs
 	job.FileSizeBytes = &result.FileSize
+	job.Width = result.Width
+	job.Height = result.Height
 	job.Result = map[string]any{
 		"url":    result.URL,
 		"width":  result.Width,

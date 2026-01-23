@@ -71,6 +71,9 @@ func (s *RenderService) CreateRenderJob(ctx context.Context, req dto.RenderReque
 		Type:    "screenshot",
 		Status:  "pending",
 		URL:     req.URL,
+		Format:  req.Format,
+		Width:   req.Width,
+		Height:  req.Height,
 		Options: optionsJSON,
 	}
 

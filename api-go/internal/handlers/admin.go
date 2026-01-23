@@ -298,7 +298,7 @@ func (h *AdminHandler) ListJobs(c *fiber.Ctx) error {
             render_jobs.type,
             render_jobs.status,
             COALESCE(render_jobs.url, '') as url,
-            COALESCE(render_jobs.format, '') as format,
+            COALESCE(render_jobs.format, 'jpeg') as format,
             render_jobs.processing_time_ms,
             render_jobs.file_size_bytes,
             render_jobs.created_at

@@ -61,20 +61,41 @@ jobs:
           username: root
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            # Navigate to correct project directory
+            echo "=== Starting Deployment ==="
             cd /root/deploy/api
             
-            # Pull latest code using GITHUB_TOKEN for authentication
+            # Pull latest code
             git config --global --add safe.directory /root/deploy/api
             git reset --hard
             git pull https://${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git main
+            echo "✅ Code pulled successfully"
             
-            # Login to GHCR using GITHUB_TOKEN
-            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            # Build locally (more reliable than GHCR pull)
+            echo "Building Docker image..."
+            docker compose -f docker-compose.go-only.yml build --no-cache api-go
+            echo "✅ Build completed"
             
-            # Pull and Restart
-            docker compose -f docker-compose.go-only.yml pull api-go
+            # Restart container
             docker compose -f docker-compose.go-only.yml up -d --force-recreate api-go screenshot-nginx
+            echo "✅ Container restarted"
             
-            # Prune old images to save space
+            # Wait for startup
+            sleep 10
+            
+            # Health check
+            echo "Running health check..."
+            if curl -sf http://localhost:8080/health > /dev/null; then
+              echo "✅ Health check passed"
+            else
+              echo "❌ Health check failed!"
+              docker logs screenshot-api-go --tail 50
+              exit 1
+            fi
+            
+            # Show recent logs
+            echo "=== Recent Logs ==="
+            docker logs screenshot-api-go --tail 20
+            
+            # Cleanup
             docker image prune -f
+            echo "=== Deployment Complete ==="

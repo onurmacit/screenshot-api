@@ -287,7 +287,9 @@ func (s *RenderService) CaptureScreenshot(ctx context.Context, req dto.RenderReq
 	}
 	if err := s.jobRepo.Create(job); err != nil {
 		// Log but don't fail the request - job tracking is secondary
-		log.Printf("Warning: Failed to save job record: %v", err)
+		log.Printf("Warning: Failed to save job record for user %s, URL %s: %v", user.ID.String(), req.URL, err)
+	} else {
+		log.Printf("RenderJob created successfully: ID=%s, UserID=%s, URL=%s", job.ID.String(), user.ID.String(), req.URL)
 	}
 
 	// 6. Prepare Response

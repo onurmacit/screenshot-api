@@ -5,6 +5,7 @@ go 1.24.0
 toolchain go1.24.12
 
 require (
+	github.com/ansrivas/fiberprometheus/v2 v2.15.0
 	github.com/aws/aws-sdk-go-v2 v1.41.1
 	github.com/aws/aws-sdk-go-v2/config v1.32.7
 	github.com/aws/aws-sdk-go-v2/credentials v1.19.7
@@ -13,10 +14,13 @@ require (
 	github.com/getsentry/sentry-go v0.41.0
 	github.com/gofiber/fiber/v2 v2.52.10
 	github.com/golang-jwt/jwt/v5 v5.3.0
+	github.com/golang-migrate/migrate/v4 v4.19.1
 	github.com/google/uuid v1.6.0
 	github.com/joho/godotenv v1.5.1
 	github.com/lib/pq v1.10.9
+	github.com/prometheus/client_golang v1.23.2
 	github.com/redis/go-redis/v9 v9.17.2
+	github.com/sony/gobreaker v1.0.0
 	github.com/stripe/stripe-go/v74 v74.30.0
 	golang.org/x/crypto v0.47.0
 	gorm.io/driver/postgres v1.6.0
@@ -25,7 +29,6 @@ require (
 
 require (
 	github.com/andybalholm/brotli v1.2.0 // indirect
-	github.com/ansrivas/fiberprometheus/v2 v2.15.0 // indirect
 	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.4 // indirect
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.18.17 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/configsources v1.4.17 // indirect
@@ -55,15 +58,12 @@ require (
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mattn/go-runewidth v0.0.16 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
-	github.com/prometheus/client_golang v1.23.2 // indirect
 	github.com/prometheus/client_model v0.6.2 // indirect
 	github.com/prometheus/common v0.66.1 // indirect
 	github.com/prometheus/procfs v0.16.1 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
-	github.com/sony/gobreaker v1.0.0 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasthttp v1.69.0 // indirect
-	github.com/valyala/tcplisten v1.0.0 // indirect
 	go.opentelemetry.io/otel v1.39.0 // indirect
 	go.opentelemetry.io/otel/trace v1.39.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.2 // indirect

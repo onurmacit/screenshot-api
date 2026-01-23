@@ -64,44 +64,39 @@ func main() {
 		&models.UsageRecord{},
 	}
 
-	// HOTFIX: Manually apply migrations for missing columns
-	log.Println("Applying manual schema patches...")
+	// ==========================================================================
+	// DATABASE MIGRATIONS
+	// ==========================================================================
+	// Primary migrations are now managed by golang-migrate in /migrations folder.
+	// Run: docker exec screenshot-api-go ./migrate up
+	// See: api-go/migrations/README.md for documentation
+	//
+	// The inline patches below are kept for backward compatibility and will
+	// run on every startup. They use IF NOT EXISTS/IF EXISTS so are idempotent.
+	// ==========================================================================
+
+	log.Println("Applying essential schema patches...")
+
+	// Essential user table fixes (kept for compatibility)
 	db.Exec("ALTER TABLE users ADD COLUMN IF NOT EXISTS auth_provider VARCHAR(50)")
 	db.Exec("ALTER TABLE users ADD COLUMN IF NOT EXISTS provider_id VARCHAR(255)")
 	db.Exec("ALTER TABLE users ADD COLUMN IF NOT EXISTS stripe_customer_id VARCHAR(255)")
-	// db.Exec("ALTER TABLE plans DROP CONSTRAINT IF EXISTS uni_plans_name")
-
-	// Fix legacy NOT NULL constraints from Python migration
 	db.Exec("ALTER TABLE users ALTER COLUMN email_verified DROP NOT NULL")
 	db.Exec("ALTER TABLE users ALTER COLUMN is_active SET DEFAULT true")
 
-	// Add missing render_jobs columns for geo-tracking and format
+	// Note: render_jobs columns are now managed by migrations/000002_add_render_job_fields.up.sql
+	// These inline patches are kept as fallback for environments where migrations haven't run
+	db.Exec("ALTER TABLE render_jobs ADD COLUMN IF NOT EXISTS last_error TEXT")
 	db.Exec("ALTER TABLE render_jobs ADD COLUMN IF NOT EXISTS ip_address VARCHAR(45)")
 	db.Exec("ALTER TABLE render_jobs ADD COLUMN IF NOT EXISTS country_code VARCHAR(2)")
 	db.Exec("ALTER TABLE render_jobs ADD COLUMN IF NOT EXISTS width INTEGER")
 	db.Exec("ALTER TABLE render_jobs ADD COLUMN IF NOT EXISTS height INTEGER")
 	db.Exec("ALTER TABLE render_jobs ADD COLUMN IF NOT EXISTS format VARCHAR(10)")
-	// Add ALL other missing render_jobs columns to prevent job creation failures
-	db.Exec("ALTER TABLE render_jobs ADD COLUMN IF NOT EXISTS last_error TEXT")
-	db.Exec("ALTER TABLE render_jobs ADD COLUMN IF NOT EXISTS retry_count INTEGER DEFAULT 0")
-	db.Exec("ALTER TABLE render_jobs ADD COLUMN IF NOT EXISTS s3_key TEXT")
-	db.Exec("ALTER TABLE render_jobs ADD COLUMN IF NOT EXISTS s3_url TEXT")
-	db.Exec("ALTER TABLE render_jobs ADD COLUMN IF NOT EXISTS webhook_url TEXT")
-	db.Exec("ALTER TABLE render_jobs ADD COLUMN IF NOT EXISTS error_message TEXT")
-	db.Exec("ALTER TABLE render_jobs ADD COLUMN IF NOT EXISTS started_at TIMESTAMP")
-	db.Exec("ALTER TABLE render_jobs ADD COLUMN IF NOT EXISTS completed_at TIMESTAMP")
-	db.Exec("ALTER TABLE render_jobs ADD COLUMN IF NOT EXISTS expires_at TIMESTAMP")
-	db.Exec("ALTER TABLE render_jobs ADD COLUMN IF NOT EXISTS priority INTEGER DEFAULT 5")
-	db.Exec("ALTER TABLE render_jobs ADD COLUMN IF NOT EXISTS processing_time_ms INTEGER")
-	db.Exec("ALTER TABLE render_jobs ADD COLUMN IF NOT EXISTS file_size_bytes INTEGER")
-	db.Exec("ALTER TABLE render_jobs ADD COLUMN IF NOT EXISTS result JSONB")
-	db.Exec("ALTER TABLE render_jobs ADD COLUMN IF NOT EXISTS options JSONB")
 
-	for _, model := range modelsToMigrate {
-		if err := db.AutoMigrate(model); err != nil {
-			log.Printf("Warning: Auto migration failed for %T: %v", model, err)
-		}
-	}
+	// Skip AutoMigrate for models - use golang-migrate instead
+	// AutoMigrate was causing issues with constraint errors
+	log.Println("Skipping GORM AutoMigrate (use ./migrate up for schema changes)")
+	_ = modelsToMigrate // Suppress unused variable warning
 
 	// Connect to Redis
 	_, err = redis.Connect(cfg.RedisURL)

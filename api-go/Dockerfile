@@ -10,9 +10,12 @@ RUN go mod download
 
 COPY . .
 
-# Build binary
+# Build main API binary
 # CGO_ENABLED=0 for static binary (no libc dependency issues)
 RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o api ./cmd/api/main.go
+
+# Build migration binary
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o migrate ./cmd/migrate/main.go
 
 # Run Stage
 FROM alpine:latest
@@ -22,7 +25,12 @@ RUN apk --no-cache add ca-certificates
 
 WORKDIR /app
 
+# Copy binaries
 COPY --from=builder /app/api .
+COPY --from=builder /app/migrate .
+
+# Copy migrations
+COPY --from=builder /app/migrations ./migrations
 
 # Expose port (default 8080)
 EXPOSE 8080

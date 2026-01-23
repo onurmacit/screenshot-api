@@ -81,6 +81,21 @@ func main() {
 	db.Exec("ALTER TABLE render_jobs ADD COLUMN IF NOT EXISTS width INTEGER")
 	db.Exec("ALTER TABLE render_jobs ADD COLUMN IF NOT EXISTS height INTEGER")
 	db.Exec("ALTER TABLE render_jobs ADD COLUMN IF NOT EXISTS format VARCHAR(10)")
+	// Add ALL other missing render_jobs columns to prevent job creation failures
+	db.Exec("ALTER TABLE render_jobs ADD COLUMN IF NOT EXISTS last_error TEXT")
+	db.Exec("ALTER TABLE render_jobs ADD COLUMN IF NOT EXISTS retry_count INTEGER DEFAULT 0")
+	db.Exec("ALTER TABLE render_jobs ADD COLUMN IF NOT EXISTS s3_key TEXT")
+	db.Exec("ALTER TABLE render_jobs ADD COLUMN IF NOT EXISTS s3_url TEXT")
+	db.Exec("ALTER TABLE render_jobs ADD COLUMN IF NOT EXISTS webhook_url TEXT")
+	db.Exec("ALTER TABLE render_jobs ADD COLUMN IF NOT EXISTS error_message TEXT")
+	db.Exec("ALTER TABLE render_jobs ADD COLUMN IF NOT EXISTS started_at TIMESTAMP")
+	db.Exec("ALTER TABLE render_jobs ADD COLUMN IF NOT EXISTS completed_at TIMESTAMP")
+	db.Exec("ALTER TABLE render_jobs ADD COLUMN IF NOT EXISTS expires_at TIMESTAMP")
+	db.Exec("ALTER TABLE render_jobs ADD COLUMN IF NOT EXISTS priority INTEGER DEFAULT 5")
+	db.Exec("ALTER TABLE render_jobs ADD COLUMN IF NOT EXISTS processing_time_ms INTEGER")
+	db.Exec("ALTER TABLE render_jobs ADD COLUMN IF NOT EXISTS file_size_bytes INTEGER")
+	db.Exec("ALTER TABLE render_jobs ADD COLUMN IF NOT EXISTS result JSONB")
+	db.Exec("ALTER TABLE render_jobs ADD COLUMN IF NOT EXISTS options JSONB")
 
 	for _, model := range modelsToMigrate {
 		if err := db.AutoMigrate(model); err != nil {

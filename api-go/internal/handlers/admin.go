@@ -49,12 +49,40 @@ func (h *AdminHandler) GetStats(c *fiber.Ctx) error {
 	h.db.Model(&models.RenderJob{}).Where("type = ?", "screenshot").Count(&totalScreenshots)
 	h.db.Model(&models.RenderJob{}).Where("type = ?", "pdf").Count(&totalPDFs)
 
+	// Recent Jobs for the overview table
+	type RecentJob struct {
+		ID        string    `json:"id"`
+		URL       string    `json:"url"`
+		UserEmail string    `json:"user_email"`
+		Type      string    `json:"type"`
+		Format    string    `json:"format"`
+		Status    string    `json:"status"`
+		CreatedAt time.Time `json:"created_at"`
+	}
+
+	var recentJobs []RecentJob
+	h.db.Model(&models.RenderJob{}).
+		Select(`
+			render_jobs.id,
+			COALESCE(render_jobs.url, '') as url,
+			COALESCE(users.email, 'unknown') as user_email,
+			render_jobs.type,
+			COALESCE(render_jobs.format, 'jpeg') as format,
+			render_jobs.status,
+			render_jobs.created_at
+		`).
+		Joins("LEFT JOIN users ON render_jobs.user_id = users.id").
+		Order("render_jobs.created_at DESC").
+		Limit(10).
+		Scan(&recentJobs)
+
 	return c.JSON(fiber.Map{
 		"total_users":       totalUsers,
 		"total_api_keys":    totalAPIKeys,
 		"total_jobs":        totalJobs,
 		"total_screenshots": totalScreenshots,
 		"total_pdfs":        totalPDFs,
+		"recent_jobs":       recentJobs,
 	})
 }
 
@@ -191,6 +219,7 @@ func (h *AdminHandler) ListAPIKeys(c *fiber.Ctx) error {
 		UserEmail  string     `json:"user_email"`
 		UserID     string     `json:"user_id"`
 		IsActive   bool       `json:"is_active"`
+		JobsCount  int        `json:"jobs_count"`
 		CreatedAt  time.Time  `json:"created_at"`
 		LastUsedAt *time.Time `json:"last_used_at"`
 	}
@@ -202,13 +231,16 @@ func (h *AdminHandler) ListAPIKeys(c *fiber.Ctx) error {
             api_keys.id,
             api_keys.name,
             api_keys.key_prefix,
-            users.email as user_email,
+            COALESCE(users.email, 'unknown') as user_email,
             api_keys.user_id,
             api_keys.is_active,
+            COUNT(render_jobs.id) as jobs_count,
             api_keys.created_at,
             api_keys.last_used_at
         `).
 		Joins("LEFT JOIN users ON api_keys.user_id = users.id").
+		Joins("LEFT JOIN render_jobs ON render_jobs.api_key_id = api_keys.id").
+		Group("api_keys.id, users.email").
 		Order("api_keys.created_at DESC").
 		Limit(pageSize).
 		Offset(offset).

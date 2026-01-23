@@ -10,6 +10,7 @@ interface APIKey {
     user_email: string;
     user_id: string;
     is_active: boolean;
+    jobs_count: number;
     created_at: string;
     last_used_at: string | null;
 }
@@ -63,6 +64,7 @@ export default function AdminAPIKeysPage() {
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Key</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Owner</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Jobs</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Last Used</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                         </tr>
@@ -75,6 +77,7 @@ export default function AdminAPIKeysPage() {
                                     <code className="px-2 py-1 bg-gray-100 rounded text-sm">sk_live_{key.key_prefix}...</code>
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{key.user_email}</td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-medium">{key.jobs_count || 0}</td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                     {key.last_used_at ? new Date(key.last_used_at).toLocaleString() : "Never"}
                                 </td>

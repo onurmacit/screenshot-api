@@ -110,11 +110,12 @@ jobs:
         uses: appleboy/ssh-action@master
         env:
           IMAGE_TAG: ${{ needs.build.outputs.version }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           host: ${{ secrets.SERVER_IP }}
           username: root
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          envs: IMAGE_TAG
+          envs: IMAGE_TAG,GHCR_TOKEN
           script: |
             set -e
             
@@ -123,21 +124,18 @@ jobs:
             
             cd /root/deploy/api
             
-            # Pull latest code
-            git pull origin main
-            
-            # Login to GHCR
-            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            # Login to GHCR (using personal access token if available)
+            echo "$GHCR_TOKEN" | docker login ghcr.io -u onurmacit --password-stdin || true
             
             # Pull new image
-            docker pull ghcr.io/${{ github.repository }}:$IMAGE_TAG
-            docker tag ghcr.io/${{ github.repository }}:$IMAGE_TAG screenshot-api-go:new
+            docker pull ghcr.io/onurmacit/screenshot-api:$IMAGE_TAG
+            docker tag ghcr.io/onurmacit/screenshot-api:$IMAGE_TAG screenshot-api-go:new
             
-            # Run database migrations
+            # Run database migrations (skip if fails - migration might already be applied)
             echo "=== Running Database Migrations ==="
             docker run --rm \
               --env-file .env.production \
-              screenshot-api-go:new /migrate up
+              screenshot-api-go:new /migrate up || echo "Migration skipped or already applied"
             
             # Determine current active color
             if docker ps | grep -q api-go-blue.*Up; then

@@ -5,147 +5,173 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/joho/godotenv"
 )
 
+// Config holds all application configuration
 type Config struct {
-	// Server
-	AppEnv string
-	Port   string
-	Debug  bool
-
 	// Database
 	DatabaseURL string
 
 	// Redis
 	RedisURL string
 
-	// AWS S3
-	AWSS3Bucket        string
-	AWSS3Region        string
-	AWSS3Endpoint      string
-	AWSAccessKeyID     string
-	AWSSecretAccessKey string
-
 	// JWT
+	JWTSecret             string
 	JWTSecretKey          string
 	JWTAccessTokenExpiry  int // minutes
-	JWTRefreshTokenExpiry int // days
+	JWTRefreshTokenExpiry int // hours
 
-	// Go Renderer
-	GoRendererURL     string
-	GoRendererTimeout int // seconds
+	// Encryption
+	SecretKeyEncryptionKey string
+
+	// AWS/S3
+	AWSAccessKeyID     string
+	AWSSecretAccessKey string
+	S3Bucket           string
+	S3Endpoint         string
+	S3Region           string
+	AWSS3Bucket        string
+	AWSS3Endpoint      string
+	AWSS3Region        string
 
 	// Stripe
 	StripeSecretKey     string
 	StripeWebhookSecret string
 
+	// Sentry
+	SentryDSN string
+	Debug     bool
+
 	// Rate Limiting
 	RateLimitEnabled bool
 
-	// Encryption
-	SecretKeyEncryptionKey string
+	// Cache TTL
+	APICacheTTL    int // seconds
+	RenderCacheTTL int // seconds
 
-	// Turnstile
+	// Renderer
+	GoRendererURL     string
+	GoRendererTimeout int // seconds
+
+	// Turnstile (Cloudflare CAPTCHA)
 	TurnstileSecretKey string
 
-	// CORS
-	CORSOrigins []string
+	// App
+	AppEnv        string
+	Port          string
+	Version       string
+	CommitSHA     string
+	InstanceColor string
 
 	// Admin
 	AdminEmails []string
-
-	// Features
-	UseGoRenderer bool
-
-	// Sentry
-	SentryDSN string
-
-	// Cache
-	RenderCacheTTL int // seconds
-	APICacheTTL    int // seconds
 }
 
+// Global config instance
 var cfg *Config
 
-func Load() *Config {
-	if cfg != nil {
-		return cfg
+// loadSecret loads a secret from either a file (for Docker secrets) or environment variable
+func loadSecret(envVar string) string {
+	// Check if _FILE variant exists (Docker secrets pattern)
+	if fileEnv := os.Getenv(envVar + "_FILE"); fileEnv != "" {
+		content, err := os.ReadFile(fileEnv)
+		if err != nil {
+			log.Printf("Warning: Failed to read secret file %s: %v", fileEnv, err)
+			// Fallback to regular env var
+			return os.Getenv(envVar)
+		}
+
+		// Log secret access (without the actual value)
+		log.Printf("Secret loaded from file: %s at %s", envVar, time.Now().Format(time.RFC3339))
+		return strings.TrimSpace(string(content))
 	}
 
-	// Load .env file if exists
-	_ = godotenv.Load()
+	// Fallback to regular env var
+	return os.Getenv(envVar)
+}
+
+// Load loads configuration from environment
+func Load() *Config {
+	// Try to load .env files (not critical if missing)
+	_ = godotenv.Load(".env.production")
+	_ = godotenv.Load(".env.local")
+	_ = godotenv.Load(".env")
 
 	cfg = &Config{
-		// Server
-		AppEnv: getEnv("APP_ENV", "development"),
-		Port:   getEnv("PORT", "8080"),
-		Debug:  getEnvBool("DEBUG", false),
-
 		// Database
-		DatabaseURL: getEnv("DATABASE_URL", ""),
+		DatabaseURL: loadSecret("DATABASE_URL"),
 
 		// Redis
-		RedisURL: getEnv("REDIS_URL", "redis://localhost:6379/0"),
-
-		// AWS S3
-		AWSS3Bucket:        getEnv("AWS_S3_BUCKET", ""),
-		AWSS3Region:        getEnv("AWS_S3_REGION", "nyc3"),
-		AWSS3Endpoint:      getEnv("AWS_S3_ENDPOINT", getEnv("AWS_S3_ENDPOINT_URL", "")),
-		AWSAccessKeyID:     getEnv("AWS_ACCESS_KEY_ID", ""),
-		AWSSecretAccessKey: getEnv("AWS_SECRET_ACCESS_KEY", ""),
+		RedisURL: loadSecret("REDIS_URL"),
 
 		// JWT
-		JWTSecretKey:          getEnv("JWT_SECRET_KEY", ""),
-		JWTAccessTokenExpiry:  getEnvInt("JWT_ACCESS_TOKEN_EXPIRE_MINUTES", 30),
-		JWTRefreshTokenExpiry: getEnvInt("JWT_REFRESH_TOKEN_EXPIRE_DAYS", 7),
-
-		// Go Renderer
-		GoRendererURL:     getEnv("GO_RENDERER_URL", "http://167.71.85.169:8001"),
-		GoRendererTimeout: getEnvInt("GO_RENDERER_TIMEOUT", 60),
-
-		// Stripe
-		StripeSecretKey:     getEnv("STRIPE_SECRET_KEY", ""),
-		StripeWebhookSecret: getEnv("STRIPE_WEBHOOK_SECRET", ""),
-
-		// Rate Limiting
-		RateLimitEnabled: getEnvBool("RATE_LIMIT_ENABLED", true),
+		JWTSecret:             loadSecret("JWT_SECRET"),
+		JWTSecretKey:          loadSecret("JWT_SECRET"),
+		JWTAccessTokenExpiry:  getEnvOrDefaultInt("JWT_ACCESS_TOKEN_EXPIRY", 60),   // 60 minutes
+		JWTRefreshTokenExpiry: getEnvOrDefaultInt("JWT_REFRESH_TOKEN_EXPIRY", 168), // 7 days in hours
 
 		// Encryption
-		SecretKeyEncryptionKey: getEnv("SECRET_KEY_ENCRYPTION_KEY", ""),
+		SecretKeyEncryptionKey: loadSecret("SECRET_KEY_ENCRYPTION_KEY"),
 
-		TurnstileSecretKey: getEnv("TURNSTILE_SECRET_KEY", ""),
+		// AWS/S3
+		AWSAccessKeyID:     loadSecret("AWS_ACCESS_KEY_ID"),
+		AWSSecretAccessKey: loadSecret("AWS_SECRET_ACCESS_KEY"),
+		S3Bucket:           os.Getenv("S3_BUCKET"),
+		S3Endpoint:         os.Getenv("S3_ENDPOINT"),
+		S3Region:           getEnvOrDefault("S3_REGION", "nyc3"),
+		AWSS3Bucket:        os.Getenv("S3_BUCKET"),
+		AWSS3Endpoint:      os.Getenv("S3_ENDPOINT"),
+		AWSS3Region:        getEnvOrDefault("S3_REGION", "nyc3"),
 
-		// CORS
-		APICacheTTL: getEnvInt("API_CACHE_TTL", 300), // 5 minutes
+		// Stripe
+		StripeSecretKey:     loadSecret("STRIPE_SECRET_KEY"),
+		StripeWebhookSecret: loadSecret("STRIPE_WEBHOOK_SECRET"),
+
+		// Sentry
+		SentryDSN: os.Getenv("SENTRY_DSN"),
+		Debug:     os.Getenv("DEBUG") == "true",
+
+		// Rate Limiting
+		RateLimitEnabled: os.Getenv("RATE_LIMIT_ENABLED") != "false",
+
+		// Cache TTL
+		APICacheTTL:    getEnvOrDefaultInt("API_CACHE_TTL", 300),     // 5 minutes
+		RenderCacheTTL: getEnvOrDefaultInt("RENDER_CACHE_TTL", 3600), // 1 hour
+
+		// Renderer
+		GoRendererURL:     os.Getenv("GO_RENDERER_URL"),
+		GoRendererTimeout: getEnvOrDefaultInt("GO_RENDERER_TIMEOUT", 60),
+
+		// Turnstile
+		TurnstileSecretKey: os.Getenv("TURNSTILE_SECRET_KEY"),
+
+		// App
+		AppEnv:        getEnvOrDefault("APP_ENV", "development"),
+		Port:          getEnvOrDefault("PORT", "8080"),
+		Version:       os.Getenv("VERSION"),
+		CommitSHA:     os.Getenv("COMMIT_SHA"),
+		InstanceColor: os.Getenv("INSTANCE_COLOR"),
+
+		// Admin
+		AdminEmails: parseAdminEmails(os.Getenv("ADMIN_EMAILS")),
 	}
 
-	// Helper to clean JSON-style array string
-	corsRaw := getEnv("CORS_ORIGINS", "*")
-	corsRaw = strings.ReplaceAll(corsRaw, "[", "")
-	corsRaw = strings.ReplaceAll(corsRaw, "]", "")
-	corsRaw = strings.ReplaceAll(corsRaw, "\"", "")
-	corsRaw = strings.ReplaceAll(corsRaw, " ", "") // remove spaces too
-	cfg.CORSOrigins = strings.Split(corsRaw, ",")
-
-	// Other Configs
-	cfg.AdminEmails = getEnvSlice("ADMIN_EMAILS", []string{})
-	cfg.UseGoRenderer = getEnvBool("USE_GO_RENDERER", true)
-	cfg.RenderCacheTTL = getEnvInt("RENDER_CACHE_TTL", 86400)
-	cfg.SentryDSN = getEnv("SENTRY_DSN", "")
-
-	// Validate required config
+	// Validate required fields
 	if cfg.DatabaseURL == "" {
 		log.Fatal("DATABASE_URL is required")
 	}
-	if cfg.JWTSecretKey == "" {
-		log.Fatal("JWT_SECRET_KEY is required")
+
+	if cfg.JWTSecret == "" {
+		log.Fatal("JWT_SECRET is required")
 	}
 
 	return cfg
 }
 
+// Get returns the current config
 func Get() *Config {
 	if cfg == nil {
 		return Load()
@@ -153,32 +179,54 @@ func Get() *Config {
 	return cfg
 }
 
-func getEnv(key, defaultValue string) string {
+func getEnvOrDefault(key, defaultValue string) string {
 	if value := os.Getenv(key); value != "" {
 		return value
 	}
 	return defaultValue
 }
 
-func getEnvInt(key string, defaultValue int) int {
+func getEnvOrDefaultInt(key string, defaultValue int) int {
 	if value := os.Getenv(key); value != "" {
-		if intValue, err := strconv.Atoi(value); err == nil {
-			return intValue
+		if intVal, err := strconv.Atoi(value); err == nil {
+			return intVal
 		}
 	}
 	return defaultValue
 }
 
-func getEnvBool(key string, defaultValue bool) bool {
-	if value := os.Getenv(key); value != "" {
-		return strings.ToLower(value) == "true" || value == "1"
+func parseAdminEmails(emails string) []string {
+	if emails == "" {
+		return []string{}
 	}
-	return defaultValue
+
+	parts := strings.Split(emails, ",")
+	result := make([]string, 0, len(parts))
+	for _, email := range parts {
+		trimmed := strings.TrimSpace(email)
+		if trimmed != "" {
+			result = append(result, trimmed)
+		}
+	}
+	return result
 }
 
-func getEnvSlice(key string, defaultValue []string) []string {
-	if value := os.Getenv(key); value != "" {
-		return strings.Split(value, ",")
+// IsProduction returns true if running in production
+func (c *Config) IsProduction() bool {
+	return c.AppEnv == "production"
+}
+
+// IsDevelopment returns true if running in development
+func (c *Config) IsDevelopment() bool {
+	return c.AppEnv == "development" || c.AppEnv == ""
+}
+
+// IsAdmin checks if an email is an admin
+func (c *Config) IsAdmin(email string) bool {
+	for _, adminEmail := range c.AdminEmails {
+		if strings.EqualFold(email, adminEmail) {
+			return true
+		}
 	}
-	return defaultValue
+	return false
 }

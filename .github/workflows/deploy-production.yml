@@ -1,0 +1,278 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      skip_tests:
+        description: 'Skip tests (emergency deploy)'
+        required: false
+        default: 'false'
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  build:
+    name: Build and Push Docker Image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    
+    outputs:
+      image_tag: ${{ steps.meta.outputs.tags }}
+      version: ${{ steps.version.outputs.version }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Generate version
+        id: version
+        run: |
+          VERSION=$(date +%Y%m%d)-${GITHUB_SHA::7}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Generated version: $VERSION"
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=latest
+            type=raw,value=${{ steps.version.outputs.version }}
+            type=sha,prefix={{branch}}-
+      
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./api-go
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            VERSION=${{ steps.version.outputs.version }}
+            COMMIT_SHA=${{ github.sha }}
+  
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    if: github.event.inputs.skip_tests != 'true'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.22'
+      
+      - name: Run tests
+        working-directory: ./api-go
+        run: |
+          go test -v -race -coverprofile=coverage.out ./...
+          go tool cover -html=coverage.out -o coverage.html
+      
+      - name: Upload coverage
+        uses: actions/upload-artifact@v3
+        with:
+          name: coverage-report
+          path: api-go/coverage.html
+  
+  deploy:
+    name: Deploy to Production
+    needs: [build, test]
+    if: always() && (needs.build.result == 'success' && (needs.test.result == 'success' || needs.test.result == 'skipped'))
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Deploy to DigitalOcean
+        uses: appleboy/ssh-action@master
+        env:
+          IMAGE_TAG: ${{ needs.build.outputs.version }}
+        with:
+          host: ${{ secrets.SERVER_IP }}
+          username: root
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          envs: IMAGE_TAG
+          script: |
+            set -e
+            
+            echo "=== Starting Deployment ==="
+            echo "Image tag: $IMAGE_TAG"
+            
+            cd /root/deploy/api
+            
+            # Pull latest code
+            git pull origin main
+            
+            # Login to GHCR
+            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            
+            # Pull new image
+            docker pull ghcr.io/${{ github.repository }}:$IMAGE_TAG
+            docker tag ghcr.io/${{ github.repository }}:$IMAGE_TAG screenshot-api-go:new
+            
+            # Run database migrations
+            echo "=== Running Database Migrations ==="
+            docker run --rm \
+              --env-file .env.production \
+              screenshot-api-go:new /migrate up
+            
+            # Determine current active color
+            if docker ps | grep -q api-go-blue.*Up; then
+              CURRENT_COLOR=blue
+              NEW_COLOR=green
+              CURRENT_PORT=8080
+              NEW_PORT=8081
+            else
+              CURRENT_COLOR=green
+              NEW_COLOR=blue
+              CURRENT_PORT=8081
+              NEW_PORT=8080
+            fi
+            
+            echo "Current active: $CURRENT_COLOR"
+            echo "Deploying to: $NEW_COLOR"
+            
+            # Start new container (standby)
+            echo "=== Starting $NEW_COLOR container ==="
+            docker stop api-go-$NEW_COLOR 2>/dev/null || true
+            docker rm api-go-$NEW_COLOR 2>/dev/null || true
+            
+            docker run -d \
+              --name api-go-$NEW_COLOR \
+              --restart unless-stopped \
+              --env-file .env.production \
+              -e APP_ENV=production \
+              -p 127.0.0.1:$NEW_PORT:8080 \
+              --memory=512m \
+              --health-cmd="wget --no-verbose --tries=1 --spider http://localhost:8080/api/v1/health || exit 1" \
+              --health-interval=10s \
+              --health-timeout=5s \
+              --health-retries=3 \
+              --health-start-period=30s \
+              screenshot-api-go:new
+            
+            # Wait for health check
+            echo "=== Waiting for $NEW_COLOR to be healthy ==="
+            for i in {1..30}; do
+              if [ "$(docker inspect --format='{{.State.Health.Status}}' api-go-$NEW_COLOR)" = "healthy" ]; then
+                echo "✅ $NEW_COLOR is healthy"
+                break
+              fi
+              echo "Waiting... ($i/30)"
+              sleep 2
+            done
+            
+            if [ "$(docker inspect --format='{{.State.Health.Status}}' api-go-$NEW_COLOR)" != "healthy" ]; then
+              echo "❌ $NEW_COLOR failed health check"
+              docker logs api-go-$NEW_COLOR --tail 50
+              docker stop api-go-$NEW_COLOR
+              docker rm api-go-$NEW_COLOR
+              exit 1
+            fi
+            
+            # Smoke tests
+            echo "=== Running Smoke Tests ==="
+            RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:$NEW_PORT/api/v1/health)
+            if [ "$RESPONSE" != "200" ]; then
+              echo "❌ Smoke test failed (HTTP $RESPONSE)"
+              docker logs api-go-$NEW_COLOR --tail 50
+              docker stop api-go-$NEW_COLOR
+              docker rm api-go-$NEW_COLOR
+              exit 1
+            fi
+            echo "✅ Smoke tests passed"
+            
+            # Switch nginx upstream
+            echo "=== Switching Traffic to $NEW_COLOR ==="
+            sed -i "s/api-go-$CURRENT_COLOR:8080/api-go-$NEW_COLOR:8080/g" /etc/nginx/sites-available/api.screenshotbeam.com
+            nginx -t && systemctl reload nginx
+            
+            # Wait for traffic to drain from old container
+            echo "Waiting 10s for connection draining..."
+            sleep 10
+            
+            # Stop old container
+            echo "=== Stopping $CURRENT_COLOR ==="
+            docker stop api-go-$CURRENT_COLOR || true
+            
+            # Keep old container for potential rollback (don't remove yet)
+            echo "=== Deployment Complete ==="
+            echo "Active: $NEW_COLOR (port $NEW_PORT)"
+            echo "Standby: $CURRENT_COLOR (stopped, can rollback if needed)"
+            
+            # Cleanup old images (keep last 3)
+            docker image prune -af --filter "until=72h"
+      
+      - name: Verify Deployment
+        run: |
+          echo "=== Verifying Production Health ==="
+          RESPONSE=$(curl -s https://api.screenshotbeam.com/api/v1/health)
+          echo "Health check response: $RESPONSE"
+          
+          if ! echo "$RESPONSE" | grep -q '"status":"healthy"'; then
+            echo "❌ Production health check failed"
+            exit 1
+          fi
+          
+          echo "✅ Production is healthy"
+      
+      - name: Notify Slack on Success
+        if: success()
+        uses: slackapi/slack-github-action@v1
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          payload: |
+            {
+              "text": "✅ Deployment Successful",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*Deployment to Production* ✅\n*Version:* ${{ needs.build.outputs.version }}\n*Commit:* <https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>\n*Author:* ${{ github.actor }}"
+                  }
+                }
+              ]
+            }
+      
+      - name: Notify Slack on Failure
+        if: failure()
+        uses: slackapi/slack-github-action@v1
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          payload: |
+            {
+              "text": "❌ Deployment Failed",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*Deployment to Production* ❌\n*Version:* ${{ needs.build.outputs.version }}\n*Commit:* <https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>\n*Author:* ${{ github.actor }}\n*Workflow:* <https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Logs>"
+                  }
+                }
+              ]
+            }

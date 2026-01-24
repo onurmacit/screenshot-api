@@ -175,5 +175,13 @@ secrets/
 data/
 
 
-# Production environment (contains secrets)
+# Production environment (contains secrets - NEVER commit plain text!)
 .env.production
+.env.production.local
+
+# Encrypted secrets ARE safe to commit
+!.env.production.age
+
+# Age encryption keys (private key - NEVER commit!)
+*.age.key
+~/.age/

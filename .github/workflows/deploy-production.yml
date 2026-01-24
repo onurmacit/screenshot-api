@@ -241,15 +241,17 @@ jobs:
       - name: Verify Deployment
         run: |
           echo "=== Verifying Production Health ==="
+          sleep 5  # Wait for nginx to fully reload
           RESPONSE=$(curl -s https://api.screenshotbeam.com/api/v1/health)
           echo "Health check response: $RESPONSE"
           
-          if ! echo "$RESPONSE" | grep -q '"status":"healthy"'; then
+          # Accept both "healthy" and "ok" (backward compatibility)
+          if echo "$RESPONSE" | grep -qE '"status"\s*:\s*"(healthy|ok)"'; then
+            echo "✅ Production is healthy"
+          else
             echo "❌ Production health check failed"
             exit 1
           fi
-          
-          echo "✅ Production is healthy"
       
       # Slack notifications disabled until webhook is configured
       # - name: Notify Slack on Success

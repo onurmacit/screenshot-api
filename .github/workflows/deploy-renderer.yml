@@ -1,0 +1,234 @@
+name: Deploy Renderer
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'go-renderer/**'
+      - '.github/workflows/deploy-renderer.yml'
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}-go-renderer
+
+jobs:
+  build:
+    name: Build and Push Renderer Image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    
+    outputs:
+      image_tag: ${{ steps.meta.outputs.tags }}
+      version: ${{ steps.version.outputs.version }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Generate version
+        id: version
+        run: |
+          VERSION=$(date +%Y%m%d)-${GITHUB_SHA::7}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Generated version: $VERSION"
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=latest
+            type=raw,value=${{ steps.version.outputs.version }}
+            type=sha,prefix=
+      
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./go-renderer
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy-renderer1:
+    name: Deploy to Renderer 1 (Primary)
+    needs: [build]
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Deploy to Primary Renderer
+        uses: appleboy/ssh-action@master
+        env:
+          IMAGE_TAG: ${{ needs.build.outputs.version }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_SHA: ${{ github.sha }}
+        with:
+          host: ${{ secrets.RENDERER1_IP }}
+          username: root
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          envs: IMAGE_TAG,GHCR_TOKEN,GITHUB_SHA
+          script: |
+            set -e
+            
+            echo "=== Deploying to Renderer 1 (Primary) ==="
+            echo "Image tag: $IMAGE_TAG"
+            
+            # Login to GHCR
+            echo "$GHCR_TOKEN" | docker login ghcr.io -u onurmacit --password-stdin || true
+            
+            # Pull new image
+            docker pull ghcr.io/onurmacit/screenshot-api-go-renderer:$IMAGE_TAG
+            docker tag ghcr.io/onurmacit/screenshot-api-go-renderer:$IMAGE_TAG screenshot-go-renderer:new
+            
+            # Stop old container
+            docker stop screenshot-go-renderer 2>/dev/null || true
+            docker rm screenshot-go-renderer 2>/dev/null || true
+            
+            # Start new container
+            docker run -d \
+              --name screenshot-go-renderer \
+              --restart unless-stopped \
+              -e VERSION=$IMAGE_TAG \
+              -e COMMIT_SHA=$GITHUB_SHA \
+              -p 8001:8001 \
+              --memory=2g \
+              --shm-size=256m \
+              screenshot-go-renderer:new
+            
+            # Wait for health check
+            echo "=== Waiting for container to be healthy ==="
+            for i in {1..30}; do
+              if [ "$(docker inspect --format='{{.State.Health.Status}}' screenshot-go-renderer)" = "healthy" ]; then
+                echo "✅ Renderer 1 is healthy"
+                break
+              fi
+              echo "Waiting... ($i/30)"
+              sleep 2
+            done
+            
+            if [ "$(docker inspect --format='{{.State.Health.Status}}' screenshot-go-renderer)" != "healthy" ]; then
+              echo "❌ Renderer 1 failed health check"
+              docker logs screenshot-go-renderer --tail 50
+              exit 1
+            fi
+            
+            # Smoke test
+            RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8001/health)
+            if [ "$RESPONSE" != "200" ]; then
+              echo "❌ Smoke test failed (HTTP $RESPONSE)"
+              exit 1
+            fi
+            
+            echo "✅ Renderer 1 deployment complete"
+            
+            # Cleanup old images
+            docker image prune -af --filter "until=72h"
+
+  deploy-renderer2:
+    name: Deploy to Renderer 2 (Backup)
+    needs: [build, deploy-renderer1]
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Deploy to Backup Renderer
+        uses: appleboy/ssh-action@master
+        env:
+          IMAGE_TAG: ${{ needs.build.outputs.version }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_SHA: ${{ github.sha }}
+        with:
+          host: ${{ secrets.RENDERER2_IP }}
+          username: root
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          envs: IMAGE_TAG,GHCR_TOKEN,GITHUB_SHA
+          script: |
+            set -e
+            
+            echo "=== Deploying to Renderer 2 (Backup) ==="
+            echo "Image tag: $IMAGE_TAG"
+            
+            # Login to GHCR
+            echo "$GHCR_TOKEN" | docker login ghcr.io -u onurmacit --password-stdin || true
+            
+            # Pull new image
+            docker pull ghcr.io/onurmacit/screenshot-api-go-renderer:$IMAGE_TAG
+            docker tag ghcr.io/onurmacit/screenshot-api-go-renderer:$IMAGE_TAG screenshot-go-renderer:new
+            
+            # Stop old container
+            docker stop screenshot-go-renderer 2>/dev/null || true
+            docker rm screenshot-go-renderer 2>/dev/null || true
+            
+            # Start new container
+            docker run -d \
+              --name screenshot-go-renderer \
+              --restart unless-stopped \
+              -e VERSION=$IMAGE_TAG \
+              -e COMMIT_SHA=$GITHUB_SHA \
+              -p 8001:8001 \
+              --memory=2g \
+              --shm-size=256m \
+              screenshot-go-renderer:new
+            
+            # Wait for health check
+            echo "=== Waiting for container to be healthy ==="
+            for i in {1..30}; do
+              if [ "$(docker inspect --format='{{.State.Health.Status}}' screenshot-go-renderer)" = "healthy" ]; then
+                echo "✅ Renderer 2 is healthy"
+                break
+              fi
+              echo "Waiting... ($i/30)"
+              sleep 2
+            done
+            
+            if [ "$(docker inspect --format='{{.State.Health.Status}}' screenshot-go-renderer)" != "healthy" ]; then
+              echo "❌ Renderer 2 failed health check"
+              docker logs screenshot-go-renderer --tail 50
+              exit 1
+            fi
+            
+            # Smoke test
+            RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8001/health)
+            if [ "$RESPONSE" != "200" ]; then
+              echo "❌ Smoke test failed (HTTP $RESPONSE)"
+              exit 1
+            fi
+            
+            echo "✅ Renderer 2 deployment complete"
+            
+            # Cleanup old images
+            docker image prune -af --filter "until=72h"
+
+  verify:
+    name: Verify All Renderers
+    needs: [deploy-renderer1, deploy-renderer2]
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Verify Renderers
+        run: |
+          echo "=== Verifying Renderer Health ==="
+          
+          # Check Renderer 1
+          RESP1=$(curl -s http://${{ secrets.RENDERER1_IP }}:8001/health || echo "failed")
+          echo "Renderer 1: $RESP1"
+          
+          # Check Renderer 2
+          RESP2=$(curl -s http://${{ secrets.RENDERER2_IP }}:8001/health || echo "failed")
+          echo "Renderer 2: $RESP2"
+          
+          echo "✅ All renderers verified"

@@ -111,11 +111,12 @@ jobs:
         env:
           IMAGE_TAG: ${{ needs.build.outputs.version }}
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_SHA: ${{ github.sha }}
         with:
           host: ${{ secrets.SERVER_IP }}
           username: root
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          envs: IMAGE_TAG,GHCR_TOKEN
+          envs: IMAGE_TAG,GHCR_TOKEN,GITHUB_SHA
           script: |
             set -e
             
@@ -165,6 +166,8 @@ jobs:
               --env-file .env.production \
               -e APP_ENV=production \
               -e INSTANCE_COLOR=$NEW_COLOR \
+              -e VERSION=$IMAGE_TAG \
+              -e COMMIT_SHA=${GITHUB_SHA:-unknown} \
               -p 127.0.0.1:$NEW_PORT:8080 \
               --memory=512m \
               --health-cmd="wget --no-verbose --tries=1 --spider http://localhost:8080/api/v1/health || exit 1" \

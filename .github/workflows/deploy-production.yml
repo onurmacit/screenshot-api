@@ -218,9 +218,11 @@ jobs:
               sed -i "s/server api-go:8080/server api-go-green:8080/g" $NGINX_CONF
             fi
             
-            # Test and reload nginx in Docker
-            docker exec screenshot-nginx nginx -t && docker exec screenshot-nginx nginx -s reload
-            echo "✅ Nginx reloaded"
+            # Restart nginx to pick up config changes (read-only mount requires restart)
+            echo "Restarting nginx..."
+            docker restart screenshot-nginx
+            sleep 3
+            echo "✅ Nginx restarted"
             
             # Wait for traffic to drain from old container
             echo "Waiting 10s for connection draining..."

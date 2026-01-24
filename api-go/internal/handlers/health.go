@@ -5,13 +5,13 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v2"
-	"github.com/redis/go-redis/v9"
+	"github.com/onurmacit/screenshot-api/api-go/internal/config"
 	"gorm.io/gorm"
 )
 
 type HealthHandler struct {
-	db    *gorm.DB
-	redis *redis.Client
+	db  *gorm.DB
+	cfg *config.Config
 }
 
 type HealthResponse struct {
@@ -21,20 +21,39 @@ type HealthResponse struct {
 	Instance     string            `json:"instance"`
 	Timestamp    time.Time         `json:"timestamp"`
 	Uptime       float64           `json:"uptime_seconds"`
-	Dependencies map[string]string `json:"dependencies"`
+	Dependencies map[string]string `json:"dependencies,omitempty"`
 }
 
 var startTime = time.Now()
 
-func NewHealthHandler(db *gorm.DB, redis *redis.Client) *HealthHandler {
+func NewHealthHandler(db *gorm.DB, cfg *config.Config) *HealthHandler {
 	return &HealthHandler{
-		db:    db,
-		redis: redis,
+		db:  db,
+		cfg: cfg,
 	}
 }
 
-// Health - Detailed health check
+// Health - Basic health check (for Docker healthcheck)
 func (h *HealthHandler) Health(c *fiber.Ctx) error {
+	// Quick database check
+	if db, err := h.db.DB(); err != nil {
+		return c.Status(503).JSON(fiber.Map{"status": "unhealthy", "error": "database connection failed"})
+	} else if err := db.Ping(); err != nil {
+		return c.Status(503).JSON(fiber.Map{"status": "unhealthy", "error": "database ping failed"})
+	}
+
+	return c.JSON(HealthResponse{
+		Status:    "healthy",
+		Version:   os.Getenv("VERSION"),
+		CommitSHA: os.Getenv("COMMIT_SHA"),
+		Instance:  os.Getenv("INSTANCE_COLOR"),
+		Timestamp: time.Now(),
+		Uptime:    time.Since(startTime).Seconds(),
+	})
+}
+
+// DetailedHealth - Detailed health check with all dependencies
+func (h *HealthHandler) DetailedHealth(c *fiber.Ctx) error {
 	deps := make(map[string]string)
 	allHealthy := true
 
@@ -49,12 +68,18 @@ func (h *HealthHandler) Health(c *fiber.Ctx) error {
 		deps["database"] = "healthy"
 	}
 
-	// Check Redis
-	if err := h.redis.Ping(c.Context()).Err(); err != nil {
-		deps["redis"] = "unhealthy: " + err.Error()
-		allHealthy = false
+	// Check Redis via config (if available)
+	if h.cfg.RedisURL != "" {
+		deps["redis"] = "configured"
 	} else {
-		deps["redis"] = "healthy"
+		deps["redis"] = "not configured"
+	}
+
+	// Check renderer
+	if h.cfg.GoRendererURL != "" {
+		deps["renderer"] = "configured: " + h.cfg.GoRendererURL
+	} else {
+		deps["renderer"] = "not configured"
 	}
 
 	status := "healthy"
@@ -82,8 +107,10 @@ func (h *HealthHandler) Health(c *fiber.Ctx) error {
 // Ready - Kubernetes readiness probe
 func (h *HealthHandler) Ready(c *fiber.Ctx) error {
 	// Check if app can handle traffic
-	if db, err := h.db.DB(); err != nil || db.Ping() != nil {
+	if db, err := h.db.DB(); err != nil {
 		return c.Status(503).SendString("not ready: database unavailable")
+	} else if err := db.Ping(); err != nil {
+		return c.Status(503).SendString("not ready: database ping failed")
 	}
 
 	return c.SendString("ready")

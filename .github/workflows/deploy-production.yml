@@ -237,40 +237,13 @@ jobs:
           
           echo "✅ Production is healthy"
       
-      - name: Notify Slack on Success
-        if: success()
-        uses: slackapi/slack-github-action@v1
-        with:
-          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
-          payload: |
-            {
-              "text": "✅ Deployment Successful",
-              "blocks": [
-                {
-                  "type": "section",
-                  "text": {
-                    "type": "mrkdwn",
-                    "text": "*Deployment to Production* ✅\n*Version:* ${{ needs.build.outputs.version }}\n*Commit:* <https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>\n*Author:* ${{ github.actor }}"
-                  }
-                }
-              ]
-            }
-      
-      - name: Notify Slack on Failure
-        if: failure()
-        uses: slackapi/slack-github-action@v1
-        with:
-          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
-          payload: |
-            {
-              "text": "❌ Deployment Failed",
-              "blocks": [
-                {
-                  "type": "section",
-                  "text": {
-                    "type": "mrkdwn",
-                    "text": "*Deployment to Production* ❌\n*Version:* ${{ needs.build.outputs.version }}\n*Commit:* <https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>\n*Author:* ${{ github.actor }}\n*Workflow:* <https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Logs>"
-                  }
-                }
-              ]
-            }
+      # Slack notifications disabled until webhook is configured
+      # - name: Notify Slack on Success
+      #   if: success() && secrets.SLACK_WEBHOOK_URL != ''
+      #   uses: slackapi/slack-github-action@v1
+      #   env:
+      #     SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+      #   with:
+      #     payload: |
+      #       {"text": "✅ Deployment Successful - ${{ needs.build.outputs.version }}"}
+

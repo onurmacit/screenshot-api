@@ -3,29 +3,29 @@ package dto
 import "time"
 
 type RenderRequest struct {
-	URL                   string  `json:"url" validate:"required,url"`
-	Width                 int     `json:"width"`
-	Height                int     `json:"height"`
-	Format                string  `json:"format"`
-	Quality               int     `json:"quality"`
-	FullPage              bool    `json:"full_page"`
-	CaptureBeyondViewport bool    `json:"capture_beyond_viewport"`
-	Delay                 int     `json:"delay"`
-	DeviceScaleFactor     float64 `json:"device_scale_factor"`
-	BlockAds              bool    `json:"block_ads"`
-	BlockTrackers         bool    `json:"block_trackers"`
-	BlockCookieBanners    bool    `json:"block_cookie_banners"`
-	UserAgent             string  `json:"user_agent"`
-	Selector              string  `json:"selector"`
-	ScrollIntoView        string  `json:"scroll_into_view"`
-	ScrollAdjustTop       int     `json:"scroll_adjust_top"`
-	HTML                  string  `json:"html"`
-	Markdown              string  `json:"markdown"`
-	Timeout               int     `json:"timeout"`
-	ResponseType          string  `json:"response_type"` // json, binary, by_format
+	URL                   string  `json:"url" query:"url" validate:"required,url"`
+	Width                 int     `json:"width" query:"width"`
+	Height                int     `json:"height" query:"height"`
+	Format                string  `json:"format" query:"format"`
+	Quality               int     `json:"quality" query:"quality"`
+	FullPage              bool    `json:"full_page" query:"full_page"`
+	CaptureBeyondViewport bool    `json:"capture_beyond_viewport" query:"capture_beyond_viewport"`
+	Delay                 int     `json:"delay" query:"delay"`
+	DeviceScaleFactor     float64 `json:"device_scale_factor" query:"device_scale_factor"`
+	BlockAds              bool    `json:"block_ads" query:"block_ads"`
+	BlockTrackers         bool    `json:"block_trackers" query:"block_trackers"`
+	BlockCookieBanners    bool    `json:"block_cookie_banners" query:"block_cookie_banners"`
+	UserAgent             string  `json:"user_agent" query:"user_agent"`
+	Selector              string  `json:"selector" query:"selector"`
+	ScrollIntoView        string  `json:"scroll_into_view" query:"scroll_into_view"`
+	ScrollAdjustTop       int     `json:"scroll_adjust_top" query:"scroll_adjust_top"`
+	HTML                  string  `json:"html" query:"html"`
+	Markdown              string  `json:"markdown" query:"markdown"`
+	Timeout               int     `json:"timeout" query:"timeout"`
+	ResponseType          string  `json:"response_type" query:"response_type"` // json, binary, by_format
 
 	// Internal
-	ReturnBase64 bool `json:"return_base64"`
+	ReturnBase64 bool `json:"return_base64" query:"return_base64"`
 }
 
 // PDF options

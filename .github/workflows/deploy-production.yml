@@ -112,11 +112,12 @@ jobs:
           IMAGE_TAG: ${{ needs.build.outputs.version }}
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_SHA: ${{ github.sha }}
+          AGE_PRIVATE_KEY: ${{ secrets.AGE_PRIVATE_KEY }}
         with:
           host: ${{ secrets.SERVER_IP }}
           username: root
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          envs: IMAGE_TAG,GHCR_TOKEN,GITHUB_SHA
+          envs: IMAGE_TAG,GHCR_TOKEN,GITHUB_SHA,AGE_PRIVATE_KEY
           script: |
             set -e
             
@@ -124,6 +125,26 @@ jobs:
             echo "Image tag: $IMAGE_TAG"
             
             cd /root/deploy/api
+            
+            # Decrypt environment variables
+            if [ -f ".env.production.age" ]; then
+              echo "=== Decrypting Secrets ==="
+              # Install age if not present
+              if ! command -v age &> /dev/null; then
+                curl -LO https://github.com/FiloSottile/age/releases/download/v1.1.1/age-v1.1.1-linux-amd64.tar.gz
+                tar xzf age-v1.1.1-linux-amd64.tar.gz
+                mv age/age /usr/local/bin/
+                rm -rf age age-v1.1.1-linux-amd64.tar.gz
+              fi
+              
+              # Setup private key
+              mkdir -p ~/.age
+              echo "$AGE_PRIVATE_KEY" > ~/.age/key.txt
+              
+              # Decrypt
+              age --decrypt --identity ~/.age/key.txt .env.production.age > .env.production
+              echo "✅ Secrets decrypted"
+            fi
             
             # Login to GHCR (using personal access token if available)
             echo "$GHCR_TOKEN" | docker login ghcr.io -u onurmacit --password-stdin || true

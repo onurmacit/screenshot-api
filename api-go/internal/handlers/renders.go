@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"io"
-	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -63,6 +62,9 @@ func (h *RenderHandler) CreateScreenshot(c *fiber.Ctx) error {
 		}
 	}
 
+	// 3.5. Extract IP and Country
+	req.IPAddress, req.CountryCode = h.getIPAndCountry(c)
+
 	// 4. Get User from Context (set by AuthMiddleware)
 	user := c.Locals("user").(*models.User)
 
@@ -122,6 +124,8 @@ func (h *RenderHandler) CreateJob(c *fiber.Ctx) error {
 		req.Format = "jpeg"
 	}
 
+	req.IPAddress, req.CountryCode = h.getIPAndCountry(c)
+
 	user := c.Locals("user").(*models.User)
 
 	job, err := h.renderService.CreateRenderJob(c.Context(), req, user)
@@ -153,6 +157,8 @@ func (h *RenderHandler) CreatePDF(c *fiber.Ctx) error {
 			return fiber.NewError(fiber.StatusUnprocessableEntity, err.Error())
 		}
 	}
+
+	req.IPAddress, req.CountryCode = h.getIPAndCountry(c)
 
 	user := c.Locals("user").(*models.User)
 
@@ -277,6 +283,8 @@ func (h *RenderHandler) RenderSigned(c *fiber.Ctx) error {
 		req.Format = "jpeg"
 	}
 
+	req.IPAddress, req.CountryCode = h.getIPAndCountry(c)
+
 	// 7. Render
 	result, err := h.renderService.CaptureScreenshot(c.Context(), req, user)
 	if err != nil {
@@ -322,11 +330,7 @@ func (h *RenderHandler) CreateDemo(c *fiber.Ctx) error {
 	}
 
 	// ✅ Extract IP and Country
-	ipAddress := c.IP()
-	if realIP := c.Get("X-Real-IP"); realIP != "" {
-		ipAddress = realIP
-	}
-	countryCode := c.Get("CF-IPCountry", "XX")
+	ipAddress, countryCode := h.getIPAndCountry(c)
 
 	// 3. Render
 	renderReq := dto.RenderRequest{
@@ -337,6 +341,8 @@ func (h *RenderHandler) CreateDemo(c *fiber.Ctx) error {
 		FullPage:      false, // Demo Limit
 		BlockAds:      true,
 		BlockTrackers: true,
+		IPAddress:     ipAddress,
+		CountryCode:   countryCode,
 	}
 
 	result, err := h.renderService.CaptureScreenshot(c.Context(), renderReq, user)
@@ -345,24 +351,6 @@ func (h *RenderHandler) CreateDemo(c *fiber.Ctx) error {
 			return c.Status(appErr.Code).JSON(fiber.Map{"detail": appErr.Message})
 		}
 		return utils.ErrInternal
-	}
-
-	// ✅ CRITICAL: Create RenderJob record for demo
-	job := models.RenderJob{
-		UserID:           user.ID,
-		URL:              req.URL,
-		Type:             "screenshot",
-		Status:           "completed",
-		Format:           "jpeg",
-		ProcessingTimeMs: &result.ProcessingTimeMs,
-		FileSizeBytes:    &result.FileSize,
-		S3URL:            &result.ScreenshotURL,
-		IPAddress:        ipAddress,
-		CountryCode:      countryCode,
-	}
-
-	if err := h.db.Create(&job).Error; err != nil {
-		log.Printf("Failed to create demo job record: %v", err)
 	}
 
 	return c.JSON(result)
@@ -395,6 +383,8 @@ func (h *RenderHandler) FastScreenshot(c *fiber.Ctx) error {
 	if err := utils.ValidateURL(req.URL); err != nil {
 		return fiber.NewError(fiber.StatusUnprocessableEntity, err.Error())
 	}
+
+	req.IPAddress, req.CountryCode = h.getIPAndCountry(c)
 
 	user := c.Locals("user").(*models.User)
 
@@ -530,4 +520,13 @@ func (h *RenderHandler) handleBinaryResponse(c *fiber.Ctx, result *dto.Screensho
 
 	// Return as bytes
 	return c.Send(bodyBytes)
+}
+
+func (h *RenderHandler) getIPAndCountry(c *fiber.Ctx) (string, string) {
+	ip := c.IP()
+	if realIP := c.Get("X-Real-IP"); realIP != "" {
+		ip = realIP
+	}
+	country := c.Get("CF-IPCountry", "XX")
+	return ip, country
 }

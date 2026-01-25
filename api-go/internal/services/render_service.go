@@ -67,15 +67,17 @@ func (s *RenderService) CreateRenderJob(ctx context.Context, req dto.RenderReque
 	}
 
 	job := &models.RenderJob{
-		ID:      uuid.New(),
-		UserID:  user.ID,
-		Type:    "screenshot",
-		Status:  "pending",
-		URL:     req.URL,
-		Format:  req.Format,
-		Width:   req.Width,
-		Height:  req.Height,
-		Options: optionsJSON,
+		ID:          uuid.New(),
+		UserID:      user.ID,
+		Type:        "screenshot",
+		Status:      "pending",
+		URL:         req.URL,
+		Format:      req.Format,
+		Width:       req.Width,
+		Height:      req.Height,
+		Options:     optionsJSON,
+		IPAddress:   req.IPAddress,
+		CountryCode: req.CountryCode,
 	}
 
 	if err := s.jobRepo.Create(job); err != nil {
@@ -225,7 +227,29 @@ func (s *RenderService) CreatePDF(ctx context.Context, req dto.PDFRequest, user 
 		FileSize:         len(pdfBytes),
 	}
 
-	// 7. Cache Result
+	// 7. Save RenderJob for tracking
+	processingMs := metadata.ProcessingTimeMs
+	fileSize := len(pdfBytes)
+	completedAt := time.Now()
+	job := &models.RenderJob{
+		ID:               uuid.New(),
+		UserID:           user.ID,
+		Type:             "pdf",
+		Status:           "completed",
+		URL:              req.URL,
+		Format:           "pdf",
+		ProcessingTimeMs: &processingMs,
+		FileSizeBytes:    &fileSize,
+		S3URL:            &uploadResult.URL,
+		CompletedAt:      &completedAt,
+		IPAddress:        req.IPAddress,
+		CountryCode:      req.CountryCode,
+	}
+	if err := s.jobRepo.Create(job); err != nil {
+		log.Printf("Warning: Failed to save PDF job record: %v", err)
+	}
+
+	// 8. Cache Result
 	if err := s.cache.Set(ctx, cacheKey, response, time.Duration(s.cfg.RenderCacheTTL)*time.Second); err != nil {
 		// Log error but continue
 	}
@@ -261,6 +285,8 @@ func (s *RenderService) CaptureScreenshot(ctx context.Context, req dto.RenderReq
 				Height:           response.Height,
 				ProcessingTimeMs: &processingMs,
 				S3URL:            &response.URL,
+				IPAddress:        req.IPAddress,
+				CountryCode:      req.CountryCode,
 			}
 			if err := s.jobRepo.Create(job); err != nil {
 				log.Printf("Warning: Failed to save cached job record: %v", err)
@@ -304,6 +330,8 @@ func (s *RenderService) CaptureScreenshot(ctx context.Context, req dto.RenderReq
 		FileSizeBytes:    &fileSize,
 		S3URL:            &uploadResult.URL,
 		CompletedAt:      &completedAt,
+		IPAddress:        req.IPAddress,
+		CountryCode:      req.CountryCode,
 	}
 	if err := s.jobRepo.Create(job); err != nil {
 		// Log but don't fail the request - job tracking is secondary

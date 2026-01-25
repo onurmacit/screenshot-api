@@ -25,7 +25,9 @@ type RenderRequest struct {
 	ResponseType          string  `json:"response_type" query:"response_type"` // json, binary, by_format
 
 	// Internal
-	ReturnBase64 bool `json:"return_base64" query:"return_base64"`
+	ReturnBase64 bool   `json:"return_base64" query:"return_base64"`
+	IPAddress    string `json:"-" query:"-"`
+	CountryCode  string `json:"-" query:"-"`
 }
 
 // PDF options
@@ -39,6 +41,10 @@ type PDFRequest struct {
 	Scale           float64 `json:"scale,omitempty"`
 	Delay           int     `json:"delay,omitempty"`
 	Timeout         int     `json:"timeout,omitempty"`
+
+	// Internal
+	IPAddress   string `json:"-"`
+	CountryCode string `json:"-"`
 }
 
 // PDF Response (Sync)

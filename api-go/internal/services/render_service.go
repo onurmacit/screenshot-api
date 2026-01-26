@@ -196,10 +196,28 @@ func (s *RenderService) CreatePDF(ctx context.Context, req dto.PDFRequest, user 
 	cacheKey := fmt.Sprintf("pdf:%s", hex.EncodeToString(h.Sum(nil)))
 
 	// 3. Check Cache
-	cached, err := s.cache.Get(ctx, cacheKey)
-	if err == nil && cached != "" {
+	if cached, err := s.cache.Get(ctx, cacheKey); err == nil && cached != "" {
 		var response dto.PDFResponse
 		if err := json.Unmarshal([]byte(cached), &response); err == nil {
+			// Create RenderJob for tracking
+			processingMs := 1
+			job := &models.RenderJob{
+				ID:               uuid.New(),
+				UserID:           user.ID,
+				Type:             "pdf",
+				Status:           "completed",
+				URL:              req.URL,
+				Format:           "pdf",
+				ProcessingTimeMs: &processingMs,
+				FileSizeBytes:    &response.FileSize,
+				S3URL:            &response.URL,
+				IPAddress:        req.IPAddress,
+				CountryCode:      req.CountryCode,
+			}
+			if err := s.jobRepo.Create(job); err != nil {
+				log.Printf("Warning: Failed to save cached PDF job record: %v", err)
+			}
+
 			return &response, nil
 		}
 	}
@@ -273,7 +291,7 @@ func (s *RenderService) CaptureScreenshot(ctx context.Context, req dto.RenderReq
 			response.Status = "completed"
 
 			// Create RenderJob for cached response too (for admin panel tracking)
-			processingMs := 0 // Cache hit = 0ms processing
+			processingMs := 1 // Cache hit = 1ms processing (to avoid being seen as null/empty)
 			job := &models.RenderJob{
 				ID:               uuid.New(),
 				UserID:           user.ID,
@@ -284,6 +302,7 @@ func (s *RenderService) CaptureScreenshot(ctx context.Context, req dto.RenderReq
 				Width:            response.Width,
 				Height:           response.Height,
 				ProcessingTimeMs: &processingMs,
+				FileSizeBytes:    &response.FileSize,
 				S3URL:            &response.URL,
 				IPAddress:        req.IPAddress,
 				CountryCode:      req.CountryCode,

@@ -523,10 +523,19 @@ func (h *RenderHandler) handleBinaryResponse(c *fiber.Ctx, result *dto.Screensho
 }
 
 func (h *RenderHandler) getIPAndCountry(c *fiber.Ctx) (string, string) {
-	ip := c.IP()
-	if realIP := c.Get("X-Real-IP"); realIP != "" {
-		ip = realIP
+	// Priority: CF-Connecting-IP > X-Forwarded-For > RemoteIP
+	ip := c.Get("CF-Connecting-IP")
+	if ip == "" {
+		forwarded := c.Get("X-Forwarded-For")
+		if forwarded != "" {
+			parts := strings.Split(forwarded, ",")
+			ip = strings.TrimSpace(parts[0])
+		}
 	}
+	if ip == "" {
+		ip = c.IP()
+	}
+
 	country := c.Get("CF-IPCountry", "XX")
 	return ip, country
 }

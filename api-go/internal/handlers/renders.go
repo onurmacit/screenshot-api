@@ -523,8 +523,19 @@ func (h *RenderHandler) handleBinaryResponse(c *fiber.Ctx, result *dto.Screensho
 }
 
 func (h *RenderHandler) getIPAndCountry(c *fiber.Ctx) (string, string) {
-	// Priority: CF-Connecting-IP > X-Forwarded-For > RemoteIP
-	ip := c.Get("CF-Connecting-IP")
+	// 1. Check Custom App Headers (from our own proxies)
+	ip := c.Get("X-App-Client-IP")
+	country := c.Get("X-App-Client-Country")
+
+	// 2. Fallback to Cloudflare Headers
+	if ip == "" {
+		ip = c.Get("CF-Connecting-IP")
+	}
+	if country == "" {
+		country = c.Get("CF-IPCountry")
+	}
+
+	// 3. Fallback to X-Forwarded-For
 	if ip == "" {
 		forwarded := c.Get("X-Forwarded-For")
 		if forwarded != "" {
@@ -532,10 +543,14 @@ func (h *RenderHandler) getIPAndCountry(c *fiber.Ctx) (string, string) {
 			ip = strings.TrimSpace(parts[0])
 		}
 	}
+
+	// 4. Ultimate Fallback
 	if ip == "" {
 		ip = c.IP()
 	}
+	if country == "" {
+		country = "XX"
+	}
 
-	country := c.Get("CF-IPCountry", "XX")
 	return ip, country
 }

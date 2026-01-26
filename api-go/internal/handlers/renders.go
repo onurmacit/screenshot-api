@@ -65,13 +65,14 @@ func (h *RenderHandler) CreateScreenshot(c *fiber.Ctx) error {
 	// 3.5. Extract IP and Country
 	req.IPAddress, req.CountryCode = h.getIPAndCountry(c)
 
-	// 4. Get User from Context (set by AuthMiddleware)
+	// 4. Get User and API Key from Context (set by AuthMiddleware)
 	user := c.Locals("user").(*models.User)
+	apiKey, _ := c.Locals("apiKey").(*models.APIKey)
 
 	// 5. Check if async mode requested
 	if c.Query("async") == "true" {
 		// Async mode: enqueue job and return immediately
-		jobResult, err := h.renderService.CaptureScreenshotAsync(c.Context(), req, user)
+		jobResult, err := h.renderService.CaptureScreenshotAsync(c.Context(), req, user, apiKey)
 		if err != nil {
 			if appErr, ok := err.(*utils.AppError); ok {
 				return c.Status(appErr.Code).JSON(fiber.Map{"detail": appErr.Message})
@@ -90,7 +91,7 @@ func (h *RenderHandler) CreateScreenshot(c *fiber.Ctx) error {
 	}
 
 	// 6. Sync mode: Call Service (existing behavior)
-	result, err := h.renderService.CaptureScreenshot(c.Context(), req, user)
+	result, err := h.renderService.CaptureScreenshot(c.Context(), req, user, apiKey)
 	if err != nil {
 		if appErr, ok := err.(*utils.AppError); ok {
 			return c.Status(appErr.Code).JSON(fiber.Map{"detail": appErr.Message})
@@ -127,8 +128,9 @@ func (h *RenderHandler) CreateJob(c *fiber.Ctx) error {
 	req.IPAddress, req.CountryCode = h.getIPAndCountry(c)
 
 	user := c.Locals("user").(*models.User)
+	apiKey, _ := c.Locals("apiKey").(*models.APIKey)
 
-	job, err := h.renderService.CreateRenderJob(c.Context(), req, user)
+	job, err := h.renderService.CreateRenderJob(c.Context(), req, user, apiKey)
 	if err != nil {
 		if appErr, ok := err.(*utils.AppError); ok {
 			return c.Status(appErr.Code).JSON(fiber.Map{"detail": appErr.Message})
@@ -161,8 +163,9 @@ func (h *RenderHandler) CreatePDF(c *fiber.Ctx) error {
 	req.IPAddress, req.CountryCode = h.getIPAndCountry(c)
 
 	user := c.Locals("user").(*models.User)
+	apiKey, _ := c.Locals("apiKey").(*models.APIKey)
 
-	result, err := h.renderService.CreatePDF(c.Context(), req, user)
+	result, err := h.renderService.CreatePDF(c.Context(), req, user, apiKey)
 	if err != nil {
 		if appErr, ok := err.(*utils.AppError); ok {
 			return c.Status(appErr.Code).JSON(fiber.Map{"detail": appErr.Message})
@@ -286,7 +289,7 @@ func (h *RenderHandler) RenderSigned(c *fiber.Ctx) error {
 	req.IPAddress, req.CountryCode = h.getIPAndCountry(c)
 
 	// 7. Render
-	result, err := h.renderService.CaptureScreenshot(c.Context(), req, user)
+	result, err := h.renderService.CaptureScreenshot(c.Context(), req, user, apiKey)
 	if err != nil {
 		if appErr, ok := err.(*utils.AppError); ok {
 			return c.Status(appErr.Code).JSON(fiber.Map{"detail": appErr.Message})
@@ -345,7 +348,8 @@ func (h *RenderHandler) CreateDemo(c *fiber.Ctx) error {
 		CountryCode:   countryCode,
 	}
 
-	result, err := h.renderService.CaptureScreenshot(c.Context(), renderReq, user)
+	apiKey, _ := c.Locals("apiKey").(*models.APIKey)
+	result, err := h.renderService.CaptureScreenshot(c.Context(), renderReq, user, apiKey)
 	if err != nil {
 		if appErr, ok := err.(*utils.AppError); ok {
 			return c.Status(appErr.Code).JSON(fiber.Map{"detail": appErr.Message})
@@ -387,8 +391,9 @@ func (h *RenderHandler) FastScreenshot(c *fiber.Ctx) error {
 	req.IPAddress, req.CountryCode = h.getIPAndCountry(c)
 
 	user := c.Locals("user").(*models.User)
+	apiKey, _ := c.Locals("apiKey").(*models.APIKey)
 
-	result, err := h.renderService.CaptureScreenshot(c.Context(), req, user)
+	result, err := h.renderService.CaptureScreenshot(c.Context(), req, user, apiKey)
 	if err != nil {
 		if appErr, ok := err.(*utils.AppError); ok {
 			return c.Status(appErr.Code).JSON(fiber.Map{"detail": appErr.Message})

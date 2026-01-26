@@ -53,7 +53,7 @@ func (s *RenderService) Config() *config.Config {
 
 // ... CaptureScreenshot (existing) ...
 
-func (s *RenderService) CreateRenderJob(ctx context.Context, req dto.RenderRequest, user *models.User) (*dto.RenderJobResponse, error) {
+func (s *RenderService) CreateRenderJob(ctx context.Context, req dto.RenderRequest, user *models.User, apiKey *models.APIKey) (*dto.RenderJobResponse, error) {
 	// 1. Check Usage
 	if err := s.usage.CheckAndIncrement(ctx, user); err != nil {
 		return nil, err
@@ -78,6 +78,10 @@ func (s *RenderService) CreateRenderJob(ctx context.Context, req dto.RenderReque
 		Options:     optionsJSON,
 		IPAddress:   req.IPAddress,
 		CountryCode: req.CountryCode,
+	}
+
+	if apiKey != nil {
+		job.APIKeyID = &apiKey.ID
 	}
 
 	if err := s.jobRepo.Create(job); err != nil {
@@ -117,8 +121,8 @@ func (s *RenderService) CreateRenderJob(ctx context.Context, req dto.RenderReque
 
 // CaptureScreenshotAsync creates an async job and returns immediately
 // This is called when ?async=true query param is set
-func (s *RenderService) CaptureScreenshotAsync(ctx context.Context, req dto.RenderRequest, user *models.User) (*dto.RenderJobResponse, error) {
-	return s.CreateRenderJob(ctx, req, user)
+func (s *RenderService) CaptureScreenshotAsync(ctx context.Context, req dto.RenderRequest, user *models.User, apiKey *models.APIKey) (*dto.RenderJobResponse, error) {
+	return s.CreateRenderJob(ctx, req, user, apiKey)
 }
 
 func (s *RenderService) processJob(jobID string, req dto.RenderRequest, user *models.User) {
@@ -182,7 +186,7 @@ func (s *RenderService) processJob(jobID string, req dto.RenderRequest, user *mo
 	// TODO: Send Webhook
 }
 
-func (s *RenderService) CreatePDF(ctx context.Context, req dto.PDFRequest, user *models.User) (*dto.PDFResponse, error) {
+func (s *RenderService) CreatePDF(ctx context.Context, req dto.PDFRequest, user *models.User, apiKey *models.APIKey) (*dto.PDFResponse, error) {
 	// 1. Check Usage
 	if err := s.usage.CheckAndIncrement(ctx, user); err != nil {
 		return nil, err
@@ -214,6 +218,9 @@ func (s *RenderService) CreatePDF(ctx context.Context, req dto.PDFRequest, user 
 					S3URL:            &response.URL,
 					IPAddress:        req.IPAddress,
 					CountryCode:      req.CountryCode,
+				}
+				if apiKey != nil {
+					job.APIKeyID = &apiKey.ID
 				}
 				if err := s.jobRepo.Create(job); err != nil {
 					log.Printf("Warning: Failed to save cached PDF job record: %v", err)
@@ -265,6 +272,9 @@ func (s *RenderService) CreatePDF(ctx context.Context, req dto.PDFRequest, user 
 		IPAddress:        req.IPAddress,
 		CountryCode:      req.CountryCode,
 	}
+	if apiKey != nil {
+		job.APIKeyID = &apiKey.ID
+	}
 	if err := s.jobRepo.Create(job); err != nil {
 		log.Printf("Warning: Failed to save PDF job record: %v", err)
 	}
@@ -277,7 +287,7 @@ func (s *RenderService) CreatePDF(ctx context.Context, req dto.PDFRequest, user 
 	return &response, nil
 }
 
-func (s *RenderService) CaptureScreenshot(ctx context.Context, req dto.RenderRequest, user *models.User) (*dto.ScreenshotResponse, error) {
+func (s *RenderService) CaptureScreenshot(ctx context.Context, req dto.RenderRequest, user *models.User, apiKey *models.APIKey) (*dto.ScreenshotResponse, error) {
 	// 1. Check Usage Limit
 	if err := s.usage.CheckAndIncrement(ctx, user); err != nil {
 		return nil, err
@@ -309,6 +319,9 @@ func (s *RenderService) CaptureScreenshot(ctx context.Context, req dto.RenderReq
 					S3URL:            &response.URL,
 					IPAddress:        req.IPAddress,
 					CountryCode:      req.CountryCode,
+				}
+				if apiKey != nil {
+					job.APIKeyID = &apiKey.ID
 				}
 				if err := s.jobRepo.Create(job); err != nil {
 					log.Printf("Warning: Failed to save cached job record: %v", err)
@@ -355,6 +368,9 @@ func (s *RenderService) CaptureScreenshot(ctx context.Context, req dto.RenderReq
 		CompletedAt:      &completedAt,
 		IPAddress:        req.IPAddress,
 		CountryCode:      req.CountryCode,
+	}
+	if apiKey != nil {
+		job.APIKeyID = &apiKey.ID
 	}
 	if err := s.jobRepo.Create(job); err != nil {
 		// Log but don't fail the request - job tracking is secondary

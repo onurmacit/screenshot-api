@@ -562,6 +562,9 @@ func (s *AuthService) ValidateAPIKey(ctx context.Context, apiKey string) (*model
 	// 5. Cache result
 	_ = s.cache.SetAPIKey(ctx, apiKey, &apiKeyModel.User, &apiKeyModel)
 
+	// 6. Update Last Used
+	go s.updateLastUsed(apiKeyModel.ID)
+
 	return &apiKeyModel.User, &apiKeyModel, nil
 }
 

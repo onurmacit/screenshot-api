@@ -177,7 +177,7 @@ export default function ScreenshotPlaygroundPage() {
 
                 // 2. Sort and Build Query String
                 const keys = Object.keys(signParams).sort();
-                const queryParts = keys.map(k => `${k}=${encodeURIComponent(signParams[k])}`);
+                const queryParts = keys.map(k => `${k}=${signParams[k]}`);
                 const queryString = queryParts.join("&");
 
                 // 3. Sign
@@ -387,7 +387,7 @@ export default function ScreenshotPlaygroundPage() {
             Object.entries(params).forEach(([k, v]) => signParams[k] = String(v));
 
             const keys = Object.keys(signParams).sort();
-            const queryParts = keys.map(k => `${k}=${encodeURIComponent(signParams[k])}`);
+            const queryParts = keys.map(k => `${k}=${signParams[k]}`);
             const queryString = queryParts.join("&");
             const signature = CryptoJS.HmacSHA256(queryString, selectedKeyObj.secret_key).toString(CryptoJS.enc.Hex);
 

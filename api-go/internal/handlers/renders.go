@@ -189,19 +189,10 @@ func (h *RenderHandler) SignURL(c *fiber.Ctx) error {
 		return fiber.NewError(fiber.StatusForbidden, "API Key required for signing")
 	}
 
-	// 2. Decrypt Secret
-	if apiKey.SecretKey == "" || apiKey.SecretKey == "legacy" {
-		return fiber.NewError(fiber.StatusForbidden, "This API Key does not support signing. Please create a new key.")
-	}
-
-	keyEnc := h.renderService.Config().SecretKeyEncryptionKey
-	if keyEnc == "" {
-		return fiber.NewError(fiber.StatusInternalServerError, "Encryption key not configured")
-	}
-
-	secretKey, err := utils.Decrypt(apiKey.SecretKey, keyEnc)
-	if err != nil {
-		return fiber.NewError(fiber.StatusInternalServerError, "Failed to decrypt secret key")
+	// 2. Secret Key is already decrypted by ValidateAPIKey in middleware/auth service
+	secretKey := apiKey.SecretKey
+	if secretKey == "" {
+		return fiber.NewError(fiber.StatusInternalServerError, "Secret key not available")
 	}
 
 	// 3. Get Raw Access Key
@@ -254,10 +245,9 @@ func (h *RenderHandler) RenderSigned(c *fiber.Ctx) error {
 		return fiber.NewError(fiber.StatusUnauthorized, "Invalid access key")
 	}
 
-	// 4. Decrypt Secret
-	keyEnc := h.renderService.Config().SecretKeyEncryptionKey
-	secretKey, err := utils.Decrypt(apiKey.SecretKey, keyEnc)
-	if err != nil {
+	// 4. Secret Key is already decrypted by ValidateAPIKey
+	secretKey := apiKey.SecretKey
+	if secretKey == "" {
 		return fiber.NewError(fiber.StatusInternalServerError, "Server configuration error")
 	}
 

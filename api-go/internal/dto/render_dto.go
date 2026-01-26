@@ -23,6 +23,7 @@ type RenderRequest struct {
 	Markdown              string  `json:"markdown" query:"markdown"`
 	Timeout               int     `json:"timeout" query:"timeout"`
 	ResponseType          string  `json:"response_type" query:"response_type"` // json, binary, by_format
+	Refresh               bool    `json:"refresh" query:"refresh"`
 
 	// Internal
 	ReturnBase64 bool   `json:"return_base64" query:"return_base64"`
@@ -41,6 +42,7 @@ type PDFRequest struct {
 	Scale           float64 `json:"scale,omitempty"`
 	Delay           int     `json:"delay,omitempty"`
 	Timeout         int     `json:"timeout,omitempty"`
+	Refresh         bool    `json:"refresh"`
 
 	// Internal
 	IPAddress   string `json:"-"`

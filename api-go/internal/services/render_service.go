@@ -196,29 +196,31 @@ func (s *RenderService) CreatePDF(ctx context.Context, req dto.PDFRequest, user 
 	cacheKey := fmt.Sprintf("pdf:%s", hex.EncodeToString(h.Sum(nil)))
 
 	// 3. Check Cache
-	if cached, err := s.cache.Get(ctx, cacheKey); err == nil && cached != "" {
-		var response dto.PDFResponse
-		if err := json.Unmarshal([]byte(cached), &response); err == nil {
-			// Create RenderJob for tracking
-			processingMs := 1
-			job := &models.RenderJob{
-				ID:               uuid.New(),
-				UserID:           user.ID,
-				Type:             "pdf",
-				Status:           "completed",
-				URL:              req.URL,
-				Format:           "pdf",
-				ProcessingTimeMs: &processingMs,
-				FileSizeBytes:    &response.FileSize,
-				S3URL:            &response.URL,
-				IPAddress:        req.IPAddress,
-				CountryCode:      req.CountryCode,
-			}
-			if err := s.jobRepo.Create(job); err != nil {
-				log.Printf("Warning: Failed to save cached PDF job record: %v", err)
-			}
+	if !req.Refresh {
+		if cached, err := s.cache.Get(ctx, cacheKey); err == nil && cached != "" {
+			var response dto.PDFResponse
+			if err := json.Unmarshal([]byte(cached), &response); err == nil {
+				// Create RenderJob for tracking
+				processingMs := 1
+				job := &models.RenderJob{
+					ID:               uuid.New(),
+					UserID:           user.ID,
+					Type:             "pdf",
+					Status:           "completed",
+					URL:              req.URL,
+					Format:           "pdf",
+					ProcessingTimeMs: &processingMs,
+					FileSizeBytes:    &response.FileSize,
+					S3URL:            &response.URL,
+					IPAddress:        req.IPAddress,
+					CountryCode:      req.CountryCode,
+				}
+				if err := s.jobRepo.Create(job); err != nil {
+					log.Printf("Warning: Failed to save cached PDF job record: %v", err)
+				}
 
-			return &response, nil
+				return &response, nil
+			}
 		}
 	}
 
@@ -285,35 +287,37 @@ func (s *RenderService) CaptureScreenshot(ctx context.Context, req dto.RenderReq
 	cacheKey := s.generateCacheKey(req)
 
 	// 2. Check Cache
-	if cachedStr, err := s.cache.Get(ctx, cacheKey); err == nil {
-		var response dto.ScreenshotResponse
-		if err := json.Unmarshal([]byte(cachedStr), &response); err == nil {
-			response.Status = "completed"
+	if !req.Refresh {
+		if cachedStr, err := s.cache.Get(ctx, cacheKey); err == nil {
+			var response dto.ScreenshotResponse
+			if err := json.Unmarshal([]byte(cachedStr), &response); err == nil {
+				response.Status = "completed"
 
-			// Create RenderJob for cached response too (for admin panel tracking)
-			processingMs := 1 // Cache hit = 1ms processing (to avoid being seen as null/empty)
-			job := &models.RenderJob{
-				ID:               uuid.New(),
-				UserID:           user.ID,
-				Type:             "screenshot",
-				Status:           "completed",
-				URL:              req.URL,
-				Format:           req.Format,
-				Width:            response.Width,
-				Height:           response.Height,
-				ProcessingTimeMs: &processingMs,
-				FileSizeBytes:    &response.FileSize,
-				S3URL:            &response.URL,
-				IPAddress:        req.IPAddress,
-				CountryCode:      req.CountryCode,
-			}
-			if err := s.jobRepo.Create(job); err != nil {
-				log.Printf("Warning: Failed to save cached job record: %v", err)
-			} else {
-				log.Printf("RenderJob created (cache hit): ID=%s, UserID=%s, URL=%s", job.ID.String(), user.ID.String(), req.URL)
-			}
+				// Create RenderJob for cached response too (for admin panel tracking)
+				processingMs := 1 // Cache hit = 1ms processing (to avoid being seen as null/empty)
+				job := &models.RenderJob{
+					ID:               uuid.New(),
+					UserID:           user.ID,
+					Type:             "screenshot",
+					Status:           "completed",
+					URL:              req.URL,
+					Format:           req.Format,
+					Width:            response.Width,
+					Height:           response.Height,
+					ProcessingTimeMs: &processingMs,
+					FileSizeBytes:    &response.FileSize,
+					S3URL:            &response.URL,
+					IPAddress:        req.IPAddress,
+					CountryCode:      req.CountryCode,
+				}
+				if err := s.jobRepo.Create(job); err != nil {
+					log.Printf("Warning: Failed to save cached job record: %v", err)
+				} else {
+					log.Printf("RenderJob created (cache hit): ID=%s, UserID=%s, URL=%s", job.ID.String(), user.ID.String(), req.URL)
+				}
 
-			return &response, nil
+				return &response, nil
+			}
 		}
 	}
 

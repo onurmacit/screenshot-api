@@ -25,14 +25,10 @@ export default function ScreenshotPlaygroundPage() {
     const [signRequests, setSignRequests] = useState(false);
     const [responseType, setResponseType] = useState("binary");
     const [selector, setSelector] = useState("");
-    const [selectorPadding, setSelectorPadding] = useState(0);
     const [jsonResult, setJsonResult] = useState<string | null>(null);
 
     // === FORCE SCROLL TOGGLE (UI HELPER) ===
     const [forceScroll, setForceScroll] = useState(false);
-    
-    // === WAIT FOR SELECTOR ===
-    const [waitForSelector, setWaitForSelector] = useState("");
 
     // === VIEWPORT & DISPLAY ===
     const [format, setFormat] = useState("png");
@@ -269,13 +265,7 @@ export default function ScreenshotPlaygroundPage() {
             }
 
             // Essentials (Selector & Scroll)
-            if (selector.trim()) {
-                requestBody.selector = selector.trim();
-                if (selectorPadding > 0) requestBody.selector_padding = selectorPadding;
-            }
-            
-            // Wait for selector before capture
-            if (waitForSelector.trim()) requestBody.wait_for_selector = waitForSelector.trim();
+            if (selector.trim()) requestBody.selector = selector.trim();
 
             // Only send scroll options if forceScroll is enabled
             if (forceScroll) {
@@ -408,12 +398,7 @@ export default function ScreenshotPlaygroundPage() {
 
         // POST REQUEST CURL
         let extras = "";
-        if (selector.trim()) {
-            extras += `,\n    "selector": "${selector.trim()}"`;
-            if (selectorPadding > 0) extras += `,\n    "selector_padding": ${selectorPadding}`;
-        }
-        
-        if (waitForSelector.trim()) extras += `,\n    "wait_for_selector": "${waitForSelector.trim()}"`;
+        if (selector.trim()) extras += `,\n    "selector": "${selector.trim()}"`;
 
         if (forceScroll) {
             if (scrollIntoView.trim()) extras += `,\n    "scroll_into_view": "${scrollIntoView.trim()}"`;
@@ -461,12 +446,7 @@ export default function ScreenshotPlaygroundPage() {
         else if (sourceType === "html") params.html = htmlContent;
         else params.markdown = markdownContent;
 
-        if (selector.trim()) {
-            params.selector = selector;
-            if (selectorPadding > 0) params.selector_padding = selectorPadding;
-        }
-        
-        if (waitForSelector.trim()) params.wait_for_selector = waitForSelector;
+        if (selector.trim()) params.selector = selector;
 
         if (forceScroll) {
             if (scrollIntoView.trim()) params.scroll_into_view = scrollIntoView;
@@ -579,29 +559,8 @@ export default function ScreenshotPlaygroundPage() {
                                     {/* Selector */}
                                     <div className="space-y-2">
                                         <Label className="font-semibold text-gray-700">Selector</Label>
-                                        <Input placeholder=".some-selector or //xpath" value={selector} onChange={(e) => setSelector(e.target.value)} />
-                                        <p className="text-xs text-muted-foreground">CSS selector (.class, #id) or XPath (//div) to capture specific element.</p>
-                                    </div>
-
-                                    {/* Selector Padding - Only show when selector is set */}
-                                    {selector.trim() && (
-                                        <div className="space-y-2 animate-in fade-in slide-in-from-top-2 duration-300">
-                                            <Label className="font-semibold text-gray-700">Selector Padding</Label>
-                                            <Input 
-                                                type="number" 
-                                                placeholder="0" 
-                                                value={selectorPadding} 
-                                                onChange={(e) => setSelectorPadding(Number(e.target.value))} 
-                                            />
-                                            <p className="text-xs text-muted-foreground">Add padding (px) around the captured element.</p>
-                                        </div>
-                                    )}
-
-                                    {/* Wait for Selector */}
-                                    <div className="space-y-2">
-                                        <Label className="font-semibold text-gray-700">Wait for Selector</Label>
-                                        <Input placeholder=".loading-complete" value={waitForSelector} onChange={(e) => setWaitForSelector(e.target.value)} />
-                                        <p className="text-xs text-muted-foreground">Wait for this element to appear before capturing (useful for SPAs).</p>
+                                        <Input placeholder=".some-selector" value={selector} onChange={(e) => setSelector(e.target.value)} />
+                                        <p className="text-xs text-muted-foreground">A selector to take screenshot of.</p>
                                     </div>
 
                                     {/* Toggle: Scroll the element into view (UI Helper) */}

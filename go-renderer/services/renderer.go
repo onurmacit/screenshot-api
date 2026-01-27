@@ -39,19 +39,12 @@ type ScreenshotOptions struct {
 	BlockCookieBanners    bool    `json:"block_cookie_banners"`
 	UserAgent             string  `json:"user_agent"`
 	Selector              string  `json:"selector"`
-	SelectorPadding       int     `json:"selector_padding"`        // Padding around selector element (px)
-	SelectorPaddingTop    int     `json:"selector_padding_top"`    // Top padding override
-	SelectorPaddingRight  int     `json:"selector_padding_right"`  // Right padding override
-	SelectorPaddingBottom int     `json:"selector_padding_bottom"` // Bottom padding override
-	SelectorPaddingLeft   int     `json:"selector_padding_left"`   // Left padding override
 	ScrollIntoView        string  `json:"scroll_into_view"`
 	ScrollAdjustTop       int     `json:"scroll_adjust_top"`
 	HTML                  string  `json:"html"`
 	Markdown              string  `json:"markdown"`
 	Timeout               int     `json:"timeout"`
 	CaptureBeyondViewport bool    `json:"capture_beyond_viewport"`
-	WaitForSelector       string  `json:"wait_for_selector"`       // Wait for this selector before capture
-	WaitForSelectorState  string  `json:"wait_for_selector_state"` // visible, hidden, attached, detached
 }
 
 // ScreenshotResult contains the result of a screenshot capture
@@ -194,48 +187,6 @@ func (r *Renderer) CaptureScreenshot(opts ScreenshotOptions) (*ScreenshotResult,
 	} else if opts.URL != "" {
 		page.Timeout(time.Duration(opts.Timeout) * time.Millisecond).MustNavigate(opts.URL)
 		page.MustWaitLoad()
-	}
-
-	// Wait for specific selector if requested (useful for SPAs)
-	if opts.WaitForSelector != "" {
-		waitTimeout := 10 * time.Second
-		var waitErr error
-
-		switch opts.WaitForSelectorState {
-		case "hidden":
-			el, err := page.Timeout(waitTimeout).ElementR(opts.WaitForSelector, "")
-			if err == nil {
-				// Element found, wait for it to disappear
-				waitErr = el.WaitInvisible()
-			} else {
-				// If element already not found, that's also fine for "hidden"
-				waitErr = nil
-			}
-		case "detached":
-			// Wait until element is removed from DOM
-			for i := 0; i < 100; i++ {
-				_, err := page.Timeout(100 * time.Millisecond).Element(opts.WaitForSelector)
-				if err != nil {
-					break // Element not found, good
-				}
-				time.Sleep(100 * time.Millisecond)
-			}
-		case "attached":
-			// Just wait for element to exist in DOM
-			_, waitErr = page.Timeout(waitTimeout).Element(opts.WaitForSelector)
-		default: // "visible" or empty
-			// Wait for element to be visible
-			el, err := page.Timeout(waitTimeout).Element(opts.WaitForSelector)
-			if err == nil {
-				waitErr = el.WaitVisible()
-			} else {
-				waitErr = err
-			}
-		}
-
-		if waitErr != nil {
-			return nil, fmt.Errorf("wait_for_selector '%s' failed: %w", opts.WaitForSelector, waitErr)
-		}
 	}
 
 	// Wait for delay if specified
@@ -417,55 +368,21 @@ func (r *Renderer) captureSelector(page *rod.Page, opts ScreenshotOptions, forma
 		}
 	}
 
-	// 7. Calculate padding (individual overrides take precedence)
-	padTop := opts.SelectorPadding
-	padRight := opts.SelectorPadding
-	padBottom := opts.SelectorPadding
-	padLeft := opts.SelectorPadding
-
-	if opts.SelectorPaddingTop != 0 {
-		padTop = opts.SelectorPaddingTop
-	}
-	if opts.SelectorPaddingRight != 0 {
-		padRight = opts.SelectorPaddingRight
-	}
-	if opts.SelectorPaddingBottom != 0 {
-		padBottom = opts.SelectorPaddingBottom
-	}
-	if opts.SelectorPaddingLeft != 0 {
-		padLeft = opts.SelectorPaddingLeft
-	}
-
-	// 8. Create clip from bounding box with padding
+	// 7. Create clip from bounding box
 	scale := opts.DeviceScaleFactor
 	if scale == 0 {
 		scale = 1.0
 	}
 
-	// Apply padding (ensure we don't go negative)
-	clipX := box.X - float64(padLeft)
-	clipY := box.Y - float64(padTop)
-	clipWidth := box.Width + float64(padLeft) + float64(padRight)
-	clipHeight := box.Height + float64(padTop) + float64(padBottom)
-
-	if clipX < 0 {
-		clipWidth += clipX // Reduce width by the negative amount
-		clipX = 0
-	}
-	if clipY < 0 {
-		clipHeight += clipY // Reduce height by the negative amount
-		clipY = 0
-	}
-
 	clip := &proto.PageViewport{
-		X:      clipX,
-		Y:      clipY,
-		Width:  clipWidth,
-		Height: clipHeight,
+		X:      box.X,
+		Y:      box.Y,
+		Width:  box.Width,
+		Height: box.Height,
 		Scale:  scale,
 	}
 
-	// 9. Capture with clip
+	// 8. Capture with clip
 	quality := opts.Quality
 	imageBytes, err := page.Screenshot(false, &proto.PageCaptureScreenshot{
 		Format:  format,

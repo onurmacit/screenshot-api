@@ -17,11 +17,6 @@ type RenderRequest struct {
 	BlockCookieBanners    bool    `json:"block_cookie_banners" query:"block_cookie_banners"`
 	UserAgent             string  `json:"user_agent" query:"user_agent"`
 	Selector              string  `json:"selector" query:"selector"`
-	SelectorPadding       int     `json:"selector_padding" query:"selector_padding"`               // Padding around selector (px)
-	SelectorPaddingTop    int     `json:"selector_padding_top" query:"selector_padding_top"`       // Top padding override
-	SelectorPaddingRight  int     `json:"selector_padding_right" query:"selector_padding_right"`   // Right padding override
-	SelectorPaddingBottom int     `json:"selector_padding_bottom" query:"selector_padding_bottom"` // Bottom padding override
-	SelectorPaddingLeft   int     `json:"selector_padding_left" query:"selector_padding_left"`     // Left padding override
 	ScrollIntoView        string  `json:"scroll_into_view" query:"scroll_into_view"`
 	ScrollAdjustTop       int     `json:"scroll_adjust_top" query:"scroll_adjust_top"`
 	HTML                  string  `json:"html" query:"html"`
@@ -29,8 +24,6 @@ type RenderRequest struct {
 	Timeout               int     `json:"timeout" query:"timeout"`
 	ResponseType          string  `json:"response_type" query:"response_type"` // json, binary, by_format
 	Refresh               bool    `json:"refresh" query:"refresh"`
-	WaitForSelector       string  `json:"wait_for_selector" query:"wait_for_selector"`             // Wait for selector before capture
-	WaitForSelectorState  string  `json:"wait_for_selector_state" query:"wait_for_selector_state"` // visible, hidden, attached, detached
 
 	// Internal
 	ReturnBase64 bool   `json:"return_base64" query:"return_base64"`

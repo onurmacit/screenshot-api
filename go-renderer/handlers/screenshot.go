@@ -34,11 +34,6 @@ type ScreenshotRequest struct {
 	BlockCookieBanners    bool    `json:"block_cookie_banners"`
 	UserAgent             string  `json:"user_agent"`
 	Selector              string  `json:"selector"`
-	SelectorPadding       int     `json:"selector_padding"`        // Padding around selector (px)
-	SelectorPaddingTop    int     `json:"selector_padding_top"`    // Top padding override
-	SelectorPaddingRight  int     `json:"selector_padding_right"`  // Right padding override
-	SelectorPaddingBottom int     `json:"selector_padding_bottom"` // Bottom padding override
-	SelectorPaddingLeft   int     `json:"selector_padding_left"`   // Left padding override
 	ScrollIntoView        string  `json:"scroll_into_view"`
 	ScrollAdjustTop       int     `json:"scroll_adjust_top"`
 	HTML                  string  `json:"html"`
@@ -46,8 +41,6 @@ type ScreenshotRequest struct {
 	Timeout               int     `json:"timeout"`
 	ReturnBase64          bool    `json:"return_base64"`
 	CaptureBeyondViewport bool    `json:"capture_beyond_viewport"`
-	WaitForSelector       string  `json:"wait_for_selector"`       // Wait for selector before capture
-	WaitForSelectorState  string  `json:"wait_for_selector_state"` // visible, hidden, attached, detached
 }
 
 // ScreenshotResponse represents the JSON response (when return_base64 is true)
@@ -111,19 +104,12 @@ func (h *ScreenshotHandler) CaptureScreenshot(c *fiber.Ctx) error {
 		BlockCookieBanners:    req.BlockCookieBanners,
 		UserAgent:             req.UserAgent,
 		Selector:              req.Selector,
-		SelectorPadding:       req.SelectorPadding,
-		SelectorPaddingTop:    req.SelectorPaddingTop,
-		SelectorPaddingRight:  req.SelectorPaddingRight,
-		SelectorPaddingBottom: req.SelectorPaddingBottom,
-		SelectorPaddingLeft:   req.SelectorPaddingLeft,
 		ScrollIntoView:        req.ScrollIntoView,
 		ScrollAdjustTop:       req.ScrollAdjustTop,
 		HTML:                  req.HTML,
 		Markdown:              req.Markdown,
 		Timeout:               req.Timeout,
 		CaptureBeyondViewport: req.CaptureBeyondViewport,
-		WaitForSelector:       req.WaitForSelector,
-		WaitForSelectorState:  req.WaitForSelectorState,
 	}
 
 	// Capture screenshot

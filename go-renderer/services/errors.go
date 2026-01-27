@@ -71,15 +71,15 @@ func (e *SelectorError) UserFriendlyMessage() string {
 func (e *SelectorError) Hint() string {
 	switch e.Operation {
 	case "find":
-		return "Tips: 1) Check if the element exists on the page, 2) Add 'delay' parameter to wait for dynamic content, 3) Use 'wait_for_selector' for SPAs, 4) Try using a more specific selector"
+		return "Tips: 1) Check if the element exists on the page, 2) Add 'delay' parameter to wait for dynamic content, 3) Try using a more specific selector"
 	case "wait":
-		return "Tips: 1) Increase 'delay' parameter, 2) Use 'wait_for_selector_state: visible', 3) Element might be inside an iframe (not supported yet)"
+		return "Tips: 1) Increase 'delay' parameter, 2) Element might be inside an iframe (not supported)"
 	case "visibility":
 		return "Tips: 1) The element has display:none or visibility:hidden, 2) Check if the element is behind a modal, 3) Try scrolling first with 'scroll_into_view'"
 	case "bounds":
-		return "Tips: 1) Element might be collapsed (height/width: 0), 2) Try 'selector_padding' to expand capture area, 3) Element might be positioned off-screen"
+		return "Tips: 1) Element might be collapsed (height/width: 0), 2) Element might be positioned off-screen"
 	case "validate":
-		return "Tips: CSS selectors start with . (class), # (id), or tag name. XPath selectors start with / or //. Avoid special characters like < > { }"
+		return "Tips: CSS selectors start with . (class), # (id), or tag name. Avoid special characters like < > { }"
 	default:
 		return ""
 	}

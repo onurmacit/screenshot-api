@@ -185,3 +185,13 @@ data/
 # Age encryption keys (private key - NEVER commit!)
 *.age.key
 ~/.age/
+
+# Go binaries
+go-renderer/renderer
+
+# Test artifacts
+tests/results/
+tests/reports/
+tests/history/
+tests/baselines/
+renderer.log

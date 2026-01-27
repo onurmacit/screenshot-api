@@ -5,6 +5,7 @@ import (
 	"io"
 	"net"
 	"net/url"
+	"os"
 	"regexp"
 	"strings"
 	"time"
@@ -38,12 +39,19 @@ type ScreenshotOptions struct {
 	BlockCookieBanners    bool    `json:"block_cookie_banners"`
 	UserAgent             string  `json:"user_agent"`
 	Selector              string  `json:"selector"`
+	SelectorPadding       int     `json:"selector_padding"`        // Padding around selector element (px)
+	SelectorPaddingTop    int     `json:"selector_padding_top"`    // Top padding override
+	SelectorPaddingRight  int     `json:"selector_padding_right"`  // Right padding override
+	SelectorPaddingBottom int     `json:"selector_padding_bottom"` // Bottom padding override
+	SelectorPaddingLeft   int     `json:"selector_padding_left"`   // Left padding override
 	ScrollIntoView        string  `json:"scroll_into_view"`
 	ScrollAdjustTop       int     `json:"scroll_adjust_top"`
 	HTML                  string  `json:"html"`
 	Markdown              string  `json:"markdown"`
 	Timeout               int     `json:"timeout"`
 	CaptureBeyondViewport bool    `json:"capture_beyond_viewport"`
+	WaitForSelector       string  `json:"wait_for_selector"`       // Wait for this selector before capture
+	WaitForSelectorState  string  `json:"wait_for_selector_state"` // visible, hidden, attached, detached
 }
 
 // ScreenshotResult contains the result of a screenshot capture
@@ -188,6 +196,48 @@ func (r *Renderer) CaptureScreenshot(opts ScreenshotOptions) (*ScreenshotResult,
 		page.MustWaitLoad()
 	}
 
+	// Wait for specific selector if requested (useful for SPAs)
+	if opts.WaitForSelector != "" {
+		waitTimeout := 10 * time.Second
+		var waitErr error
+
+		switch opts.WaitForSelectorState {
+		case "hidden":
+			el, err := page.Timeout(waitTimeout).ElementR(opts.WaitForSelector, "")
+			if err == nil {
+				// Element found, wait for it to disappear
+				waitErr = el.WaitInvisible()
+			} else {
+				// If element already not found, that's also fine for "hidden"
+				waitErr = nil
+			}
+		case "detached":
+			// Wait until element is removed from DOM
+			for i := 0; i < 100; i++ {
+				_, err := page.Timeout(100 * time.Millisecond).Element(opts.WaitForSelector)
+				if err != nil {
+					break // Element not found, good
+				}
+				time.Sleep(100 * time.Millisecond)
+			}
+		case "attached":
+			// Just wait for element to exist in DOM
+			_, waitErr = page.Timeout(waitTimeout).Element(opts.WaitForSelector)
+		default: // "visible" or empty
+			// Wait for element to be visible
+			el, err := page.Timeout(waitTimeout).Element(opts.WaitForSelector)
+			if err == nil {
+				waitErr = el.WaitVisible()
+			} else {
+				waitErr = err
+			}
+		}
+
+		if waitErr != nil {
+			return nil, fmt.Errorf("wait_for_selector '%s' failed: %w", opts.WaitForSelector, waitErr)
+		}
+	}
+
 	// Wait for delay if specified
 	if opts.Delay > 0 {
 		time.Sleep(time.Duration(opts.Delay) * time.Millisecond)
@@ -265,21 +315,65 @@ func (r *Renderer) captureSelector(page *rod.Page, opts ScreenshotOptions, forma
 	}
 
 	// Configuration
-	findTimeout := 10 * time.Second
+	findTimeout := 15 * time.Second
 	stableTimeout := 500 * time.Millisecond
-	scrollDelay := 100 * time.Millisecond
+	scrollDelay := 150 * time.Millisecond
+	maxRetries := 3
+	retryBackoff := 200 * time.Millisecond
 
-	// 1. Find element with timeout
-	el, err := page.Timeout(findTimeout).Element(opts.Selector)
-	if err != nil {
-		return nil, &SelectorError{
-			Selector:  opts.Selector,
-			Operation: "find",
-			Err:       fmt.Errorf("%w: %v", ErrSelectorNotFound, err),
+	var el *rod.Element
+	var err error
+
+	// 1. Find element with retry logic
+	for attempt := 0; attempt <= maxRetries; attempt++ {
+		if attempt > 0 {
+			time.Sleep(retryBackoff * time.Duration(attempt))
+		}
+
+		// Determine if selector is XPath or CSS
+		if isXPathSelector(opts.Selector) {
+			el, err = page.Timeout(findTimeout).ElementX(opts.Selector)
+		} else {
+			el, err = page.Timeout(findTimeout).Element(opts.Selector)
+		}
+
+		if err == nil {
+			break
+		}
+
+		// On last attempt, return error
+		if attempt == maxRetries {
+			return nil, &SelectorError{
+				Selector:  opts.Selector,
+				Operation: "find",
+				Err:       fmt.Errorf("%w: element not found after %d attempts - %v", ErrSelectorNotFound, maxRetries+1, err),
+			}
+		}
+
+		// Scroll down to trigger lazy loading and retry
+		page.Mouse.Scroll(0, 500, 1)
+		time.Sleep(scrollDelay)
+	}
+
+	// 2. Check if element is visible (not display:none or visibility:hidden)
+	visible, err := el.Visible()
+	if err != nil || !visible {
+		// Try to make it visible by scrolling
+		_ = el.ScrollIntoView()
+		time.Sleep(scrollDelay)
+
+		// Check again
+		visible, _ = el.Visible()
+		if !visible {
+			return nil, &SelectorError{
+				Selector:  opts.Selector,
+				Operation: "visibility",
+				Err:       fmt.Errorf("%w: element exists but is not visible (display:none or visibility:hidden)", ErrSelectorNotVisible),
+			}
 		}
 	}
 
-	// 2. Wait for element to be stable (handles animations)
+	// 3. Wait for element to be stable (handles animations)
 	err = el.WaitStable(stableTimeout)
 	if err != nil {
 		// Fallback to WaitVisible
@@ -288,27 +382,27 @@ func (r *Renderer) captureSelector(page *rod.Page, opts ScreenshotOptions, forma
 			return nil, &SelectorError{
 				Selector:  opts.Selector,
 				Operation: "wait",
-				Err:       fmt.Errorf("%w: %v", ErrSelectorNotVisible, err),
+				Err:       fmt.Errorf("%w: element unstable - %v", ErrSelectorNotVisible, err),
 			}
 		}
 	}
 
-	// 3. Scroll element into view
+	// 4. Scroll element into view with centering
 	if scrollErr := el.ScrollIntoView(); scrollErr != nil {
-		// Non-fatal: element might already be visible, log and continue
+		// Non-fatal: element might already be visible, continue
 		_ = scrollErr
 	}
 
-	// 4. Brief delay for render stabilization
+	// 5. Brief delay for render stabilization (lazy images, CSS transitions)
 	time.Sleep(scrollDelay)
 
-	// 5. Get bounding box for precise clip
+	// 6. Get bounding box for precise clip
 	shape, err := el.Shape()
 	if err != nil {
 		return nil, &SelectorError{
 			Selector:  opts.Selector,
 			Operation: "bounds",
-			Err:       err,
+			Err:       fmt.Errorf("failed to get element bounds: %v", err),
 		}
 	}
 
@@ -319,25 +413,59 @@ func (r *Renderer) captureSelector(page *rod.Page, opts ScreenshotOptions, forma
 		return nil, &SelectorError{
 			Selector:  opts.Selector,
 			Operation: "bounds",
-			Err:       fmt.Errorf("element has invalid dimensions: %.0fx%.0f", box.Width, box.Height),
+			Err:       fmt.Errorf("element has invalid dimensions: %.0fx%.0f (element may be collapsed or off-screen)", box.Width, box.Height),
 		}
 	}
 
-	// 6. Create clip from bounding box
+	// 7. Calculate padding (individual overrides take precedence)
+	padTop := opts.SelectorPadding
+	padRight := opts.SelectorPadding
+	padBottom := opts.SelectorPadding
+	padLeft := opts.SelectorPadding
+
+	if opts.SelectorPaddingTop != 0 {
+		padTop = opts.SelectorPaddingTop
+	}
+	if opts.SelectorPaddingRight != 0 {
+		padRight = opts.SelectorPaddingRight
+	}
+	if opts.SelectorPaddingBottom != 0 {
+		padBottom = opts.SelectorPaddingBottom
+	}
+	if opts.SelectorPaddingLeft != 0 {
+		padLeft = opts.SelectorPaddingLeft
+	}
+
+	// 8. Create clip from bounding box with padding
 	scale := opts.DeviceScaleFactor
 	if scale == 0 {
 		scale = 1.0
 	}
 
+	// Apply padding (ensure we don't go negative)
+	clipX := box.X - float64(padLeft)
+	clipY := box.Y - float64(padTop)
+	clipWidth := box.Width + float64(padLeft) + float64(padRight)
+	clipHeight := box.Height + float64(padTop) + float64(padBottom)
+
+	if clipX < 0 {
+		clipWidth += clipX // Reduce width by the negative amount
+		clipX = 0
+	}
+	if clipY < 0 {
+		clipHeight += clipY // Reduce height by the negative amount
+		clipY = 0
+	}
+
 	clip := &proto.PageViewport{
-		X:      box.X,
-		Y:      box.Y,
-		Width:  box.Width,
-		Height: box.Height,
+		X:      clipX,
+		Y:      clipY,
+		Width:  clipWidth,
+		Height: clipHeight,
 		Scale:  scale,
 	}
 
-	// 7. Capture with clip
+	// 9. Capture with clip
 	quality := opts.Quality
 	imageBytes, err := page.Screenshot(false, &proto.PageCaptureScreenshot{
 		Format:  format,
@@ -348,23 +476,64 @@ func (r *Renderer) captureSelector(page *rod.Page, opts ScreenshotOptions, forma
 		return nil, &SelectorError{
 			Selector:  opts.Selector,
 			Operation: "capture",
-			Err:       err,
+			Err:       fmt.Errorf("screenshot capture failed: %v", err),
 		}
 	}
 
 	return imageBytes, nil
 }
 
-// isValidSelector performs basic CSS selector validation
+// isXPathSelector checks if the selector is an XPath expression
+func isXPathSelector(s string) bool {
+	// XPath selectors typically start with / or //
+	return strings.HasPrefix(s, "/") || strings.HasPrefix(s, "(")
+}
+
+// isValidSelector performs comprehensive selector validation
 func isValidSelector(s string) bool {
 	if s == "" {
 		return false
 	}
-	// Check for common invalid patterns (XSS prevention)
-	if strings.ContainsAny(s, "<>{}") {
+
+	// Trim whitespace
+	s = strings.TrimSpace(s)
+	if s == "" {
 		return false
 	}
-	return true
+
+	// Check for common invalid/dangerous patterns (XSS prevention)
+	dangerousPatterns := []string{"<", ">", "{", "}", "javascript:", "data:", "vbscript:"}
+	for _, pattern := range dangerousPatterns {
+		if strings.Contains(strings.ToLower(s), pattern) {
+			return false
+		}
+	}
+
+	// Validate XPath selectors
+	if isXPathSelector(s) {
+		// Basic XPath validation - must have valid structure
+		if !strings.Contains(s, "/") && !strings.HasPrefix(s, "(") {
+			return false
+		}
+		return true
+	}
+
+	// Validate CSS selectors - must start with valid character
+	// CSS selectors start with: ., #, [, *, or letter
+	firstChar := rune(s[0])
+	validStarts := []rune{'.', '#', '[', '*', ':'}
+	for _, c := range validStarts {
+		if firstChar == c {
+			return true
+		}
+	}
+
+	// Allow alphanumeric start (tag names like div, span, etc.)
+	if (firstChar >= 'a' && firstChar <= 'z') || (firstChar >= 'A' && firstChar <= 'Z') {
+		return true
+	}
+
+	return false
 }
 
 // GeneratePDF generates a PDF from the given URL
@@ -447,15 +616,17 @@ func validateURL(rawURL string) error {
 		return fmt.Errorf("invalid scheme: %s", parsed.Scheme)
 	}
 
-	// Block localhost
+	// Block localhost (except if explicitly allowed)
 	hostname := parsed.Hostname()
-	if hostname == "localhost" || hostname == "127.0.0.1" || hostname == "::1" || hostname == "0.0.0.0" {
-		return fmt.Errorf("localhost URLs not allowed")
+	if os.Getenv("ALLOW_LOCALHOST") != "true" {
+		if hostname == "localhost" || hostname == "127.0.0.1" || hostname == "::1" || hostname == "0.0.0.0" {
+			return fmt.Errorf("localhost URLs not allowed")
+		}
 	}
 
 	// Try to resolve and check for private IPs
 	ips, err := net.LookupIP(hostname)
-	if err == nil {
+	if err == nil && os.Getenv("ALLOW_LOCALHOST") != "true" {
 		for _, ip := range ips {
 			if isPrivateIP(ip) {
 				return fmt.Errorf("private IP addresses not allowed")

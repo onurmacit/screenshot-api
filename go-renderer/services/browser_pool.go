@@ -37,16 +37,9 @@ func NewBrowserPool(size int) *BrowserPool {
 
 // createBrowser creates a new browser instance with optimized settings
 func (p *BrowserPool) createBrowser() *rod.Browser {
-	// For chromedp/headless-shell image, Chrome is at /headless-shell/headless-shell
-	// For other images, Chrome might be at different paths
 	chromePath := os.Getenv("CHROME_PATH")
-	if chromePath == "" {
-		chromePath = "/headless-shell/headless-shell"
-	}
 
-	// Launch options for headless Chrome using the bundled binary
-	u := launcher.New().
-		Bin(chromePath).
+	l := launcher.New().
 		Headless(true).
 		Set("disable-gpu").
 		Set("disable-dev-shm-usage").
@@ -62,8 +55,19 @@ func (p *BrowserPool) createBrowser() *rod.Browser {
 		Set("disable-sync").
 		Set("disable-translate").
 		Set("mute-audio").
-		Set("hide-scrollbars").
-		MustLaunch()
+		Set("hide-scrollbars")
+
+	if chromePath != "" {
+		l.Bin(chromePath)
+	} else {
+		// Try default docker path, if not exists, let rod find it
+		const defaultDockerPath = "/headless-shell/headless-shell"
+		if _, err := os.Stat(defaultDockerPath); err == nil {
+			l.Bin(defaultDockerPath)
+		}
+	}
+
+	u := l.MustLaunch()
 
 	browser := rod.New().ControlURL(u).MustConnect()
 	return browser

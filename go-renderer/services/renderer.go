@@ -194,19 +194,40 @@ func (r *Renderer) CaptureScreenshot(opts ScreenshotOptions) (*ScreenshotResult,
 		time.Sleep(time.Duration(opts.Delay) * time.Millisecond)
 	}
 
-	// Scroll into view if specified
+	// === SCROLL HANDLING ===
+	// scroll_into_view: Scroll to make a specific element visible
+	// scroll_adjust_top: Fine-tune scroll position (positive = down, negative = up)
+
 	if opts.ScrollIntoView != "" {
-		el, err := page.Timeout(10 * time.Second).Element(opts.ScrollIntoView)
+		// Find the target element to scroll to
+		scrollEl, err := page.Timeout(10 * time.Second).Element(opts.ScrollIntoView)
 		if err != nil {
-			return nil, fmt.Errorf("scroll element not found: %s - %w", opts.ScrollIntoView, err)
+			return nil, fmt.Errorf("scroll_into_view element not found: '%s' - %w", opts.ScrollIntoView, err)
 		}
-		err = el.ScrollIntoView()
-		if err != nil {
-			return nil, fmt.Errorf("failed to scroll into view: %w", err)
+
+		// Scroll element into view (centers it if possible)
+		if err := scrollEl.ScrollIntoView(); err != nil {
+			return nil, fmt.Errorf("failed to scroll '%s' into view: %w", opts.ScrollIntoView, err)
 		}
-		if opts.ScrollAdjustTop != 0 {
-			page.Mouse.Scroll(0, float64(opts.ScrollAdjustTop), 1)
-		}
+
+		// Wait for scroll animation and lazy content to load
+		time.Sleep(400 * time.Millisecond)
+	}
+
+	// Apply scroll adjustment (works with or without scroll_into_view)
+	// positive value = scroll down (content moves up)
+	// negative value = scroll up (content moves down)
+	if opts.ScrollAdjustTop != 0 {
+		// Use JavaScript for precise pixel-level scroll control
+		_, _ = page.Eval(`(offset) => window.scrollBy(0, offset)`, opts.ScrollAdjustTop)
+		// Wait for scroll to complete
+		time.Sleep(300 * time.Millisecond)
+	}
+
+	// Final stabilization wait if any scrolling occurred
+	if opts.ScrollIntoView != "" || opts.ScrollAdjustTop != 0 {
+		// Wait for any lazy-loaded images or content triggered by scroll
+		time.Sleep(300 * time.Millisecond)
 	}
 
 	// Capture screenshot
@@ -315,13 +336,18 @@ func (r *Renderer) captureSelector(page *rod.Page, opts ScreenshotOptions, forma
 	}
 
 	// 2. Check if element is visible (not display:none or visibility:hidden)
+	// Skip auto-scroll if user specified scroll_into_view (they control scroll position)
+	userControlledScroll := opts.ScrollIntoView != ""
+
 	visible, err := el.Visible()
 	if err != nil || !visible {
-		// Try to make it visible by scrolling
-		_ = el.ScrollIntoView()
-		time.Sleep(scrollDelay)
+		// Only auto-scroll if user didn't specify scroll_into_view
+		if !userControlledScroll {
+			_ = el.ScrollIntoView()
+			time.Sleep(scrollDelay)
+		}
 
-		// Check again
+		// Check visibility again (element might be CSS hidden, not scroll-hidden)
 		visible, _ = el.Visible()
 		if !visible {
 			return nil, 0, 0, &SelectorError{
@@ -346,10 +372,13 @@ func (r *Renderer) captureSelector(page *rod.Page, opts ScreenshotOptions, forma
 		}
 	}
 
-	// 4. Scroll element into view with centering
-	if scrollErr := el.ScrollIntoView(); scrollErr != nil {
-		// Non-fatal: element might already be visible, continue
-		_ = scrollErr
+	// 4. Scroll element into view ONLY if user didn't specify scroll_into_view
+	// When scroll_into_view is set, user controls the scroll position with adjust_top
+	if !userControlledScroll {
+		if scrollErr := el.ScrollIntoView(); scrollErr != nil {
+			// Non-fatal: element might already be visible, continue
+			_ = scrollErr
+		}
 	}
 
 	// 5. Brief delay for render stabilization (lazy images, CSS transitions)

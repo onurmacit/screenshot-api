@@ -795,7 +795,7 @@ export default function ScreenshotPlaygroundPage() {
                                     <img
                                         src={result}
                                         alt="Screenshot Preview"
-                                        className={`w-full h-full object-cover transition-opacity duration-300 ${isLoading ? 'opacity-0' : 'opacity-100'}`}
+                                        className={`max-w-full max-h-full object-contain transition-opacity duration-300 ${isLoading ? 'opacity-0' : 'opacity-100'}`}
                                         onLoad={() => setIsImageLoaded(true)}
                                     />
                                 )

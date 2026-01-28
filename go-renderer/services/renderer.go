@@ -222,13 +222,20 @@ func (r *Renderer) CaptureScreenshot(opts ScreenshotOptions) (*ScreenshotResult,
 		format = proto.PageCaptureScreenshotFormatJpeg
 	}
 
+	// Track actual captured dimensions (may differ from viewport for selector captures)
+	capturedWidth := opts.Width
+	capturedHeight := opts.Height
+
 	if opts.Selector != "" {
 		// Enhanced selector capture with bounding box clip
 		var err error
-		imageBytes, err = r.captureSelector(page, opts, format)
+		var w, h int
+		imageBytes, w, h, err = r.captureSelector(page, opts, format)
 		if err != nil {
 			return nil, err
 		}
+		capturedWidth = w
+		capturedHeight = h
 	} else if opts.FullPage {
 		// Full page screenshot
 		imageBytes, _ = page.Screenshot(true, &proto.PageCaptureScreenshot{
@@ -248,17 +255,18 @@ func (r *Renderer) CaptureScreenshot(opts ScreenshotOptions) (*ScreenshotResult,
 
 	return &ScreenshotResult{
 		ImageBytes:       imageBytes,
-		Width:            opts.Width,
-		Height:           opts.Height,
+		Width:            capturedWidth,
+		Height:           capturedHeight,
 		ProcessingTimeMs: processingTime,
 	}, nil
 }
 
 // captureSelector captures a specific element with enhanced logic
-func (r *Renderer) captureSelector(page *rod.Page, opts ScreenshotOptions, format proto.PageCaptureScreenshotFormat) ([]byte, error) {
+// Returns: imageBytes, width, height, error
+func (r *Renderer) captureSelector(page *rod.Page, opts ScreenshotOptions, format proto.PageCaptureScreenshotFormat) ([]byte, int, int, error) {
 	// Validate selector syntax
 	if !isValidSelector(opts.Selector) {
-		return nil, &SelectorError{
+		return nil, 0, 0, &SelectorError{
 			Selector:  opts.Selector,
 			Operation: "validate",
 			Err:       ErrInvalidSelector,
@@ -294,7 +302,7 @@ func (r *Renderer) captureSelector(page *rod.Page, opts ScreenshotOptions, forma
 
 		// On last attempt, return error
 		if attempt == maxRetries {
-			return nil, &SelectorError{
+			return nil, 0, 0, &SelectorError{
 				Selector:  opts.Selector,
 				Operation: "find",
 				Err:       fmt.Errorf("%w: element not found after %d attempts - %v", ErrSelectorNotFound, maxRetries+1, err),
@@ -316,7 +324,7 @@ func (r *Renderer) captureSelector(page *rod.Page, opts ScreenshotOptions, forma
 		// Check again
 		visible, _ = el.Visible()
 		if !visible {
-			return nil, &SelectorError{
+			return nil, 0, 0, &SelectorError{
 				Selector:  opts.Selector,
 				Operation: "visibility",
 				Err:       fmt.Errorf("%w: element exists but is not visible (display:none or visibility:hidden)", ErrSelectorNotVisible),
@@ -330,7 +338,7 @@ func (r *Renderer) captureSelector(page *rod.Page, opts ScreenshotOptions, forma
 		// Fallback to WaitVisible
 		err = el.WaitVisible()
 		if err != nil {
-			return nil, &SelectorError{
+			return nil, 0, 0, &SelectorError{
 				Selector:  opts.Selector,
 				Operation: "wait",
 				Err:       fmt.Errorf("%w: element unstable - %v", ErrSelectorNotVisible, err),
@@ -350,7 +358,7 @@ func (r *Renderer) captureSelector(page *rod.Page, opts ScreenshotOptions, forma
 	// 6. Get bounding box for precise clip
 	shape, err := el.Shape()
 	if err != nil {
-		return nil, &SelectorError{
+		return nil, 0, 0, &SelectorError{
 			Selector:  opts.Selector,
 			Operation: "bounds",
 			Err:       fmt.Errorf("failed to get element bounds: %v", err),
@@ -361,7 +369,7 @@ func (r *Renderer) captureSelector(page *rod.Page, opts ScreenshotOptions, forma
 
 	// Ensure valid dimensions
 	if box.Width <= 0 || box.Height <= 0 {
-		return nil, &SelectorError{
+		return nil, 0, 0, &SelectorError{
 			Selector:  opts.Selector,
 			Operation: "bounds",
 			Err:       fmt.Errorf("element has invalid dimensions: %.0fx%.0f (element may be collapsed or off-screen)", box.Width, box.Height),
@@ -391,14 +399,15 @@ func (r *Renderer) captureSelector(page *rod.Page, opts ScreenshotOptions, forma
 		CaptureBeyondViewport: true,
 	})
 	if err != nil {
-		return nil, &SelectorError{
+		return nil, 0, 0, &SelectorError{
 			Selector:  opts.Selector,
 			Operation: "capture",
 			Err:       fmt.Errorf("screenshot capture failed: %v", err),
 		}
 	}
 
-	return imageBytes, nil
+	// Return actual captured dimensions
+	return imageBytes, int(box.Width), int(box.Height), nil
 }
 
 // isXPathSelector checks if the selector is an XPath expression

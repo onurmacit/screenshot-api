@@ -382,12 +382,13 @@ func (r *Renderer) captureSelector(page *rod.Page, opts ScreenshotOptions, forma
 		Scale:  scale,
 	}
 
-	// 8. Capture with clip
+	// 8. Capture with clip (CaptureBeyondViewport is essential for elements outside viewport like footer)
 	quality := opts.Quality
 	imageBytes, err := page.Screenshot(false, &proto.PageCaptureScreenshot{
-		Format:  format,
-		Quality: &quality,
-		Clip:    clip,
+		Format:                format,
+		Quality:               &quality,
+		Clip:                  clip,
+		CaptureBeyondViewport: true,
 	})
 	if err != nil {
 		return nil, &SelectorError{

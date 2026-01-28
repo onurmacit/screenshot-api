@@ -28,7 +28,6 @@ export default function ScreenshotPlaygroundPage() {
     const [jsonResult, setJsonResult] = useState<string | null>(null);
 
     // === FORCE SCROLL TOGGLE (UI HELPER) ===
-    const [forceScroll, setForceScroll] = useState(false);
 
     // === VIEWPORT & DISPLAY ===
     const [format, setFormat] = useState("png");
@@ -267,12 +266,8 @@ export default function ScreenshotPlaygroundPage() {
 
             // Essentials (Selector & Scroll)
             if (selector.trim()) requestBody.selector = selector.trim();
-
-            // Only send scroll options if forceScroll is enabled
-            if (forceScroll) {
-                if (scrollIntoView.trim()) requestBody.scroll_into_view = scrollIntoView.trim();
-                if (scrollAdjustTop !== 0) requestBody.scroll_adjust_top = scrollAdjustTop;
-            }
+            if (scrollIntoView.trim()) requestBody.scroll_into_view = scrollIntoView.trim();
+            if (scrollAdjustTop !== 0) requestBody.scroll_adjust_top = scrollAdjustTop;
 
             // Viewport
             if (deviceScale !== 1) requestBody.device_scale = deviceScale;
@@ -401,11 +396,8 @@ export default function ScreenshotPlaygroundPage() {
         // POST REQUEST CURL
         let extras = "";
         if (selector.trim()) extras += `,\n    "selector": "${selector.trim()}"`;
-
-        if (forceScroll) {
-            if (scrollIntoView.trim()) extras += `,\n    "scroll_into_view": "${scrollIntoView.trim()}"`;
-            if (scrollAdjustTop !== 0) extras += `,\n    "scroll_adjust_top": ${scrollAdjustTop}`;
-        }
+        if (scrollIntoView.trim()) extras += `,\n    "scroll_into_view": "${scrollIntoView.trim()}"`;
+        if (scrollAdjustTop !== 0) extras += `,\n    "scroll_adjust_top": ${scrollAdjustTop}`;
 
         if (blockAds) extras += `,\n    "block_ads": true`;
         if (blockCookieBanners) extras += `,\n    "block_cookie_banners": true`;
@@ -450,11 +442,8 @@ export default function ScreenshotPlaygroundPage() {
         else params.markdown = markdownContent;
 
         if (selector.trim()) params.selector = selector;
-
-        if (forceScroll) {
-            if (scrollIntoView.trim()) params.scroll_into_view = scrollIntoView;
-            if (scrollAdjustTop !== 0) params.scroll_adjust_top = scrollAdjustTop;
-        }
+        if (scrollIntoView.trim()) params.scroll_into_view = scrollIntoView;
+        if (scrollAdjustTop !== 0) params.scroll_adjust_top = scrollAdjustTop;
 
         if (blockAds) params.block_ads = true;
         if (blockCookieBanners) params.block_cookie_banners = true;
@@ -567,27 +556,19 @@ export default function ScreenshotPlaygroundPage() {
                                         <p className="text-xs text-muted-foreground">A selector to take screenshot of.</p>
                                     </div>
 
-                                    {/* Toggle: Scroll the element into view (UI Helper) */}
-                                    <div className="flex items-center gap-2 mt-2">
-                                        <Switch id="force-scroll" checked={forceScroll} onCheckedChange={setForceScroll} />
-                                        <Label htmlFor="force-scroll" className="text-sm font-normal text-gray-700">Scroll the element into view before rendering.</Label>
-                                    </div>
-
-                                    {/* Scroll Inputs Grid - CONDITIONALLY RENDERED */}
-                                    {forceScroll && (
-                                        <div className="grid grid-cols-2 gap-4 animate-in fade-in slide-in-from-top-2 duration-300">
-                                            <div className="space-y-2">
-                                                <Label className="font-semibold text-gray-700">Scroll into view</Label>
-                                                <Input placeholder="" value={scrollIntoView} onChange={(e) => setScrollIntoView(e.target.value)} />
-                                                <p className="text-xs text-muted-foreground">Selector to scroll into view.</p>
-                                            </div>
-                                            <div className="space-y-2">
-                                                <Label className="font-semibold text-gray-700">Adjust top</Label>
-                                                <Input type="number" value={scrollAdjustTop} onChange={(e) => setScrollAdjustTop(Number(e.target.value))} />
-                                                <p className="text-xs text-muted-foreground">Once reached the selector, scroll by this amount of pixels.</p>
-                                            </div>
+                                    {/* Scroll Options - Always visible */}
+                                    <div className="grid grid-cols-2 gap-4 mt-2">
+                                        <div className="space-y-2">
+                                            <Label className="font-semibold text-gray-700">Scroll into view</Label>
+                                            <Input placeholder="footer, #section" value={scrollIntoView} onChange={(e) => setScrollIntoView(e.target.value)} />
+                                            <p className="text-xs text-muted-foreground">Selector to scroll into view.</p>
                                         </div>
-                                    )}
+                                        <div className="space-y-2">
+                                            <Label className="font-semibold text-gray-700">Adjust top</Label>
+                                            <Input type="number" placeholder="0" value={scrollAdjustTop} onChange={(e) => setScrollAdjustTop(Number(e.target.value))} />
+                                            <p className="text-xs text-muted-foreground">Scroll by this amount of pixels (negative = up).</p>
+                                        </div>
+                                    </div>
 
                                     {/* Capture Beyond Viewport & GPU */}
                                     <div className="space-y-3 pt-2">

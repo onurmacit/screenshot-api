@@ -188,6 +188,16 @@ func (r *Renderer) CaptureScreenshot(opts ScreenshotOptions) (*ScreenshotResult,
 	} else if opts.URL != "" {
 		page.Timeout(time.Duration(opts.Timeout) * time.Millisecond).MustNavigate(opts.URL)
 		page.MustWaitLoad()
+
+		// For scroll operations, wait for page to fully stabilize
+		// Dynamic sites like Stripe need extra time for JS to render content
+		if opts.ScrollIntoView != "" || opts.ScrollAdjustTop != 0 {
+			// Wait for network to be idle (no pending requests for 500ms)
+			_ = page.WaitRequestIdle(500*time.Millisecond, nil, nil, nil)
+			// Additional stabilization time for lazy-loaded content
+			time.Sleep(1000 * time.Millisecond)
+			log.Printf("[SCROLL] Page stabilized, proceeding with scroll")
+		}
 	}
 
 	// Wait for delay if specified
@@ -274,21 +284,21 @@ func (r *Renderer) CaptureScreenshot(opts ScreenshotOptions) (*ScreenshotResult,
 		log.Printf("[SCROLL] scroll_adjust_top requested: offset=%d", opts.ScrollAdjustTop)
 
 		// Use JavaScript for precise pixel-level scroll control
+		// Only use scrollTo once (not both scrollTo and scrollBy)
 		result, _ := page.Eval(`(offset) => {
 			const before = window.scrollY;
+			const target = Math.max(0, before + offset); // Prevent negative scroll
 			window.scrollTo({
-				top: window.scrollY + offset,
+				top: target,
 				behavior: 'instant'
 			});
-			// Also try scrollBy as backup
-			window.scrollBy(0, offset);
-			return { before: before, after: window.scrollY, offset: offset };
+			return { before: before, target: target, after: window.scrollY, offset: offset };
 		}`, opts.ScrollAdjustTop)
 
 		if result != nil {
 			rm := result.Value.Map()
-			log.Printf("[SCROLL] Adjust result: before=%.0f, after=%.0f, offset=%.0f",
-				rm["before"].Num(), rm["after"].Num(), rm["offset"].Num())
+			log.Printf("[SCROLL] Adjust result: before=%.0f, target=%.0f, after=%.0f, offset=%.0f",
+				rm["before"].Num(), rm["target"].Num(), rm["after"].Num(), rm["offset"].Num())
 		}
 
 		// Wait for scroll to complete

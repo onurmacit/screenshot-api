@@ -53,6 +53,7 @@ export default function ScreenshotPlaygroundPage() {
     const [delay, setDelay] = useState(0);
     const [timeout, setTimeout] = useState(30000);
     const [userAgent, setUserAgent] = useState("");
+    const [refreshCache, setRefreshCache] = useState(false);
 
     // === STATE ===
     const [apiKey, setApiKey] = useState("");
@@ -119,7 +120,7 @@ export default function ScreenshotPlaygroundPage() {
     const blockingCount = [blockAds, blockCookieBanners, blockTrackers, blockChatWidgets].filter(Boolean).length;
     // Scroll options moved to Essentials, so Full Page section count is just fullPage + captureBeyondViewport (if changed from default)
     const fullPageCount = [fullPage, !captureBeyondViewport].filter(Boolean).length;
-    const advancedCount = [delay > 0, userAgent].filter(Boolean).length;
+    const advancedCount = [delay > 0, userAgent, refreshCache].filter(Boolean).length;
 
     const handleRender = async () => {
         if (!apiKey) {
@@ -287,6 +288,7 @@ export default function ScreenshotPlaygroundPage() {
             if (delay > 0) requestBody.delay = delay;
             if (timeout !== 30000) requestBody.timeout = timeout;
             if (userAgent.trim()) requestBody.user_agent = userAgent.trim();
+            if (refreshCache) requestBody.refresh = true;
 
             // For binary response, we need to get blob
             if (responseType === "binary") {
@@ -421,6 +423,7 @@ export default function ScreenshotPlaygroundPage() {
         if (delay > 0) extras += `,\n    "delay": ${delay}`;
         if (timeout !== 30000) extras += `,\n    "timeout": ${timeout}`;
         if (userAgent.trim()) extras += `,\n    "user_agent": "${userAgent.trim()}"`;
+        if (refreshCache) extras += `,\n    "refresh": true`;
 
         return `curl -X POST ${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/v1/renders/screenshot \\
   -H "X-API-Key: ${apiKey || "YOUR_API_KEY"}" \\
@@ -463,6 +466,7 @@ export default function ScreenshotPlaygroundPage() {
 
         if (darkMode) params.dark_mode = true;
         if (delay > 0) params.delay = delay;
+        if (refreshCache) params.refresh = true;
 
         return params;
     };
@@ -710,6 +714,13 @@ export default function ScreenshotPlaygroundPage() {
                                     </div>
                                 </AccordionTrigger>
                                 <AccordionContent className="space-y-4 pb-4">
+                                    <div className="flex items-center justify-between">
+                                        <div className="space-y-0.5">
+                                            <Label>Bypass Cache</Label>
+                                            <div className="text-[10px] text-muted-foreground">Force fresh render, ignore cached result</div>
+                                        </div>
+                                        <Switch checked={refreshCache} onCheckedChange={setRefreshCache} />
+                                    </div>
                                     <div className="space-y-2">
                                         <Label>Delay <span className="text-muted-foreground text-xs">(ms)</span></Label>
                                         <Input type="number" value={delay} onChange={(e) => setDelay(Number(e.target.value))} placeholder="0" />

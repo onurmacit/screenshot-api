@@ -199,27 +199,51 @@ func (r *Renderer) CaptureScreenshot(opts ScreenshotOptions) (*ScreenshotResult,
 	// scroll_adjust_top: Fine-tune scroll position (positive = down, negative = up)
 
 	if opts.ScrollIntoView != "" {
-		// Find the target element to scroll to
-		scrollEl, err := page.Timeout(10 * time.Second).Element(opts.ScrollIntoView)
+		// Use JavaScript for reliable cross-browser scrolling
+		// This is more reliable than Rod's ScrollIntoView() method
+		result, err := page.Eval(`(selector) => {
+			const el = document.querySelector(selector);
+			if (!el) {
+				return { success: false, error: 'Element not found' };
+			}
+			// Scroll element to top of viewport
+			el.scrollIntoView({ behavior: 'instant', block: 'start' });
+			// Return element position for debugging
+			const rect = el.getBoundingClientRect();
+			return { 
+				success: true, 
+				top: rect.top, 
+				scrollY: window.scrollY,
+				elementHeight: rect.height
+			};
+		}`, opts.ScrollIntoView)
+
 		if err != nil {
-			return nil, fmt.Errorf("scroll_into_view element not found: '%s' - %w", opts.ScrollIntoView, err)
+			return nil, fmt.Errorf("scroll_into_view failed: %w", err)
 		}
 
-		// Scroll element into view (centers it if possible)
-		if err := scrollEl.ScrollIntoView(); err != nil {
-			return nil, fmt.Errorf("failed to scroll '%s' into view: %w", opts.ScrollIntoView, err)
+		// Check if element was found
+		resultMap := result.Value.Map()
+		if success, ok := resultMap["success"]; !ok || !success.Bool() {
+			errMsg := "unknown error"
+			if e, ok := resultMap["error"]; ok {
+				errMsg = e.String()
+			}
+			return nil, fmt.Errorf("scroll_into_view element not found: '%s' - %s", opts.ScrollIntoView, errMsg)
 		}
 
-		// Wait for scroll animation and lazy content to load
-		time.Sleep(400 * time.Millisecond)
+		// Wait for scroll to complete and content to stabilize
+		time.Sleep(500 * time.Millisecond)
 	}
 
 	// Apply scroll adjustment (works with or without scroll_into_view)
-	// positive value = scroll down (content moves up)
+	// positive value = scroll down (content moves up)  
 	// negative value = scroll up (content moves down)
 	if opts.ScrollAdjustTop != 0 {
 		// Use JavaScript for precise pixel-level scroll control
-		_, _ = page.Eval(`(offset) => window.scrollBy(0, offset)`, opts.ScrollAdjustTop)
+		_, _ = page.Eval(`(offset) => {
+			window.scrollBy({ top: offset, behavior: 'instant' });
+		}`, opts.ScrollAdjustTop)
 		// Wait for scroll to complete
 		time.Sleep(300 * time.Millisecond)
 	}

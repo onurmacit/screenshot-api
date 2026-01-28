@@ -215,31 +215,49 @@ func (r *Renderer) CaptureScreenshot(opts ScreenshotOptions) (*ScreenshotResult,
 
 		// Use multiple scroll methods for maximum reliability
 		result, err := page.Eval(`(selector) => {
-			const el = document.querySelector(selector);
-			if (!el) {
+			// Find all matching elements and use the LAST one (usually the main footer)
+			const elements = document.querySelectorAll(selector);
+			if (elements.length === 0) {
 				return { success: false, error: 'Element not found: ' + selector };
 			}
+			
+			// Use the last matching element (for footer, this is usually the main one)
+			const el = elements[elements.length - 1];
+			
+			// Get document height for context
+			const docHeight = Math.max(
+				document.body.scrollHeight,
+				document.documentElement.scrollHeight
+			);
 			
 			// Get element's absolute position
 			const rect = el.getBoundingClientRect();
 			const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
-			const absoluteTop = rect.top + scrollTop;
+			let absoluteTop = rect.top + scrollTop;
 			
 			// Store initial scroll position
 			const initialScroll = window.scrollY;
 			
-			// Method 1: Direct window.scrollTo (most reliable)
+			// If element appears to be in wrong position (within first viewport), 
+			// it might be due to lazy loading. Scroll to bottom first to trigger loading.
+			if (absoluteTop < window.innerHeight && docHeight > window.innerHeight * 2) {
+				// Scroll to bottom to trigger lazy loading
+				window.scrollTo(0, docHeight);
+				// Brief wait (handled by Go code)
+			}
+			
+			// Re-get position after potential scroll
+			const newRect = el.getBoundingClientRect();
+			absoluteTop = newRect.top + window.pageYOffset;
+			
+			// Now scroll to element
 			window.scrollTo({
 				top: absoluteTop,
 				behavior: 'instant'
 			});
 			
-			// Method 2: Also try scrollIntoView as backup
+			// Also try scrollIntoView as backup
 			el.scrollIntoView({ behavior: 'instant', block: 'start' });
-			
-			// Force scroll position (in case CSS prevents scrolling)
-			document.documentElement.scrollTop = absoluteTop;
-			document.body.scrollTop = absoluteTop;
 			
 			return { 
 				success: true, 
@@ -247,7 +265,8 @@ func (r *Renderer) CaptureScreenshot(opts ScreenshotOptions) (*ScreenshotResult,
 				initialScroll: initialScroll,
 				finalScroll: window.scrollY,
 				viewportHeight: window.innerHeight,
-				documentHeight: document.documentElement.scrollHeight
+				documentHeight: docHeight,
+				elementsFound: elements.length
 			};
 		}`, opts.ScrollIntoView)
 
@@ -268,7 +287,9 @@ func (r *Renderer) CaptureScreenshot(opts ScreenshotOptions) (*ScreenshotResult,
 		}
 
 		// Log scroll result for debugging
-		log.Printf("[SCROLL] Result: elementTop=%.0f, initialScroll=%.0f, finalScroll=%.0f",
+		log.Printf("[SCROLL] Result: elementsFound=%.0f, docHeight=%.0f, elementTop=%.0f, initialScroll=%.0f, finalScroll=%.0f",
+			resultMap["elementsFound"].Num(),
+			resultMap["documentHeight"].Num(),
 			resultMap["elementTop"].Num(),
 			resultMap["initialScroll"].Num(),
 			resultMap["finalScroll"].Num())

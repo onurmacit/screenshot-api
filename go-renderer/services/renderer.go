@@ -3,6 +3,7 @@ package services
 import (
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"net/url"
 	"os"
@@ -199,38 +200,68 @@ func (r *Renderer) CaptureScreenshot(opts ScreenshotOptions) (*ScreenshotResult,
 	// scroll_adjust_top: Fine-tune scroll position (positive = down, negative = up)
 
 	if opts.ScrollIntoView != "" {
-		// Use JavaScript for reliable cross-browser scrolling
-		// This is more reliable than Rod's ScrollIntoView() method
+		// Log for debugging
+		log.Printf("[SCROLL] scroll_into_view requested: selector='%s'", opts.ScrollIntoView)
+
+		// Use multiple scroll methods for maximum reliability
 		result, err := page.Eval(`(selector) => {
 			const el = document.querySelector(selector);
 			if (!el) {
-				return { success: false, error: 'Element not found' };
+				return { success: false, error: 'Element not found: ' + selector };
 			}
-			// Scroll element to top of viewport
-			el.scrollIntoView({ behavior: 'instant', block: 'start' });
-			// Return element position for debugging
+			
+			// Get element's absolute position
 			const rect = el.getBoundingClientRect();
+			const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+			const absoluteTop = rect.top + scrollTop;
+			
+			// Store initial scroll position
+			const initialScroll = window.scrollY;
+			
+			// Method 1: Direct window.scrollTo (most reliable)
+			window.scrollTo({
+				top: absoluteTop,
+				behavior: 'instant'
+			});
+			
+			// Method 2: Also try scrollIntoView as backup
+			el.scrollIntoView({ behavior: 'instant', block: 'start' });
+			
+			// Force scroll position (in case CSS prevents scrolling)
+			document.documentElement.scrollTop = absoluteTop;
+			document.body.scrollTop = absoluteTop;
+			
 			return { 
 				success: true, 
-				top: rect.top, 
-				scrollY: window.scrollY,
-				elementHeight: rect.height
+				elementTop: absoluteTop,
+				initialScroll: initialScroll,
+				finalScroll: window.scrollY,
+				viewportHeight: window.innerHeight,
+				documentHeight: document.documentElement.scrollHeight
 			};
 		}`, opts.ScrollIntoView)
 
 		if err != nil {
+			log.Printf("[SCROLL] JavaScript error: %v", err)
 			return nil, fmt.Errorf("scroll_into_view failed: %w", err)
 		}
 
-		// Check if element was found
+		// Check if element was found and log result
 		resultMap := result.Value.Map()
 		if success, ok := resultMap["success"]; !ok || !success.Bool() {
 			errMsg := "unknown error"
 			if e, ok := resultMap["error"]; ok {
 				errMsg = e.String()
 			}
+			log.Printf("[SCROLL] Element not found: %s", errMsg)
 			return nil, fmt.Errorf("scroll_into_view element not found: '%s' - %s", opts.ScrollIntoView, errMsg)
 		}
+
+		// Log scroll result for debugging
+		log.Printf("[SCROLL] Result: elementTop=%.0f, initialScroll=%.0f, finalScroll=%.0f",
+			resultMap["elementTop"].Num(),
+			resultMap["initialScroll"].Num(),
+			resultMap["finalScroll"].Num())
 
 		// Wait for scroll to complete and content to stabilize
 		time.Sleep(500 * time.Millisecond)
@@ -240,10 +271,26 @@ func (r *Renderer) CaptureScreenshot(opts ScreenshotOptions) (*ScreenshotResult,
 	// positive value = scroll down (content moves up)  
 	// negative value = scroll up (content moves down)
 	if opts.ScrollAdjustTop != 0 {
+		log.Printf("[SCROLL] scroll_adjust_top requested: offset=%d", opts.ScrollAdjustTop)
+
 		// Use JavaScript for precise pixel-level scroll control
-		_, _ = page.Eval(`(offset) => {
-			window.scrollBy({ top: offset, behavior: 'instant' });
+		result, _ := page.Eval(`(offset) => {
+			const before = window.scrollY;
+			window.scrollTo({
+				top: window.scrollY + offset,
+				behavior: 'instant'
+			});
+			// Also try scrollBy as backup
+			window.scrollBy(0, offset);
+			return { before: before, after: window.scrollY, offset: offset };
 		}`, opts.ScrollAdjustTop)
+
+		if result != nil {
+			rm := result.Value.Map()
+			log.Printf("[SCROLL] Adjust result: before=%.0f, after=%.0f, offset=%.0f",
+				rm["before"].Num(), rm["after"].Num(), rm["offset"].Num())
+		}
+
 		// Wait for scroll to complete
 		time.Sleep(300 * time.Millisecond)
 	}

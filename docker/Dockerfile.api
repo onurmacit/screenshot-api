@@ -8,7 +8,7 @@
 # -----------------------------------------------------------------------------
 # Stage 1: Builder - Build wheels for faster installation
 # -----------------------------------------------------------------------------
-FROM mcr.microsoft.com/playwright/python:v1.49.1-noble AS builder
+FROM mcr.microsoft.com/playwright/python:v1.58.0-noble AS builder
 
 # Install build dependencies for psutil and other C extensions
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -31,7 +31,7 @@ RUN pip wheel --no-cache-dir --wheel-dir=/wheels -r requirements.txt
 # -----------------------------------------------------------------------------
 # Stage 2: Runtime
 # -----------------------------------------------------------------------------
-FROM mcr.microsoft.com/playwright/python:v1.49.1-noble AS runtime
+FROM mcr.microsoft.com/playwright/python:v1.58.0-noble AS runtime
 
 # Labels
 LABEL maintainer="ScreenshotBeam <support@screenshotbeam.com>" \

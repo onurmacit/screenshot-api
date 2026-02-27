@@ -299,7 +299,7 @@ func (r *Renderer) CaptureScreenshot(opts ScreenshotOptions) (*ScreenshotResult,
 	}
 
 	// Apply scroll adjustment (works with or without scroll_into_view)
-	// positive value = scroll down (content moves up)  
+	// positive value = scroll down (content moves up)
 	// negative value = scroll up (content moves down)
 	if opts.ScrollAdjustTop != 0 {
 		log.Printf("[SCROLL] scroll_adjust_top requested: offset=%d", opts.ScrollAdjustTop)
@@ -386,6 +386,12 @@ func (r *Renderer) CaptureScreenshot(opts ScreenshotOptions) (*ScreenshotResult,
 
 // captureSelector captures a specific element with enhanced logic
 // Returns: imageBytes, width, height, error
+//
+// Performance strategy:
+//   - Fast JS pre-check (~0ms) to see if element exists in DOM
+//   - If not found: progressive scroll + short JS re-checks (max ~5s total)
+//   - If found: use rod Element with short timeout for interaction
+//   - Total budget: 10 seconds max for entire selector operation
 func (r *Renderer) captureSelector(page *rod.Page, opts ScreenshotOptions, format proto.PageCaptureScreenshotFormat) ([]byte, int, int, error) {
 	// Validate selector syntax
 	if !isValidSelector(opts.Selector) {
@@ -396,48 +402,92 @@ func (r *Renderer) captureSelector(page *rod.Page, opts ScreenshotOptions, forma
 		}
 	}
 
+	// Total time budget for selector operations (prevents runaway waits)
+	selectorDeadline := time.Now().Add(10 * time.Second)
+
 	// Configuration
-	findTimeout := 15 * time.Second
 	stableTimeout := 500 * time.Millisecond
 	scrollDelay := 150 * time.Millisecond
-	maxRetries := 3
-	retryBackoff := 200 * time.Millisecond
+
+	// --- PHASE 1: Fast JavaScript pre-check (instant, no rod timeout) ---
+	// This avoids the 15s rod timeout per attempt when the element simply doesn't exist
+	log.Printf("[SELECTOR] Fast pre-check for: '%s'", opts.Selector)
+
+	exists, err := r.jsElementExists(page, opts.Selector)
+	if err != nil {
+		log.Printf("[SELECTOR] JS pre-check error: %v, falling back to rod", err)
+		// Don't fail here, fall through to rod-based lookup
+		exists = false
+	}
 
 	var el *rod.Element
-	var err error
 
-	// 1. Find element with retry logic
-	for attempt := 0; attempt <= maxRetries; attempt++ {
-		if attempt > 0 {
-			time.Sleep(retryBackoff * time.Duration(attempt))
-		}
-
-		// Determine if selector is XPath or CSS
-		if isXPathSelector(opts.Selector) {
-			el, err = page.Timeout(findTimeout).ElementX(opts.Selector)
-		} else {
-			el, err = page.Timeout(findTimeout).Element(opts.Selector)
-		}
-
-		if err == nil {
-			break
-		}
-
-		// On last attempt, return error
-		if attempt == maxRetries {
+	if exists {
+		// Element exists in DOM — grab it with a short rod timeout
+		log.Printf("[SELECTOR] Element found in DOM, acquiring rod reference")
+		el, err = r.findElementWithTimeout(page, opts.Selector, 3*time.Second)
+		if err != nil {
 			return nil, 0, 0, &SelectorError{
 				Selector:  opts.Selector,
 				Operation: "find",
-				Err:       fmt.Errorf("%w: element not found after %d attempts - %v", ErrSelectorNotFound, maxRetries+1, err),
+				Err:       fmt.Errorf("%w: element found in DOM but rod could not acquire it - %v", ErrSelectorNotFound, err),
+			}
+		}
+	} else {
+		// Element NOT in DOM — try progressive scroll to trigger lazy loading
+		log.Printf("[SELECTOR] Element not in DOM, trying scroll-and-retry")
+
+		maxScrollRetries := 2
+		scrollDistances := []float64{500, 1500} // progressive scroll
+
+		for attempt := 0; attempt < maxScrollRetries; attempt++ {
+			// Check time budget
+			if time.Now().After(selectorDeadline) {
+				break
+			}
+
+			// Scroll to trigger lazy loading
+			page.Mouse.Scroll(0, scrollDistances[attempt], 1)
+			time.Sleep(time.Duration(800+attempt*400) * time.Millisecond)
+
+			// Re-check with JS
+			exists, _ = r.jsElementExists(page, opts.Selector)
+			if exists {
+				log.Printf("[SELECTOR] Element appeared after scroll attempt %d", attempt+1)
+				break
 			}
 		}
 
-		// Scroll down to trigger lazy loading and retry
-		page.Mouse.Scroll(0, 500, 1)
-		time.Sleep(scrollDelay)
+		if !exists {
+			// Final attempt: scroll to bottom and check
+			if time.Now().Before(selectorDeadline) {
+				page.Eval(`() => window.scrollTo(0, document.body.scrollHeight)`)
+				time.Sleep(1 * time.Second)
+				exists, _ = r.jsElementExists(page, opts.Selector)
+			}
+		}
+
+		if !exists {
+			log.Printf("[SELECTOR] Element not found after all attempts: '%s'", opts.Selector)
+			return nil, 0, 0, &SelectorError{
+				Selector:  opts.Selector,
+				Operation: "find",
+				Err:       fmt.Errorf("%w: element not found in page DOM", ErrSelectorNotFound),
+			}
+		}
+
+		// Element found after scrolling — acquire with rod
+		el, err = r.findElementWithTimeout(page, opts.Selector, 3*time.Second)
+		if err != nil {
+			return nil, 0, 0, &SelectorError{
+				Selector:  opts.Selector,
+				Operation: "find",
+				Err:       fmt.Errorf("%w: element found in DOM after scrolling but rod could not acquire it - %v", ErrSelectorNotFound, err),
+			}
+		}
 	}
 
-	// 2. Check if element is visible (not display:none or visibility:hidden)
+	// --- PHASE 2: Visibility & stability checks ---
 	// Skip auto-scroll if user specified scroll_into_view (they control scroll position)
 	userControlledScroll := opts.ScrollIntoView != ""
 
@@ -460,33 +510,27 @@ func (r *Renderer) captureSelector(page *rod.Page, opts ScreenshotOptions, forma
 		}
 	}
 
-	// 3. Wait for element to be stable (handles animations)
-	err = el.WaitStable(stableTimeout)
-	if err != nil {
-		// Fallback to WaitVisible
-		err = el.WaitVisible()
+	// Wait for element to be stable (handles animations) — only if time budget allows
+	if time.Now().Before(selectorDeadline) {
+		err = el.WaitStable(stableTimeout)
 		if err != nil {
-			return nil, 0, 0, &SelectorError{
-				Selector:  opts.Selector,
-				Operation: "wait",
-				Err:       fmt.Errorf("%w: element unstable - %v", ErrSelectorNotVisible, err),
-			}
+			// Fallback to WaitVisible with short timeout
+			_ = el.WaitVisible()
+			// Non-fatal: proceed even if unstable
 		}
 	}
 
-	// 4. Scroll element into view ONLY if user didn't specify scroll_into_view
-	// When scroll_into_view is set, user controls the scroll position with adjust_top
+	// Scroll element into view ONLY if user didn't specify scroll_into_view
 	if !userControlledScroll {
 		if scrollErr := el.ScrollIntoView(); scrollErr != nil {
-			// Non-fatal: element might already be visible, continue
 			_ = scrollErr
 		}
 	}
 
-	// 5. Brief delay for render stabilization (lazy images, CSS transitions)
+	// Brief delay for render stabilization
 	time.Sleep(scrollDelay)
 
-	// 6. Get bounding box for precise clip
+	// --- PHASE 3: Capture ---
 	shape, err := el.Shape()
 	if err != nil {
 		return nil, 0, 0, &SelectorError{
@@ -498,7 +542,6 @@ func (r *Renderer) captureSelector(page *rod.Page, opts ScreenshotOptions, forma
 
 	box := shape.Box()
 
-	// Ensure valid dimensions
 	if box.Width <= 0 || box.Height <= 0 {
 		return nil, 0, 0, &SelectorError{
 			Selector:  opts.Selector,
@@ -507,7 +550,6 @@ func (r *Renderer) captureSelector(page *rod.Page, opts ScreenshotOptions, forma
 		}
 	}
 
-	// 7. Create clip from bounding box
 	scale := opts.DeviceScaleFactor
 	if scale == 0 {
 		scale = 1.0
@@ -521,7 +563,6 @@ func (r *Renderer) captureSelector(page *rod.Page, opts ScreenshotOptions, forma
 		Scale:  scale,
 	}
 
-	// 8. Capture with clip (CaptureBeyondViewport is essential for elements outside viewport like footer)
 	quality := opts.Quality
 	imageBytes, err := page.Screenshot(false, &proto.PageCaptureScreenshot{
 		Format:                format,
@@ -537,8 +578,53 @@ func (r *Renderer) captureSelector(page *rod.Page, opts ScreenshotOptions, forma
 		}
 	}
 
-	// Return actual captured dimensions
+	elapsed := time.Since(selectorDeadline.Add(-10 * time.Second)).Milliseconds()
+	log.Printf("[SELECTOR] Capture complete: '%s' (%dx%d) in %dms", opts.Selector, int(box.Width), int(box.Height), elapsed)
+
 	return imageBytes, int(box.Width), int(box.Height), nil
+}
+
+// jsElementExists performs a fast JavaScript check to see if an element exists in the DOM.
+// This is nearly instant (~0ms) compared to rod's Element() which waits for the timeout.
+func (r *Renderer) jsElementExists(page *rod.Page, selector string) (bool, error) {
+	var jsCode string
+
+	if isXPathSelector(selector) {
+		// XPath check
+		jsCode = `(selector) => {
+			try {
+				const result = document.evaluate(selector, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null);
+				return result.singleNodeValue !== null;
+			} catch(e) {
+				return false;
+			}
+		}`
+	} else {
+		// CSS selector check
+		jsCode = `(selector) => {
+			try {
+				return document.querySelector(selector) !== null;
+			} catch(e) {
+				return false;
+			}
+		}`
+	}
+
+	result, err := page.Timeout(2*time.Second).Eval(jsCode, selector)
+	if err != nil {
+		return false, err
+	}
+
+	return result.Value.Bool(), nil
+}
+
+// findElementWithTimeout finds an element using rod with a specific timeout.
+// Since we already confirmed the element exists via JS, this should be fast.
+func (r *Renderer) findElementWithTimeout(page *rod.Page, selector string, timeout time.Duration) (*rod.Element, error) {
+	if isXPathSelector(selector) {
+		return page.Timeout(timeout).ElementX(selector)
+	}
+	return page.Timeout(timeout).Element(selector)
 }
 
 // isXPathSelector checks if the selector is an XPath expression

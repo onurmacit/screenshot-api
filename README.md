@@ -1,286 +1,228 @@
 # Screenshot API
 
 [![CI/CD](https://github.com/onurmacit/screenshot-api/actions/workflows/ci.yml/badge.svg)](https://github.com/onurmacit/screenshot-api/actions/workflows/ci.yml)
-[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![Go 1.22+](https://img.shields.io/badge/go-1.22+-00ADD8.svg)](https://go.dev/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.109+-00a393.svg)](https://fastapi.tiangolo.com/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Docker](https://img.shields.io/badge/docker-ready-blue.svg)](https://www.docker.com/)
-[![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
 
-Production-grade Screenshot and PDF rendering SaaS with multi-tenant architecture, background processing, and S3 storage.
+Production-grade Screenshot and PDF rendering SaaS with multi-tenant architecture, a high-performance Go rendering engine, and S3 storage.
 
-## 🚀 Features
+## Architecture
 
-- **Async Screenshot/PDF Rendering** - Powered by Playwright (Chromium)
-- **Multi-tier Rate Limiting** - Per user, per IP, per plan
-- **Background Job Processing** - Celery with Redis broker and retry logic
-- **S3-based Persistent Storage** - With CDN support
-- **Redis-based Caching** - For rate limiting and caching
-- **Usage Tracking & Billing** - Stripe integration
-- **Webhook Notifications** - For async job completion
-- **API Key Management** - With scopes and expiration
-- **Comprehensive Logging** - Structured JSON logging
-
-## 📋 Tech Stack
-
-| Component | Technology |
-|-----------|------------|
-| API Framework | FastAPI 0.109+ |
-| Rendering Engine | Playwright (Chromium) |
-| Database | PostgreSQL 15+ |
-| Cache & Queue | Redis 7+ |
-| Task Queue | Celery 5+ |
-| Object Storage | AWS S3 / MinIO |
-| Containerization | Docker + Docker Compose |
-| Authentication | JWT + API Keys |
-| Payments | Stripe |
-
-## 🏗️ Architecture
+The system uses a **microservice architecture** — a FastAPI orchestration layer handles auth, billing, and job management, while a dedicated **Go renderer** handles the actual browser operations for maximum performance.
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                        Load Balancer                             │
-└─────────────────────────────────────────────────────────────────┘
+│                         Load Balancer                            │
+└───────────────────────────────┬─────────────────────────────────┘
                                 │
                                 ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                     FastAPI Application                          │
-│  ┌─────────┐  ┌─────────┐  ┌─────────┐  ┌─────────┐            │
-│  │  Auth   │  │ Renders │  │  Usage  │  │ Billing │            │
-│  └─────────┘  └─────────┘  └─────────┘  └─────────┘            │
-└─────────────────────────────────────────────────────────────────┘
-         │              │              │              │
-         ▼              ▼              ▼              ▼
-┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐
-│  PostgreSQL │  │    Redis    │  │   Celery    │  │     S3      │
-│  (Database) │  │   (Cache)   │  │  (Workers)  │  │  (Storage)  │
-└─────────────┘  └─────────────┘  └─────────────┘  └─────────────┘
-                                         │
-                                         ▼
-                                ┌─────────────────┐
-                                │   Playwright    │
-                                │   (Chromium)    │
-                                └─────────────────┘
+│                    FastAPI Orchestrator                          │
+│  ┌─────────┐  ┌─────────┐  ┌─────────┐  ┌─────────┐           │
+│  │  Auth   │  │  Jobs   │  │  Usage  │  │ Billing │           │
+│  └─────────┘  └─────────┘  └─────────┘  └─────────┘           │
+└───────────────────────────────┬─────────────────────────────────┘
+                                │
+                                ▼
+┌─────────────────────────────────────────────────────────────────┐
+│               Go Renderer (Fiber + go-rod)                      │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐          │
+│  │ Browser Pool │  │ Ad Blocking  │  │SSRF Protection│          │
+│  └──────────────┘  └──────────────┘  └──────────────┘          │
+└───────────────────────────────┬─────────────────────────────────┘
+                                │
+              ┌─────────────────┼─────────────────┐
+              ▼                 ▼                  ▼
+┌─────────────────┐  ┌─────────────┐  ┌─────────────────┐
+│   PostgreSQL    │  │    Redis    │  │   S3 / MinIO    │
+│   (Database)    │  │   (Cache)   │  │   (Storage)     │
+└─────────────────┘  └─────────────┘  └─────────────────┘
 ```
 
-## 🛠️ Quick Start
+## Tech Stack
 
-### Prerequisites
+| Component | Technology | Why |
+|-----------|------------|-----|
+| Rendering Engine | **Go + go-rod** (Chrome DevTools Protocol) | ~50MB RAM idle, native concurrency, browser pool |
+| API Orchestrator | FastAPI (Python) | Async, auto-docs, Pydantic validation |
+| Database | PostgreSQL 15+ | JSONB support, async via asyncpg |
+| Cache & Queue | Redis 7+ | Rate limiting, caching, Celery broker |
+| Task Queue | Celery 5+ | Background jobs, retry logic |
+| Object Storage | AWS S3 / MinIO | Presigned URLs, CDN-ready |
+| Web Framework (Go) | Fiber v2 | Express-like, high throughput |
+| Authentication | JWT + API Keys | Scoped keys with expiration |
+| Payments | Stripe | Subscriptions, usage-based billing |
+| Containerization | Docker + Docker Compose | Multi-stage builds, health checks |
+| CI/CD | GitHub Actions | Automated tests, Docker image builds |
 
-- Python 3.11+
-- Docker & Docker Compose
-- PostgreSQL 15+
-- Redis 7+
+## Go Renderer — Performance
 
-### 1. Clone and Setup
+The rendering microservice is built in Go for maximum throughput and minimal resource usage.
 
-```bash
-# Clone the repository
-git clone https://github.com/onurmacit/screenshot-api.git
-cd screenshot-api
+**Key design decisions:**
 
-# Create virtual environment
-python -m venv .venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+- **Browser Pool** — Round-robin allocation of pre-warmed Chromium instances. Eliminates cold-start penalty (~2s saved per request).
+- **go-rod over Playwright** — Direct Chrome DevTools Protocol communication. ~50MB idle RAM vs ~200MB+ for Playwright. No Node.js dependency.
+- **SSRF Protection** — URL validation with private IP blocking (RFC 1918). DNS resolution check before navigation.
+- **Ad/Tracker Blocking** — Request interception at network level. Blocks 30+ ad networks, analytics providers, and chat widgets.
+- **Cookie Banner Blocking** — Domain-level blocking for 15+ consent management platforms.
+- **Smart Element Capture** — Fast JS pre-check (~0ms) before Rod timeout. Progressive scroll for lazy-loaded elements. 10s time budget with early exit.
 
-# Install dependencies
-pip install -r requirements-dev.txt
+### Rendering Capabilities
 
-# Install Playwright browsers
-playwright install chromium
-```
+- Screenshot: PNG, JPEG, WebP with configurable quality
+- PDF: A4, A3, Letter, Legal, Tabloid with custom margins
+- Full-page capture with auto-scroll
+- Element selector (CSS + XPath) with visibility/stability checks
+- Scroll-into-view with pixel-level adjustment
+- Custom viewport, device scale factor, user agent
+- Dark mode emulation
+- HTML/Markdown direct rendering (no URL required)
 
-### 2. Configure Environment
-
-```bash
-# Copy environment template
-cp .env.example .env
-
-# Edit .env with your settings
-nano .env
-```
-
-### 3. Start with Docker Compose
-
-```bash
-# Start all services
-docker-compose -f docker/docker-compose.yml up -d
-
-# View logs
-docker-compose -f docker/docker-compose.yml logs -f api
-
-# Check health
-curl http://localhost:8000/api/v1/health
-```
-
-### 4. Run Database Migrations
-
-```bash
-# Apply migrations
-alembic upgrade head
-
-# Seed initial data (plans)
-python scripts/seed_db.py
-```
-
-### 5. Access the API
-
-- API Documentation: http://localhost:8000/docs
-- ReDoc: http://localhost:8000/redoc
-- Health Check: http://localhost:8000/api/v1/health
-
-## 📖 API Usage
-
-### Authentication
-
-```bash
-# Register a new user
-curl -X POST http://localhost:8000/api/v1/auth/register \
-  -H "Content-Type: application/json" \
-  -d '{"email": "user@example.com", "password": "SecurePass123!"}'
-
-# Login
-curl -X POST http://localhost:8000/api/v1/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"email": "user@example.com", "password": "SecurePass123!"}'
-
-# Create API Key
-curl -X POST http://localhost:8000/api/v1/auth/api-keys \
-  -H "Authorization: Bearer <jwt_token>" \
-  -H "Content-Type: application/json" \
-  -d '{"name": "My API Key", "scopes": ["renders:read", "renders:write"]}'
-```
+## API Endpoints
 
 ### Screenshot
-
 ```bash
-# Sync Screenshot
-curl -X POST http://localhost:8000/api/v1/render/screenshot \
-  -H "X-API-Key: sk_live_your_api_key" \
+curl -X POST http://localhost:8001/render/screenshot \
   -H "Content-Type: application/json" \
   -d '{
-    "url": "https://example.com",
+    "url": "https://stripe.com",
     "width": 1920,
     "height": 1080,
-    "format": "png"
-  }'
-
-# Async Screenshot with Webhook
-curl -X POST http://localhost:8000/api/v1/render/screenshot \
-  -H "X-API-Key: sk_live_your_api_key" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "url": "https://example.com",
-    "async": true,
-    "webhook_url": "https://your-server.com/webhook"
+    "format": "jpeg",
+    "quality": 85,
+    "full_page": false,
+    "block_ads": true,
+    "block_cookie_banners": true,
+    "selector": ".pricing-table",
+    "scroll_into_view": "footer"
   }'
 ```
 
 ### PDF Generation
-
 ```bash
-curl -X POST http://localhost:8000/api/v1/render/pdf \
-  -H "X-API-Key: sk_live_your_api_key" \
+curl -X POST http://localhost:8001/render/pdf \
   -H "Content-Type: application/json" \
   -d '{
     "url": "https://example.com",
     "format": "A4",
+    "landscape": false,
     "print_background": true
   }'
 ```
 
-## 🔒 Rate Limits by Plan
-
-| Plan | Per Minute | Per Hour | Per Day | Per Month |
-|------|------------|----------|---------|-----------|
-| Free | 10 | 100 | 200 | 100 |
-| Starter | 30 | 500 | 2,000 | 5,000 |
-| Pro | 100 | 2,000 | 10,000 | 25,000 |
-| Business | 500 | 10,000 | 50,000 | 100,000 |
-
-## 🧪 Testing
-
+### Health Check
 ```bash
-# Run all tests
-pytest
-
-# Run unit tests only
-pytest tests/unit -v
-
-# Run integration tests
-pytest tests/integration -v
-
-# Run with coverage
-pytest --cov=app --cov-report=html
+curl http://localhost:8001/health
+# {"status": "healthy", "service": "go-renderer"}
 ```
 
-## 🐳 Docker Commands
+## Rate Limits by Plan
+
+| Plan | Price | Per Minute | Per Month | Features |
+|------|-------|------------|-----------|----------|
+| Free | $0 | 10 | 100 | Basic screenshots |
+| Starter | $19 | 100 | 5,000 | Full page, webhooks |
+| Pro | $49 | 500 | 25,000 | Custom CSS, element selector |
+| Business | $149 | 2,000 | 100,000 | All Pro + SLA |
+
+## Quick Start
+
+### Go Renderer (standalone)
 
 ```bash
-# Build and start
-docker-compose up --build -d
-
-# Stop all services
-docker-compose down
-
-# View logs
-docker-compose logs -f
-
-# Scale workers
-docker-compose up -d --scale worker=5
-
-# Execute command in container
-docker-compose exec api python scripts/seed_db.py
+cd go-renderer
+go mod download
+go run .
+# Server starts on :8001
 ```
 
-## 📊 Monitoring
+### Full Stack (Docker Compose)
 
-- **Prometheus Metrics**: http://localhost:8000/metrics
-- **Flower (Celery)**: http://localhost:5555
-- **Health Checks**: http://localhost:8000/api/v1/health
+```bash
+docker-compose up -d
+# API: http://localhost:8000
+# Go Renderer: http://localhost:8001
+# PostgreSQL: localhost:5433
+# Redis: localhost:6379
+```
 
-## 📁 Project Structure
+### Production
+
+```bash
+docker-compose -f docker-compose.production.yml up -d
+```
+
+## Project Structure
 
 ```
 screenshot-api/
-├── app/
-│   ├── api/
-│   │   ├── routes/          # API endpoints
-│   │   └── dependencies.py  # FastAPI dependencies
-│   ├── core/                # Core configurations
-│   ├── models/              # SQLAlchemy models
-│   ├── schemas/             # Pydantic schemas
-│   ├── services/            # Business logic
-│   ├── workers/             # Celery tasks
-│   ├── middleware/          # Custom middleware
-│   ├── utils/               # Utilities
-│   └── main.py              # Application entry
-├── alembic/                 # Database migrations
-├── tests/                   # Test suite
-├── scripts/                 # Utility scripts
-├── docker/                  # Docker files
-└── k8s/                     # Kubernetes configs
+├── go-renderer/              # High-performance Go rendering service
+│   ├── main.go               # Fiber server, routes, browser pool init
+│   ├── handlers/             # HTTP handlers (screenshot, PDF)
+│   ├── services/
+│   │   ├── browser_pool.go   # Round-robin browser instance management
+│   │   ├── renderer.go       # Core rendering logic, SSRF protection
+│   │   ├── screenshot.go     # Screenshot-specific logic
+│   │   └── errors.go         # Typed error handling
+│   ├── config/               # Environment configuration
+│   └── Dockerfile            # Multi-stage Go build
+├── api-go/                   # Go API rewrite (in progress)
+│   ├── cmd/                  # Entry points
+│   ├── internal/             # Private application code
+│   ├── pkg/                  # Shared packages
+│   └── migrations/           # Database migrations
+├── app/                      # FastAPI orchestrator
+│   ├── api/routes/           # Auth, renders, billing, webhooks
+│   ├── core/                 # Config, database, Redis, S3
+│   ├── models/               # SQLAlchemy models
+│   ├── schemas/              # Pydantic request/response schemas
+│   ├── services/             # Business logic
+│   ├── workers/              # Celery tasks
+│   └── middleware/           # Rate limiting, audit logging
+├── dashboard/                # Admin dashboard
+├── monitoring/               # Prometheus, Grafana configs
+├── docker/                   # Dockerfiles
+├── k8s/                      # Kubernetes deployment configs
+├── tests/                    # Test suite (97+ unit, 10 stress)
+├── scripts/                  # Utility scripts
+└── docs/                     # API documentation
 ```
 
-## 🤝 Contributing
+## Testing
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+```bash
+# Unit tests (97 passing)
+pytest tests/unit -v
 
-## 📄 License
+# Stress tests (10 passing)
+pytest tests/stress -v
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+# Go renderer tests
+cd go-renderer && go test ./...
+```
 
-## 📞 Support
+## Environment Variables
 
-- **Issues**: [GitHub Issues](https://github.com/onurmacit/screenshot-api/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/onurmacit/screenshot-api/discussions)
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `PORT` | 8001 | Go renderer port |
+| `BROWSER_POOL_SIZE` | 2 | Concurrent browser instances |
+| `DATABASE_URL` | — | PostgreSQL connection string |
+| `REDIS_URL` | redis://localhost:6379/0 | Redis connection |
+| `STRIPE_SECRET_KEY` | — | Stripe API key |
+| `STORAGE_BUCKET` | — | S3 bucket name |
+| `STORAGE_ENDPOINT` | — | S3-compatible endpoint |
 
----
+## Deployment
 
-Made with ❤️ using FastAPI, Playwright, and Celery
+- **Backend API**: Docker → DigitalOcean / AWS / GCP
+- **Landing Page**: Vercel ([live](https://screenshot-web-five.vercel.app/))
+- **Docker Images**: GitHub Container Registry (`ghcr.io/onurmacit/screenshot-api`)
+- **CI/CD**: GitHub Actions (test → build → push)
 
-# Auto-deploy test 1768000664
+## License
+
+MIT License — see [LICENSE](LICENSE) for details.
